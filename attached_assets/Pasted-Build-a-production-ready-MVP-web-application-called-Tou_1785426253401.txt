@@ -1,0 +1,789 @@
+Build a production-ready MVP web application called **TourOps AI** for travel agencies.
+
+The application should help travel agency employees create tour packages, calculate costs, prepare customer quotations, and track operational tasks.
+
+## Main Goal
+
+Create a modern AI-powered travel planning and operations platform that converts customer requests into structured tour proposals.
+
+The primary users are:
+
+* Travel agency product planners
+* Tour operation specialists
+* Sales representatives
+* Incoming tourism agencies
+* Small and medium-sized travel agencies
+
+The first version should focus on destinations around Kuşadası, İzmir, Efes, Şirince, Pamukkale, Didim, Priene, Milet, Bodrum, and nearby areas, but the architecture must support adding any destination later.
+
+## Technology Stack
+
+Use:
+
+* Next.js with TypeScript
+* App Router
+* Tailwind CSS
+* shadcn/ui
+* Supabase for database and authentication
+* OpenAI API or Gemini API for AI-generated content
+* React Hook Form
+* Zod validation
+* Recharts for dashboard charts
+* React PDF or another reliable PDF library
+* Mapbox or Google Maps for route visualization
+
+Create a clean project structure and reusable components.
+
+## Design Requirements
+
+Create a professional travel technology dashboard.
+
+Visual style:
+
+* Modern
+* Minimal
+* Premium
+* Responsive
+* Mobile-friendly
+* Easy to use
+* Suitable for a real travel agency
+
+Use:
+
+* A left sidebar on desktop
+* A mobile navigation drawer
+* Dashboard cards
+* Clear status badges
+* Structured forms
+* Tables with search and filters
+* Loading states
+* Empty states
+* Error messages
+* Toast notifications
+
+The interface language should initially be Turkish.
+
+Prepare the application for future English language support.
+
+## Authentication
+
+Create:
+
+* Login page
+* Register page
+* Forgot password page
+* Logout functionality
+* Protected dashboard routes
+
+Use Supabase Auth.
+
+Create two user roles:
+
+* Admin
+* Operations Staff
+
+Admin can manage all records.
+
+Operations Staff can create and update tours, quotations, customers, suppliers, and tasks.
+
+## Main Dashboard
+
+Create a dashboard with the following metrics:
+
+* Active tours
+* Pending quotations
+* Upcoming departures
+* Unconfirmed reservations
+* Total estimated revenue
+* Average profit margin
+* Tasks due today
+
+Add charts for:
+
+* Monthly quotation count
+* Monthly sales value
+* Tour status distribution
+* Most requested destinations
+
+Add a section called “Dikkat Gerektiren İşlemler”.
+
+Show warnings such as:
+
+* Hotel reservation not confirmed
+* Transfer supplier not assigned
+* Guide not assigned
+* Customer payment pending
+* Voucher not sent
+* Tour departure is within 24 hours
+
+## Customer Request Analyzer
+
+Create a page called “Yeni Talep”.
+
+The user should be able to paste a customer message, for example:
+
+“Haziran ayında 6 kişilik aile olarak Kuşadası’na gelmek istiyoruz. Efes ve Pamukkale’yi görmek istiyoruz. Dört yıldızlı otel ve havaalanı transferi istiyoruz.”
+
+Use AI to extract:
+
+* Customer name
+* Travel dates
+* Number of adults
+* Number of children
+* Destination
+* Tour duration
+* Budget
+* Hotel category
+* Transfer requirement
+* Guide language
+* Requested activities
+* Meal preferences
+* Special requests
+* Customer type
+* Missing information
+
+Display the extracted information in an editable structured form.
+
+The AI must never silently invent critical booking details.
+
+If important information is missing, mark it clearly as “Eksik Bilgi”.
+
+Allow the user to approve and continue.
+
+## Tour Package Builder
+
+Create a tour package creation wizard.
+
+Steps:
+
+1. Basic Information
+2. Customer Profile
+3. Destinations
+4. Daily Itinerary
+5. Accommodation
+6. Transportation
+7. Guide and Activities
+8. Cost Calculation
+9. Selling Price
+10. Proposal Preview
+
+Fields should include:
+
+* Tour name
+* Tour code
+* Start date
+* End date
+* Number of nights
+* Number of travelers
+* Adults
+* Children
+* Main destination
+* Tour type
+* Customer nationality
+* Customer language
+* Currency
+* Status
+
+Tour types:
+
+* Cultural tour
+* Private tour
+* Group tour
+* Cruise excursion
+* Family tour
+* Luxury tour
+* Religious tourism
+* Nature tour
+* Gastronomy tour
+* Custom tour
+
+## AI Itinerary Generator
+
+Generate a day-by-day itinerary using AI.
+
+The user should enter:
+
+* Destination
+* Dates
+* Group size
+* Customer profile
+* Interests
+* Budget level
+* Hotel type
+* Transportation type
+* Arrival time
+* Departure time
+* Special limitations
+
+The AI should generate:
+
+* Day title
+* Daily summary
+* Start time
+* End time
+* Locations
+* Activities
+* Meal plan
+* Transportation plan
+* Estimated driving time
+* Estimated activity duration
+* Accessibility notes
+* Operational notes
+
+The itinerary must be editable.
+
+Add buttons:
+
+* Regenerate
+* Make more premium
+* Make more affordable
+* Make less intensive
+* Make family-friendly
+* Make suitable for seniors
+* Translate to English
+* Translate to German
+* Translate to Spanish
+
+## Cruise Passenger Planning
+
+Add a special cruise excursion mode.
+
+Fields:
+
+* Ship name
+* Port
+* Ship arrival time
+* Ship departure time
+* Required return time
+* Passenger count
+
+Calculate a safe port return time.
+
+Add a configurable safety buffer.
+
+Show a warning when the itinerary creates a risk of missing the ship departure.
+
+Example warning:
+
+“Bu programda limana dönüş için yeterli güvenlik payı bulunmuyor.”
+
+## Route and Map
+
+Show tour locations on an interactive map.
+
+Display:
+
+* Tour route
+* Stops
+* Hotels
+* Restaurants
+* Airports
+* Ports
+* Activities
+
+Allow the user to reorder stops.
+
+Show estimated:
+
+* Distance
+* Driving duration
+* Total route duration
+
+If an external maps API is unavailable, create a mock route mode and clearly label it.
+
+## Supplier Management
+
+Create a supplier management module.
+
+Supplier categories:
+
+* Hotel
+* Transfer company
+* Tour guide
+* Restaurant
+* Activity provider
+* Airline
+* Vehicle rental
+* Insurance provider
+* Other
+
+Supplier fields:
+
+* Company name
+* Contact person
+* Phone
+* Email
+* Website
+* City
+* Service category
+* Currency
+* Payment terms
+* Notes
+* Rating
+* Active status
+
+Allow users to search and filter suppliers.
+
+## Cost Calculation
+
+Create a dynamic cost calculation module.
+
+Cost categories:
+
+* Hotel
+* Transportation
+* Guide
+* Activity entrance fees
+* Restaurant
+* Flights
+* Insurance
+* Visa
+* Service fees
+* Taxes
+* Commission
+* Other costs
+
+Each cost line should include:
+
+* Description
+* Supplier
+* Quantity
+* Unit cost
+* Currency
+* Tax
+* Total cost
+* Cost type
+* Per person or total
+* Confirmed or estimated
+
+Automatically calculate:
+
+* Total cost
+* Cost per person
+* Fixed costs
+* Variable costs
+* Tax amount
+* Agency commission
+* Profit amount
+* Profit margin
+* Suggested selling price
+* Break-even price
+
+Allow the user to enter a target profit margin.
+
+Example:
+
+Target profit margin: 20%
+
+The system should calculate the recommended selling price.
+
+Show a warning if the profit margin is below a configurable threshold.
+
+Example:
+
+“Bu turun tahmini kâr marjı yalnızca %6.”
+
+Support currencies:
+
+* TRY
+* EUR
+* USD
+* GBP
+
+Use a manually configurable exchange rate table.
+
+Do not depend on a live exchange-rate API for the MVP.
+
+## Quotations
+
+Create a quotation management module.
+
+Quotation fields:
+
+* Quotation number
+* Customer
+* Tour package
+* Creation date
+* Expiry date
+* Currency
+* Total price
+* Discount
+* Final price
+* Payment terms
+* Cancellation policy
+* Included services
+* Excluded services
+* Notes
+* Status
+
+Quotation statuses:
+
+* Draft
+* Sent
+* Viewed
+* Accepted
+* Rejected
+* Expired
+* Revised
+
+Add actions:
+
+* Preview
+* Duplicate
+* Edit
+* Send by email
+* Export as PDF
+* Mark as accepted
+* Convert to operation
+
+## PDF Proposal Generator
+
+Generate a professional customer quotation PDF.
+
+The PDF should include:
+
+* Agency logo
+* Agency contact information
+* Customer information
+* Tour title
+* Travel dates
+* Passenger details
+* Day-by-day itinerary
+* Hotel information
+* Included services
+* Excluded services
+* Price breakdown
+* Total price
+* Payment terms
+* Cancellation policy
+* Validity date
+* Agency representative
+* Optional map image
+
+Create a visually polished PDF suitable for sending to customers.
+
+Use placeholders for agency branding in the first version.
+
+## Operations Tracking
+
+After a quotation is accepted, convert it into an operation.
+
+Create an operation detail page with the following checklist:
+
+* Customer details confirmed
+* Passport information received
+* Hotel confirmed
+* Transfer confirmed
+* Guide confirmed
+* Restaurant confirmed
+* Activity tickets confirmed
+* Flight information confirmed
+* Customer payment received
+* Supplier payment completed
+* Voucher prepared
+* Voucher sent
+* Emergency contact created
+* Final itinerary shared
+
+Each task should have:
+
+* Status
+* Owner
+* Due date
+* Priority
+* Notes
+
+Statuses:
+
+* Not Started
+* In Progress
+* Waiting
+* Completed
+* Cancelled
+
+Priorities:
+
+* Low
+* Medium
+* High
+* Critical
+
+## Notifications
+
+Create an in-app notification center.
+
+Generate notifications for:
+
+* Upcoming tour
+* Overdue task
+* Unconfirmed reservation
+* Pending payment
+* Quotation expiry
+* Missing supplier
+* Missing guide
+* Missing transfer
+* Low profit margin
+* Cruise return-time risk
+
+## Customer Management
+
+Create a customer management module.
+
+Customer fields:
+
+* Full name
+* Company
+* Nationality
+* Language
+* Phone
+* Email
+* WhatsApp
+* Customer type
+* Travel preferences
+* Dietary restrictions
+* Accessibility requirements
+* Passport status
+* Notes
+
+Customer types:
+
+* Individual
+* Family
+* Group
+* Corporate
+* Travel agency partner
+* Cruise passenger
+
+## AI Assistant
+
+Add an AI assistant panel.
+
+It should help with:
+
+* Creating tour descriptions
+* Improving itinerary text
+* Translating content
+* Writing customer emails
+* Writing supplier emails
+* Summarizing customer requests
+* Creating operational checklists
+* Identifying missing information
+* Suggesting alternative routes
+* Suggesting cost-saving actions
+* Suggesting upsell opportunities
+
+Example AI commands:
+
+* “Bu turu daha ekonomik hale getir.”
+* “Bu programı 65 yaş üstü misafirlere uygunlaştır.”
+* “Bu teklifi İngilizceye çevir.”
+* “Otele müsaitlik soran profesyonel bir e-posta hazırla.”
+* “Bu turda eksik operasyon adımlarını bul.”
+
+Require human approval before saving AI-generated critical details.
+
+## Email Templates
+
+Create reusable email templates for:
+
+* Customer quotation
+* Hotel availability request
+* Transfer confirmation request
+* Guide availability request
+* Payment reminder
+* Booking confirmation
+* Tour reminder
+* Post-tour feedback request
+
+The system should generate editable email drafts.
+
+Do not send real emails unless SMTP or an email provider is configured.
+
+For the MVP, include a preview and copy-to-clipboard option.
+
+## Database Schema
+
+Create Supabase tables for:
+
+* profiles
+* customers
+* suppliers
+* supplier_services
+* tours
+* tour_days
+* tour_activities
+* tour_costs
+* quotations
+* quotation_items
+* operations
+* operation_tasks
+* notifications
+* exchange_rates
+* email_templates
+* agency_settings
+* audit_logs
+
+Add proper relationships, timestamps, and user ownership.
+
+Use Row Level Security.
+
+## Demo Data
+
+Add realistic demo data for:
+
+* Kuşadası
+* Efes
+* Şirince
+* Pamukkale
+* İzmir
+* Didim
+* Priene
+* Milet
+* Bodrum
+
+Include demo suppliers such as:
+
+* Hotels
+* Transfer companies
+* Guides
+* Restaurants
+* Activity providers
+
+Clearly label all data as demo data.
+
+## Agency Settings
+
+Create a settings page for:
+
+* Agency name
+* Agency logo
+* Address
+* Phone
+* Email
+* Website
+* Default currency
+* Default profit margin
+* Minimum profit warning
+* Default quotation validity
+* Cancellation policy
+* Payment terms
+* Cruise safety buffer
+* AI provider configuration
+
+Never expose API keys in the frontend.
+
+Use environment variables.
+
+## Security and Reliability
+
+Implement:
+
+* Form validation
+* Server-side authorization
+* Environment variable validation
+* Secure API routes
+* Supabase RLS
+* Error boundaries
+* Rate limiting for AI requests
+* AI response validation
+* Audit logging
+* Confirmation dialogs for destructive actions
+
+Do not store sensitive passport documents in the MVP.
+
+Only store a passport information status field such as:
+
+* Not Requested
+* Requested
+* Received
+* Verified
+
+## Required Pages
+
+Create:
+
+* /
+* /login
+* /register
+* /dashboard
+* /requests/new
+* /customers
+* /customers/[id]
+* /suppliers
+* /suppliers/[id]
+* /tours
+* /tours/new
+* /tours/[id]
+* /quotations
+* /quotations/[id]
+* /operations
+* /operations/[id]
+* /notifications
+* /settings
+
+## MVP Priority
+
+Build the application in this order:
+
+1. Authentication
+2. Dashboard layout
+3. Customer request analyzer
+4. Tour package builder
+5. AI itinerary generation
+6. Cost and profit calculator
+7. Quotation creation
+8. PDF generation
+9. Operations checklist
+10. Supplier and customer management
+11. Notifications
+12. Settings
+
+## AI Integration Rules
+
+Create a provider abstraction so OpenAI or Gemini can be selected through environment variables.
+
+The AI response must use structured JSON.
+
+Validate all AI responses with Zod.
+
+Never directly save an AI result without showing an editable preview.
+
+When no AI API key is available, use realistic mock responses so the application still works in demo mode.
+
+## Environment Variables
+
+Create an `.env.example` file containing:
+
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+AI_PROVIDER=
+OPENAI_API_KEY=
+GEMINI_API_KEY=
+NEXT_PUBLIC_MAPBOX_TOKEN=
+
+Do not include real credentials.
+
+## Final Deliverables
+
+Provide:
+
+* Fully working application
+* Responsive interface
+* Supabase SQL schema
+* Seed data
+* `.env.example`
+* Setup instructions
+* README file
+* Demo login instructions
+* Clear comments for important business logic
+* No broken routes
+* No placeholder buttons that do nothing
+* No fake success messages
+* Proper loading and error handling
+
+Start by creating the full application architecture, database schema, authentication system, dashboard shell, and demo data.
+
+Then implement the core MVP workflows end to end:
+
+Customer request → AI analysis → Tour plan → Cost calculation → Quotation → PDF → Operation checklist.
