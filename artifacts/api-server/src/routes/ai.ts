@@ -5,22 +5,20 @@ import { requireAuth, getUserId } from "../lib/auth";
 const router = Router();
 router.use(requireAuth);
 
-function getOpenAI() {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
-  // Dynamic import so the server starts fine without the package
-  return key;
-}
-
-async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const key = process.env.OPENAI_API_KEY;
+async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string> {
+  const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("No API key");
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${key}`,
+      "HTTP-Referer": "https://tourops.replit.app",
+      "X-Title": "TourOps AI",
+    },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "openai/gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -29,7 +27,7 @@ async function callOpenAI(systemPrompt: string, userPrompt: string): Promise<str
       max_tokens: 2000,
     }),
   });
-  if (!res.ok) throw new Error(`OpenAI error: ${res.status}`);
+  if (!res.ok) throw new Error(`OpenRouter error: ${res.status}`);
   const data = await res.json() as { choices: Array<{ message: { content: string } }> };
   return data.choices[0].message.content;
 }
@@ -40,7 +38,7 @@ router.post("/analyze-request", async (req, res) => {
     const { message } = req.body as { message: string };
     if (!message) { res.status(400).json({ error: "message required" }); return; }
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       // Mock response
       res.json({
         customerName: null, startDate: null, endDate: null,
@@ -60,7 +58,7 @@ Sadece JSON döndür, başka açıklama yapma.
 Şema: { customerName, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), adultCount, childCount, destination, duration (gün), budget, hotelCategory, transferRequired, guideLanguage, activities, mealPreferences, specialRequests, customerType, missingFields: string[] }
 Bulamadığın alanları null olarak bırak ve missingFields listesine ekle.`;
 
-    const raw = await callOpenAI(systemPrompt, message);
+    const raw = await callOpenRouter(systemPrompt, message);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     res.json(JSON.parse(cleaned));
   } catch (err) {
@@ -73,7 +71,7 @@ router.post("/generate-itinerary", async (req, res) => {
   try {
     const body = req.body;
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       const nights = body.nights ?? 3;
       const days = Array.from({ length: nights }, (_, i) => ({
         dayNumber: i + 1,
@@ -99,7 +97,7 @@ Verilen bilgilere göre gün gün tur programı oluştur. JSON formatında dönd
 Şema: { days: [{ dayNumber, title, summary, startTime, endTime, locations, activities, mealPlan, transportPlan, estimatedDrivingMinutes, estimatedActivityMinutes, accessibilityNotes, operationalNotes }], cruiseWarning: string | null }
 Sadece JSON döndür.`;
 
-    const raw = await callOpenAI(systemPrompt, JSON.stringify(body));
+    const raw = await callOpenRouter(systemPrompt, JSON.stringify(body));
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     res.json(JSON.parse(cleaned));
   } catch (err) {
@@ -112,7 +110,7 @@ router.post("/generate-email", async (req, res) => {
   try {
     const { templateType, context, language = "tr" } = req.body as { templateType: string; context: string; language?: string };
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       res.json({
         subject: "TourOps - Tur Teklifiniz Hazır",
         body: `Sayın Müşterimiz,\n\nTur teklifiniz hazırlanmıştır. Detaylar için lütfen bizimle iletişime geçiniz.\n\nSaygılarımızla,\nTourOps Acentesi`,
@@ -127,7 +125,7 @@ Profesyonel, sıcak ve ikna edici bir e-posta yaz.
 JSON döndür: { subject: string, body: string }
 Sadece JSON döndür.`;
 
-    const raw = await callOpenAI(systemPrompt, context);
+    const raw = await callOpenRouter(systemPrompt, context);
     const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
     res.json(JSON.parse(cleaned));
   } catch (err) {
@@ -140,15 +138,15 @@ router.post("/assist", async (req, res) => {
   try {
     const { prompt, context } = req.body as { prompt: string; context?: string };
 
-    if (!process.env.OPENAI_API_KEY) {
-      res.json({ result: "AI asistanı şu an mevcut değil. OPENAI_API_KEY ayarlandığında kullanılabilir.", type: "text" });
+    if (!process.env.OPENROUTER_API_KEY) {
+      res.json({ result: "AI asistanı şu an mevcut değil. OPENROUTER_API_KEY ayarlandığında kullanılabilir.", type: "text" });
       return;
     }
 
     const systemPrompt = `Sen TourOps seyahat acentesi yönetim sisteminin yapay zeka asistanısın. 
 Türkçe cevap ver. Kısa ve öz ol. Seyahat, tur operasyonu ve acente yönetimi konularında uzmansın.${context ? `\n\nBağlam: ${context}` : ""}`;
 
-    const result = await callOpenAI(systemPrompt, prompt);
+    const result = await callOpenRouter(systemPrompt, prompt);
     res.json({ result, type: "text" });
   } catch (err) {
     res.status(500).json({ error: "AI assist failed", details: String(err) });
@@ -261,7 +259,7 @@ router.post("/ocr-receipt", async (req, res) => {
     }
 
     // No API key → return safe mock
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.OPENROUTER_API_KEY) {
       const mock: OcrResult = {
         amount: null, currency: null, supplierName: null, receiptDate: null,
         receiptTime: null, taxAmount: null, invoiceNumber: null,
@@ -276,16 +274,18 @@ router.post("/ocr-receipt", async (req, res) => {
       return;
     }
 
-    // Call OpenAI gpt-4o with vision — image sent as a data URL (never logged by this server)
+    // Call OpenRouter gpt-4o-mini with vision — image sent as a data URL (never logged by this server)
     const dataUrl = `data:${cleanMime};base64,${imageBase64}`;
-    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+    const ocrRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        "HTTP-Referer": "https://tourops.replit.app",
+        "X-Title": "TourOps AI",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "openai/gpt-4o-mini",
         max_tokens: 800,
         temperature: 0,
         messages: [
@@ -300,17 +300,17 @@ router.post("/ocr-receipt", async (req, res) => {
       }),
     });
 
-    if (!openaiRes.ok) {
-      const errBody = await openaiRes.text();
-      console.error("[ocr-receipt] OpenAI error", openaiRes.status, errBody.slice(0, 200));
+    if (!ocrRes.ok) {
+      const errBody = await ocrRes.text();
+      console.error("[ocr-receipt] OpenRouter error", ocrRes.status, errBody.slice(0, 200));
       res.status(502).json({ error: "OCR servisi şu an kullanılamıyor. Lütfen tekrar deneyin." });
       return;
     }
 
-    const openaiData = await openaiRes.json() as {
+    const ocrData = await ocrRes.json() as {
       choices: Array<{ message: { content: string } }>;
     };
-    const raw = openaiData.choices[0]?.message?.content ?? "{}";
+    const raw = ocrData.choices[0]?.message?.content ?? "{}";
 
     // Strip optional markdown fences if the model ignores the instruction
     const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
