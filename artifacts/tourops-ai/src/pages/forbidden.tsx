@@ -1,9 +1,21 @@
-import { Link } from 'wouter';
+import { useLocation } from 'wouter';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useProfile } from '@/contexts/ProfileContext';
+
+/** Returns the appropriate home path for the role, never /forbidden. */
+function homePathForRole(role: string | null): string {
+  if (role === 'guide') return '/operations';
+  return '/dashboard';
+}
 
 export default function ForbiddenPage() {
+  const { role } = useProfile();
+  const [, navigate] = useLocation();
+
+  const homePath = homePathForRole(role);
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full">
@@ -15,9 +27,9 @@ export default function ForbiddenPage() {
           <p className="text-muted-foreground text-sm">
             Bu sayfaya erişim yetkiniz bulunmamaktadır.
           </p>
-          <Link href="/dashboard">
-            <Button variant="outline" className="mt-2">Kontrol Paneline Dön</Button>
-          </Link>
+          <Button variant="outline" className="mt-2" onClick={() => navigate(homePath)}>
+            {role === 'guide' ? 'Operasyonlara Dön' : 'Kontrol Paneline Dön'}
+          </Button>
         </CardContent>
       </Card>
     </div>
