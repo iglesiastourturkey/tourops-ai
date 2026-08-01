@@ -26,13 +26,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, User, Car, AlertTriangle,
-  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal,
+  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS, TASK_STATUS_LABELS, formatDate } from '@/lib/labels';
 import { uploadFile, getStorageObjectUrl } from '@/lib/storage-service';
 import { generateOperationPdf } from '@/lib/operation-pdf-export';
+import { ocrReceiptImage, OCR_LOW_CONFIDENCE_THRESHOLD, type OcrReceiptResult } from '@/lib/ocr-service';
 
 // ─── AuthenticatedImage ───────────────────────────────────────────────────────
 // Fetches a protected storage object with a Clerk Bearer token and renders it
@@ -160,6 +161,16 @@ export default function OperationDetailPage() {
 
   // ── Delete receipt state ──────────────────────────────────────────────────
   const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<number | null>(null);
+
+  // ── OCR state ─────────────────────────────────────────────────────────────
+  const [isOcrLoading, setIsOcrLoading] = useState(false);
+  /** Per-field confidence scores (0–1) from the last OCR run. */
+  const [ocrConfidence, setOcrConfidence] = useState<Partial<OcrReceiptResult['confidence']>>({});
+  /**
+   * OCR-suggested values for fields that were already manually filled.
+   * The user can choose to accept or ignore these.
+   */
+  const [ocrConflicts, setOcrConflicts] = useState<Record<string, string>>({});
 
   // ── Mutations ─────────────────────────────────────────────────────────────
   const updateTaskMutation = useUpdateOperationTask();
@@ -326,10 +337,92 @@ export default function OperationDetailPage() {
         setReceiptPhotoPreview(null);
         setUploadProgress(0);
         setPhotoUploadError(null);
+        clearOcrState();
       },
       onError: () => toast({ title: 'Makbuz eklenemedi', variant: 'destructive' }),
       onSettled: () => setIsUploadingReceipt(false),
     });
+  }
+
+  // ── OCR handler ───────────────────────────────────────────────────────────
+  function clearOcrState() {
+    setOcrConfidence({});
+    setOcrConflicts({});
+  }
+
+  async function handleOcrScan() {
+    if (!receiptPhoto || isOcrLoading) return;
+    setIsOcrLoading(true);
+    clearOcrState();
+    try {
+      const token = await getToken();
+      const result = await ocrReceiptImage(receiptPhoto, token);
+
+      setOcrConfidence(result.confidence);
+
+      // Fill empty fields; record conflicts for already-filled fields
+      const newForm = { ...receiptForm };
+      const conflicts: typeof ocrConflicts = {};
+
+      // Amount
+      if (result.amount !== null) {
+        const strVal = String(result.amount);
+        if (!receiptForm.amount) {
+          newForm.amount = strVal;
+        } else if (receiptForm.amount !== strVal) {
+          conflicts.amount = strVal;
+        }
+      }
+
+      // Currency (only override the default TRY if OCR says something different)
+      if (result.currency && result.currency !== receiptForm.currency) {
+        if (receiptForm.currency === 'TRY') {
+          newForm.currency = result.currency;
+        }
+        // If user already chose a non-TRY currency, don't override silently
+      }
+
+      // Supplier name
+      if (result.supplierName) {
+        if (!receiptForm.supplierName) {
+          newForm.supplierName = result.supplierName;
+        } else if (receiptForm.supplierName !== result.supplierName) {
+          conflicts.supplierName = result.supplierName;
+        }
+      }
+
+      // Receipt date
+      if (result.receiptDate) {
+        if (!receiptForm.receiptDate) {
+          newForm.receiptDate = result.receiptDate;
+        } else if (receiptForm.receiptDate !== result.receiptDate) {
+          conflicts.receiptDate = result.receiptDate;
+        }
+      }
+
+      // Compose extra fields into the note (only if note is empty)
+      if (!receiptForm.guideNote) {
+        const parts: string[] = [];
+        if (result.receiptTime) parts.push(`Saat: ${result.receiptTime}`);
+        if (result.taxAmount != null) parts.push(`KDV: ${result.taxAmount}`);
+        if (result.invoiceNumber) parts.push(`Fiş No: ${result.invoiceNumber}`);
+        if (result.paymentMethod) parts.push(`Ödeme: ${result.paymentMethod}`);
+        if (result.expenseCategory) parts.push(`Kategori: ${result.expenseCategory}`);
+        if (parts.length > 0) newForm.guideNote = parts.join(' | ');
+      }
+
+      setReceiptForm(newForm);
+      setOcrConflicts(conflicts);
+      toast({ title: 'Makbuz okundu', description: 'Veriler forma aktarıldı. Lütfen kontrol edin.' });
+    } catch (err) {
+      toast({
+        title: 'Okuma başarısız',
+        description: (err as Error).message || 'Makbuz okunamadı. Lütfen tekrar deneyin.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsOcrLoading(false);
+    }
   }
 
   // ── PDF handler ───────────────────────────────────────────────────────────
@@ -733,13 +826,29 @@ export default function OperationDetailPage() {
       </AlertDialog>
 
       {/* ── Receipt add dialog ─────────────────────────────────────────────── */}
-      <Dialog open={receiptDialogOpen} onOpenChange={v => { setReceiptDialogOpen(v); if (!v) { setReceiptPhoto(null); setReceiptPhotoPreview(null); setUploadProgress(0); setPhotoUploadError(null); } }}>
+      <Dialog open={receiptDialogOpen} onOpenChange={v => {
+        setReceiptDialogOpen(v);
+        if (!v) {
+          setReceiptPhoto(null);
+          setReceiptPhotoPreview(null);
+          setUploadProgress(0);
+          setPhotoUploadError(null);
+          clearOcrState();
+        }
+      }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Makbuz Ekle</DialogTitle></DialogHeader>
           <div className="space-y-3">
+
+            {/* ── Amount + currency ─────────────────────────────────────── */}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Tutar *</label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs text-muted-foreground">Tutar *</label>
+                  {ocrConfidence.amount !== undefined && ocrConfidence.amount < OCR_LOW_CONFIDENCE_THRESHOLD && (
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium leading-none">Kontrol Et</span>
+                  )}
+                </div>
                 <Input
                   type="number"
                   step="0.01"
@@ -749,9 +858,20 @@ export default function OperationDetailPage() {
                   placeholder="0.00"
                   data-testid="input-receipt-amount"
                 />
+                {ocrConflicts.amount && (
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="text-xs text-muted-foreground">OCR önerisi: <strong>{ocrConflicts.amount}</strong></span>
+                    <button type="button" className="text-xs text-primary underline" onClick={() => { setReceiptForm(f => ({ ...f, amount: ocrConflicts.amount! })); setOcrConflicts(c => { const n = { ...c }; delete n.amount; return n; }); }}>Kabul Et</button>
+                  </div>
+                )}
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Para Birimi</label>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <label className="text-xs text-muted-foreground">Para Birimi</label>
+                  {ocrConfidence.currency !== undefined && ocrConfidence.currency < OCR_LOW_CONFIDENCE_THRESHOLD && (
+                    <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium leading-none">Kontrol Et</span>
+                  )}
+                </div>
                 <Select value={receiptForm.currency} onValueChange={v => setReceiptForm(f => ({ ...f, currency: v }))}>
                   <SelectTrigger data-testid="select-receipt-currency"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -763,30 +883,87 @@ export default function OperationDetailPage() {
                 </Select>
               </div>
             </div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Tedarikçi / Dükkan</label><Input value={receiptForm.supplierName} onChange={e => setReceiptForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Tedarikçi adı" data-testid="input-receipt-supplier" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Tarih</label><Input type="date" value={receiptForm.receiptDate} onChange={e => setReceiptForm(f => ({ ...f, receiptDate: e.target.value }))} data-testid="input-receipt-date" /></div>
-            <div><label className="text-xs text-muted-foreground mb-1 block">Rehber Notu</label><Textarea value={receiptForm.guideNote} onChange={e => setReceiptForm(f => ({ ...f, guideNote: e.target.value }))} rows={2} placeholder="Makbuz hakkında not..." data-testid="textarea-receipt-note" /></div>
 
-            {/* Photo upload */}
+            {/* ── Supplier ──────────────────────────────────────────────── */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="text-xs text-muted-foreground">Tedarikçi / Dükkan</label>
+                {ocrConfidence.supplierName !== undefined && ocrConfidence.supplierName < OCR_LOW_CONFIDENCE_THRESHOLD && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium leading-none">Kontrol Et</span>
+                )}
+              </div>
+              <Input value={receiptForm.supplierName} onChange={e => setReceiptForm(f => ({ ...f, supplierName: e.target.value }))} placeholder="Tedarikçi adı" data-testid="input-receipt-supplier" />
+              {ocrConflicts.supplierName && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs text-muted-foreground">OCR önerisi: <strong>{ocrConflicts.supplierName}</strong></span>
+                  <button type="button" className="text-xs text-primary underline" onClick={() => { setReceiptForm(f => ({ ...f, supplierName: ocrConflicts.supplierName! })); setOcrConflicts(c => { const n = { ...c }; delete n.supplierName; return n; }); }}>Kabul Et</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Date ─────────────────────────────────────────────────── */}
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <label className="text-xs text-muted-foreground">Tarih</label>
+                {ocrConfidence.receiptDate !== undefined && ocrConfidence.receiptDate < OCR_LOW_CONFIDENCE_THRESHOLD && (
+                  <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium leading-none">Kontrol Et</span>
+                )}
+              </div>
+              <Input type="date" value={receiptForm.receiptDate} onChange={e => setReceiptForm(f => ({ ...f, receiptDate: e.target.value }))} data-testid="input-receipt-date" />
+              {ocrConflicts.receiptDate && (
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-xs text-muted-foreground">OCR önerisi: <strong>{ocrConflicts.receiptDate}</strong></span>
+                  <button type="button" className="text-xs text-primary underline" onClick={() => { setReceiptForm(f => ({ ...f, receiptDate: ocrConflicts.receiptDate! })); setOcrConflicts(c => { const n = { ...c }; delete n.receiptDate; return n; }); }}>Kabul Et</button>
+                </div>
+              )}
+            </div>
+
+            {/* ── Guide note ────────────────────────────────────────────── */}
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Rehber Notu</label>
+              <Textarea value={receiptForm.guideNote} onChange={e => setReceiptForm(f => ({ ...f, guideNote: e.target.value }))} rows={2} placeholder="Makbuz hakkında not..." data-testid="textarea-receipt-note" />
+            </div>
+
+            {/* ── Photo upload ──────────────────────────────────────────── */}
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Makbuz Fotoğrafı</label>
               {receiptPhotoPreview ? (
-                /* Preview + remove/retake */
-                <div className="relative">
-                  <img src={receiptPhotoPreview} alt="Önizleme" className="w-full h-36 object-cover rounded-lg border" />
-                  <button
+                /* Preview + remove/retake + OCR scan */
+                <div>
+                  <div className="relative">
+                    <img src={receiptPhotoPreview} alt="Önizleme" className="w-full h-36 object-cover rounded-lg border" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReceiptPhoto(null);
+                        if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview);
+                        setReceiptPhotoPreview(null);
+                        clearPhotoInputs();
+                        clearOcrState();
+                        setIsOcrLoading(false);
+                      }}
+                      className="absolute top-1.5 right-1.5 bg-background/90 border rounded-full p-1 leading-none text-xs hover:bg-background"
+                      aria-label="Fotoğrafı kaldır"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* "Makbuzu Tara" — only visible after photo is selected */}
+                  <Button
                     type="button"
-                    onClick={() => {
-                      setReceiptPhoto(null);
-                      if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview);
-                      setReceiptPhotoPreview(null);
-                      clearPhotoInputs();
-                    }}
-                    className="absolute top-1.5 right-1.5 bg-background/90 border rounded-full p-1 leading-none text-xs hover:bg-background"
-                    aria-label="Fotoğrafı kaldır"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2 mt-2"
+                    onClick={handleOcrScan}
+                    disabled={isOcrLoading || isUploadingReceipt || createReceiptMutation.isPending}
+                    data-testid="button-ocr-scan"
                   >
-                    ✕
-                  </button>
+                    {isOcrLoading ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" />Makbuz okunuyor...</>
+                    ) : (
+                      <><ScanLine className="w-3.5 h-3.5" />Makbuzu Tara</>
+                    )}
+                  </Button>
                 </div>
               ) : (
                 /* Two-button picker */

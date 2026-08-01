@@ -3,3 +3,5 @@
 - [Customer schema is single name field](customer-schema.md) — Customer.name is one field; no firstName/lastName
 - [DB schema: operations extended](operations-schema.md) — guide/driver/emergency fields + operation_receipts table added; all nullable
 - [Archive/delete strategy](archive-delete-strategy.md) — customers/suppliers: archivedAt timestamp column; quotations/operations: status='archived'; 409 blocks delete when active linked records exist
+- [AI routes pattern](ai-routes-pattern.md) — all AI calls use fetch() to OpenAI directly (no openai npm package); gpt-4o for vision, gpt-4o-mini for text; mock responses when no API key
+- [OCR receipt feature](ocr-receipt.md) — POST /api/ai/ocr-receipt; Zod-validated; per-user in-memory rate limit; image sent as base64 JSON; frontend ocr-service.ts utility

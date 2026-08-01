@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { requireAuth } from "../lib/auth";
+import { z } from "zod";
+import { requireAuth, getUserId } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
@@ -151,6 +152,190 @@ Türkçe cevap ver. Kısa ve öz ol. Seyahat, tur operasyonu ve acente yönetimi
     res.json({ result, type: "text" });
   } catch (err) {
     res.status(500).json({ error: "AI assist failed", details: String(err) });
+  }
+});
+
+// ─── Receipt OCR ─────────────────────────────────────────────────────────────
+
+// In-memory rate limiter: max 10 OCR calls per user per 60 s
+const ocrRateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const OCR_RATE_LIMIT = 10;
+const OCR_WINDOW_MS = 60_000;
+const OCR_MAX_RAW_BYTES = 5 * 1024 * 1024; // 5 MB raw image
+const ALLOWED_OCR_MIME = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif",
+]);
+
+// Zod schema for the AI response
+const ocrConfidenceSchema = z.object({
+  amount: z.number().min(0).max(1).default(0),
+  currency: z.number().min(0).max(1).default(0),
+  supplierName: z.number().min(0).max(1).default(0),
+  receiptDate: z.number().min(0).max(1).default(0),
+  receiptTime: z.number().min(0).max(1).default(0),
+  taxAmount: z.number().min(0).max(1).default(0),
+  invoiceNumber: z.number().min(0).max(1).default(0),
+  paymentMethod: z.number().min(0).max(1).default(0),
+  expenseCategory: z.number().min(0).max(1).default(0),
+});
+
+const ocrResultSchema = z.object({
+  amount: z.number().nullable().default(null),
+  currency: z.enum(["TRY", "USD", "EUR", "GBP"]).nullable().default(null),
+  supplierName: z.string().nullable().default(null),
+  receiptDate: z.string().nullable().default(null),   // YYYY-MM-DD
+  receiptTime: z.string().nullable().default(null),   // HH:MM
+  taxAmount: z.number().nullable().default(null),
+  invoiceNumber: z.string().nullable().default(null),
+  paymentMethod: z.string().nullable().default(null),
+  expenseCategory: z.string().nullable().default(null),
+  confidence: ocrConfidenceSchema.default({}),
+});
+
+type OcrResult = z.infer<typeof ocrResultSchema>;
+
+const OCR_SYSTEM_PROMPT = `You are a receipt/invoice OCR assistant for a Turkish travel agency.
+Analyze the receipt image and extract data into EXACTLY the following JSON object.
+Return ONLY valid JSON — no markdown fences, no explanations.
+
+{
+  "amount": <number|null>,         // Total amount (including tax). Numeric only.
+  "currency": <"TRY"|"USD"|"EUR"|"GBP"|null>,  // Default TRY for Turkish receipts.
+  "supplierName": <string|null>,   // Business or shop name.
+  "receiptDate": <"YYYY-MM-DD"|null>,  // Convert any date format.
+  "receiptTime": <"HH:MM"|null>,   // 24-hour format.
+  "taxAmount": <number|null>,      // KDV / VAT amount.
+  "invoiceNumber": <string|null>,  // Fiş no, fatura no, receipt number.
+  "paymentMethod": <string|null>,  // e.g. "Nakit", "Kredi Kartı", "Banka Kartı".
+  "expenseCategory": <string|null>,// e.g. "Yemek", "Ulaşım", "Konaklama", "Eğlence", "Diğer".
+  "confidence": {
+    "amount": <0.0-1.0>,
+    "currency": <0.0-1.0>,
+    "supplierName": <0.0-1.0>,
+    "receiptDate": <0.0-1.0>,
+    "receiptTime": <0.0-1.0>,
+    "taxAmount": <0.0-1.0>,
+    "invoiceNumber": <0.0-1.0>,
+    "paymentMethod": <0.0-1.0>,
+    "expenseCategory": <0.0-1.0>
+  }
+}
+
+Confidence rules:
+- 1.0 = clearly, unambiguously visible
+- 0.7 = likely correct but partially obscured or inferred
+- 0.4 = uncertain/guessed
+- 0.0 = field not present or completely unreadable
+
+Do not store or reference the image content beyond what is needed for extraction.`;
+
+// POST /api/ai/ocr-receipt
+router.post("/ocr-receipt", async (req, res) => {
+  try {
+    const userId = getUserId(req);
+
+    // Rate limit
+    const now = Date.now();
+    const entry = ocrRateLimitMap.get(userId) ?? { count: 0, resetAt: now + OCR_WINDOW_MS };
+    if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + OCR_WINDOW_MS; }
+    if (entry.count >= OCR_RATE_LIMIT) {
+      res.status(429).json({ error: "Çok fazla istek. Lütfen 1 dakika bekleyin." });
+      return;
+    }
+    entry.count++;
+    ocrRateLimitMap.set(userId, entry);
+
+    // Validate inputs
+    const { imageBase64, mimeType } = req.body as { imageBase64?: string; mimeType?: string };
+    if (!imageBase64 || typeof imageBase64 !== "string") {
+      res.status(400).json({ error: "imageBase64 required" }); return;
+    }
+    const cleanMime = (mimeType ?? "").split(";")[0].trim();
+    if (!ALLOWED_OCR_MIME.has(cleanMime)) {
+      res.status(400).json({ error: "Geçersiz dosya türü. Yalnızca görüntü dosyaları desteklenir." }); return;
+    }
+    // Approximate raw size from base64 length (base64 overhead ≈ 4/3)
+    const approxRawBytes = Math.floor(imageBase64.length * 0.75);
+    if (approxRawBytes > OCR_MAX_RAW_BYTES) {
+      res.status(400).json({ error: "Görüntü çok büyük. OCR için maksimum 5 MB." }); return;
+    }
+
+    // No API key → return safe mock
+    if (!process.env.OPENAI_API_KEY) {
+      const mock: OcrResult = {
+        amount: null, currency: null, supplierName: null, receiptDate: null,
+        receiptTime: null, taxAmount: null, invoiceNumber: null,
+        paymentMethod: null, expenseCategory: null,
+        confidence: {
+          amount: 0, currency: 0, supplierName: 0, receiptDate: 0,
+          receiptTime: 0, taxAmount: 0, invoiceNumber: 0,
+          paymentMethod: 0, expenseCategory: 0,
+        },
+      };
+      res.json(mock);
+      return;
+    }
+
+    // Call OpenAI gpt-4o with vision — image sent as a data URL (never logged by this server)
+    const dataUrl = `data:${cleanMime};base64,${imageBase64}`;
+    const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        max_tokens: 800,
+        temperature: 0,
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: OCR_SYSTEM_PROMPT },
+              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!openaiRes.ok) {
+      const errBody = await openaiRes.text();
+      console.error("[ocr-receipt] OpenAI error", openaiRes.status, errBody.slice(0, 200));
+      res.status(502).json({ error: "OCR servisi şu an kullanılamıyor. Lütfen tekrar deneyin." });
+      return;
+    }
+
+    const openaiData = await openaiRes.json() as {
+      choices: Array<{ message: { content: string } }>;
+    };
+    const raw = openaiData.choices[0]?.message?.content ?? "{}";
+
+    // Strip optional markdown fences if the model ignores the instruction
+    const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      console.error("[ocr-receipt] JSON parse error:", cleaned.slice(0, 300));
+      res.status(502).json({ error: "OCR yanıtı işlenemedi. Lütfen tekrar deneyin." });
+      return;
+    }
+
+    // Validate + coerce with Zod
+    const validated = ocrResultSchema.safeParse(parsed);
+    if (!validated.success) {
+      console.error("[ocr-receipt] Zod validation failed:", validated.error.issues);
+      res.status(502).json({ error: "OCR yanıtı geçersiz format. Lütfen tekrar deneyin." });
+      return;
+    }
+
+    res.json(validated.data);
+  } catch (err) {
+    console.error("[ocr-receipt] Unexpected error:", err);
+    res.status(500).json({ error: "OCR başarısız. Lütfen tekrar deneyin." });
   }
 });
 
