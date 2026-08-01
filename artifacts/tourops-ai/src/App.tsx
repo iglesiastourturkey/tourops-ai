@@ -1,10 +1,11 @@
-import { ClerkProvider, SignIn, SignUp, Show } from '@clerk/react';
+import { ClerkProvider, SignIn, SignUp, Show, useAuth } from '@clerk/react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch, Route, Redirect, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 import LandingPage from '@/pages/landing';
 import Dashboard from '@/pages/dashboard';
 import CustomersPage from '@/pages/customers';
@@ -47,6 +48,25 @@ const clerkAppearance = {
     formButtonPrimary: { backgroundColor: '#0d7377' },
   },
 };
+
+/**
+ * Gates the entire QueryClientProvider (and therefore all React-Query hooks)
+ * behind Clerk's initialization.  Renders null until `isLoaded` is true,
+ * guaranteeing that `setAuthTokenGetter` is wired BEFORE any query fires.
+ *
+ * Must live inside ClerkProvider (needs useAuth context).
+ * Cookies alone are unreliable in Replit's proxied-iframe environment.
+ */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const { getToken, isLoaded } = useAuth();
+  // Register synchronously every render — idempotent, always up-to-date.
+  setAuthTokenGetter(() => getToken());
+  // Block children until Clerk has finished initialising to prevent the
+  // race where stale React-Query cache triggers a refetch before the
+  // Bearer token getter is ready.
+  if (!isLoaded) return null;
+  return <>{children}</>;
+}
 
 function ProtectedRoute({ component: Comp }: { component: React.ComponentType }) {
   return (
@@ -112,14 +132,16 @@ function Router() {
 export default function App() {
   return (
     <ClerkProvider publishableKey={clerkPubKey!} proxyUrl={clerkProxyUrl} appearance={clerkAppearance}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <WouterRouter base={basePath}>
-            <Router />
-          </WouterRouter>
-          <Toaster />
-        </TooltipProvider>
-      </QueryClientProvider>
+      <AuthGate>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <WouterRouter base={basePath}>
+              <Router />
+            </WouterRouter>
+            <Toaster />
+          </TooltipProvider>
+        </QueryClientProvider>
+      </AuthGate>
     </ClerkProvider>
   );
 }

@@ -5,6 +5,9 @@ import { requireAuth, getUserId } from "../lib/auth";
 const router = Router();
 router.use(requireAuth);
 
+const DEFAULT_AI_MODEL = "openai/gpt-4o-mini";
+const AI_MODEL = process.env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
+
 async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("No API key");
@@ -18,7 +21,7 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
       "X-Title": "TourOps AI",
     },
     body: JSON.stringify({
-      model: "openai/gpt-4o-mini",
+      model: AI_MODEL,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -285,7 +288,7 @@ router.post("/ocr-receipt", async (req, res) => {
         "X-Title": "TourOps AI",
       },
       body: JSON.stringify({
-        model: "openai/gpt-4o-mini",
+        model: AI_MODEL,
         max_tokens: 800,
         temperature: 0,
         messages: [
