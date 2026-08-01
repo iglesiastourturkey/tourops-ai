@@ -1,0 +1,98 @@
+import { Router } from "express";
+import { db } from "@workspace/db";
+import { quotationsTable, operationsTable } from "@workspace/db/schema";
+import { eq, desc } from "drizzle-orm";
+import { requireAuth } from "../lib/auth";
+
+const router = Router();
+router.use(requireAuth);
+
+function genQuotationNumber() {
+  const now = new Date();
+  return `TEK-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+}
+
+router.get("/", async (req, res) => {
+  try {
+    const { status, customerId } = req.query as Record<string, string>;
+    let rows = await db.select().from(quotationsTable).orderBy(desc(quotationsTable.createdAt));
+    if (status) rows = rows.filter(r => r.status === status);
+    if (customerId) rows = rows.filter(r => r.customerId === parseInt(customerId));
+    res.json(rows);
+  } catch { res.status(500).json({ error: "Failed to list quotations" }); }
+});
+
+router.post("/", async (req, res) => {
+  try {
+    const body = { ...req.body };
+    if (!body.number) body.number = genQuotationNumber();
+    const [row] = await db.insert(quotationsTable).values(body).returning();
+    res.status(201).json(row);
+  } catch { res.status(500).json({ error: "Failed to create quotation" }); }
+});
+
+router.get("/:id", async (req, res) => {
+  try {
+    const [row] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id)));
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch { res.status(500).json({ error: "Failed to get quotation" }); }
+});
+
+router.patch("/:id", async (req, res) => {
+  try {
+    const [row] = await db.update(quotationsTable).set(req.body).where(eq(quotationsTable.id, parseInt(req.params.id))).returning();
+    if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    res.json(row);
+  } catch { res.status(500).json({ error: "Failed to update quotation" }); }
+});
+
+router.delete("/:id", async (req, res) => {
+  try {
+    await db.delete(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id)));
+    res.status(204).send();
+  } catch { res.status(500).json({ error: "Failed to delete quotation" }); }
+});
+
+// PATCH /quotations/:id/status
+router.patch("/:id/status", async (req, res) => {
+  try {
+    const { status } = req.body;
+    const updates: Record<string, unknown> = { status };
+    if (status === "sent") updates.sentAt = new Date();
+    if (status === "viewed") updates.viewedAt = new Date();
+    if (["accepted", "rejected"].includes(status)) updates.respondedAt = new Date();
+    const [row] = await db.update(quotationsTable).set(updates).where(eq(quotationsTable.id, parseInt(req.params.id))).returning();
+    res.json(row);
+  } catch { res.status(500).json({ error: "Failed to update status" }); }
+});
+
+// POST /quotations/:id/duplicate
+router.post("/:id/duplicate", async (req, res) => {
+  try {
+    const [orig] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id)));
+    if (!orig) { res.status(404).json({ error: "Not found" }); return; }
+    const { id, createdAt, updatedAt, number, sentAt, viewedAt, respondedAt, ...rest } = orig;
+    const [row] = await db.insert(quotationsTable).values({ ...rest, number: genQuotationNumber(), status: "draft" }).returning();
+    res.status(201).json(row);
+  } catch { res.status(500).json({ error: "Failed to duplicate quotation" }); }
+});
+
+// POST /quotations/:id/convert-to-operation
+router.post("/:id/convert-to-operation", async (req, res) => {
+  try {
+    const [quot] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id)));
+    if (!quot) { res.status(404).json({ error: "Not found" }); return; }
+    const [op] = await db.insert(operationsTable).values({
+      quotationId: quot.id,
+      tourId: quot.tourId ?? undefined,
+      customerId: quot.customerId,
+      status: "active",
+      completionRate: 0,
+    }).returning();
+    await db.update(quotationsTable).set({ status: "accepted" }).where(eq(quotationsTable.id, quot.id));
+    res.status(201).json(op);
+  } catch { res.status(500).json({ error: "Failed to convert to operation" }); }
+});
+
+export default router;

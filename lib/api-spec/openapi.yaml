@@ -3,20 +3,43 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: TourOps AI API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: profiles
+    description: User profile operations
+  - name: customers
+    description: Customer management
+  - name: suppliers
+    description: Supplier management
+  - name: tours
+    description: Tour package management
+  - name: quotations
+    description: Quotation management
+  - name: operations
+    description: Operations tracking
+  - name: notifications
+    description: Notification center
+  - name: exchange-rates
+    description: Exchange rate management
+  - name: agency-settings
+    description: Agency settings
+  - name: email-templates
+    description: Email template management
+  - name: dashboard
+    description: Dashboard data
+  - name: ai
+    description: AI assistant operations
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,13 +47,1966 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  # ─── PROFILES ────────────────────────────────────────────────────────────
+  /profiles/me:
+    get:
+      operationId: getMyProfile
+      tags: [profiles]
+      summary: Get current user profile
+      responses:
+        "200":
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "401":
+          description: Unauthorized
+    patch:
+      operationId: updateMyProfile
+      tags: [profiles]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+  /profiles:
+    get:
+      operationId: listProfiles
+      tags: [profiles]
+      summary: List all user profiles (admin only)
+      responses:
+        "200":
+          description: List of profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Profile"
+
+  # ─── CUSTOMERS ───────────────────────────────────────────────────────────
+  /customers:
+    get:
+      operationId: listCustomers
+      tags: [customers]
+      summary: List all customers
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: customerType
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Customer"
+    post:
+      operationId: createCustomer
+      tags: [customers]
+      summary: Create a customer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerInput"
+      responses:
+        "201":
+          description: Created customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+  /customers/{id}:
+    get:
+      operationId: getCustomer
+      tags: [customers]
+      summary: Get a customer by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateCustomer
+      tags: [customers]
+      summary: Update a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CustomerUpdate"
+      responses:
+        "200":
+          description: Updated customer
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+    delete:
+      operationId: deleteCustomer
+      tags: [customers]
+      summary: Delete a customer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── SUPPLIERS ───────────────────────────────────────────────────────────
+  /suppliers:
+    get:
+      operationId: listSuppliers
+      tags: [suppliers]
+      summary: List all suppliers
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: category
+          in: query
+          schema: { type: string }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: List of suppliers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Supplier"
+    post:
+      operationId: createSupplier
+      tags: [suppliers]
+      summary: Create a supplier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierInput"
+      responses:
+        "201":
+          description: Created supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+  /suppliers/{id}:
+    get:
+      operationId: getSupplier
+      tags: [suppliers]
+      summary: Get a supplier by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateSupplier
+      tags: [suppliers]
+      summary: Update a supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierUpdate"
+      responses:
+        "200":
+          description: Updated supplier
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Supplier"
+    delete:
+      operationId: deleteSupplier
+      tags: [suppliers]
+      summary: Delete a supplier
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── TOURS ───────────────────────────────────────────────────────────────
+  /tours:
+    get:
+      operationId: listTours
+      tags: [tours]
+      summary: List all tours
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: customerId
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of tours
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tour"
+    post:
+      operationId: createTour
+      tags: [tours]
+      summary: Create a tour
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourInput"
+      responses:
+        "201":
+          description: Created tour
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tour"
+  /tours/{id}:
+    get:
+      operationId: getTour
+      tags: [tours]
+      summary: Get a tour with days, activities, and costs
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Full tour detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateTour
+      tags: [tours]
+      summary: Update a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourUpdate"
+      responses:
+        "200":
+          description: Updated tour
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tour"
+    delete:
+      operationId: deleteTour
+      tags: [tours]
+      summary: Delete a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+  /tours/{id}/cost-summary:
+    get:
+      operationId: computeTourCostSummary
+      tags: [tours]
+      summary: Get calculated cost summary for a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Cost summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourCostSummary"
+  /tours/{id}/days:
+    get:
+      operationId: listTourDays
+      tags: [tours]
+      summary: List tour days
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of tour days
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourDay"
+    post:
+      operationId: createTourDay
+      tags: [tours]
+      summary: Add a day to a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourDayInput"
+      responses:
+        "201":
+          description: Created tour day
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourDay"
+  /tours/{id}/days/{dayId}:
+    patch:
+      operationId: updateTourDay
+      tags: [tours]
+      summary: Update a tour day
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: dayId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourDayUpdate"
+      responses:
+        "200":
+          description: Updated tour day
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourDay"
+    delete:
+      operationId: deleteTourDay
+      tags: [tours]
+      summary: Delete a tour day
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: dayId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+  /tours/{id}/costs:
+    get:
+      operationId: listTourCosts
+      tags: [tours]
+      summary: List cost items for a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of cost items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TourCost"
+    post:
+      operationId: createTourCost
+      tags: [tours]
+      summary: Add a cost item to a tour
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourCostInput"
+      responses:
+        "201":
+          description: Created cost item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourCost"
+  /tours/{id}/costs/{costId}:
+    patch:
+      operationId: updateTourCost
+      tags: [tours]
+      summary: Update a cost item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: costId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TourCostUpdate"
+      responses:
+        "200":
+          description: Updated cost item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TourCost"
+    delete:
+      operationId: deleteTourCost
+      tags: [tours]
+      summary: Delete a cost item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: costId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── QUOTATIONS ──────────────────────────────────────────────────────────
+  /quotations:
+    get:
+      operationId: listQuotations
+      tags: [quotations]
+      summary: List all quotations
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+        - name: customerId
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of quotations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Quotation"
+    post:
+      operationId: createQuotation
+      tags: [quotations]
+      summary: Create a quotation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotationInput"
+      responses:
+        "201":
+          description: Created quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+  /quotations/{id}:
+    get:
+      operationId: getQuotation
+      tags: [quotations]
+      summary: Get a quotation by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Quotation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuotationDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateQuotation
+      tags: [quotations]
+      summary: Update a quotation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotationUpdate"
+      responses:
+        "200":
+          description: Updated quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+    delete:
+      operationId: deleteQuotation
+      tags: [quotations]
+      summary: Delete a quotation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+  /quotations/{id}/status:
+    patch:
+      operationId: updateQuotationStatus
+      tags: [quotations]
+      summary: Update quotation status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuotationStatusUpdate"
+      responses:
+        "200":
+          description: Updated quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+  /quotations/{id}/duplicate:
+    post:
+      operationId: duplicateQuotation
+      tags: [quotations]
+      summary: Duplicate a quotation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "201":
+          description: Duplicated quotation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Quotation"
+  /quotations/{id}/convert-to-operation:
+    post:
+      operationId: convertQuotationToOperation
+      tags: [quotations]
+      summary: Convert accepted quotation to operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "201":
+          description: Created operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+
+  # ─── OPERATIONS ──────────────────────────────────────────────────────────
+  /operations:
+    get:
+      operationId: listOperations
+      tags: [operations]
+      summary: List all operations
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of operations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Operation"
+    post:
+      operationId: createOperation
+      tags: [operations]
+      summary: Create an operation manually
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationInput"
+      responses:
+        "201":
+          description: Created operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+  /operations/{id}:
+    get:
+      operationId: getOperation
+      tags: [operations]
+      summary: Get operation with tasks
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Operation detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateOperation
+      tags: [operations]
+      summary: Update an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationUpdate"
+      responses:
+        "200":
+          description: Updated operation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Operation"
+  /operations/{id}/tasks:
+    get:
+      operationId: listOperationTasks
+      tags: [operations]
+      summary: List tasks for an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OperationTask"
+    post:
+      operationId: createOperationTask
+      tags: [operations]
+      summary: Create a task for an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationTaskInput"
+      responses:
+        "201":
+          description: Created task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationTask"
+  /operations/{id}/tasks/{taskId}:
+    patch:
+      operationId: updateOperationTask
+      tags: [operations]
+      summary: Update an operation task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationTaskUpdate"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationTask"
+    delete:
+      operationId: deleteOperationTask
+      tags: [operations]
+      summary: Delete a task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: taskId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── NOTIFICATIONS ───────────────────────────────────────────────────────
+  /notifications:
+    get:
+      operationId: listNotifications
+      tags: [notifications]
+      summary: List all notifications
+      parameters:
+        - name: unreadOnly
+          in: query
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: List of notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /notifications/{id}/read:
+    patch:
+      operationId: markNotificationRead
+      tags: [notifications]
+      summary: Mark a notification as read
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Updated notification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+  /notifications/read-all:
+    post:
+      operationId: markAllNotificationsRead
+      tags: [notifications]
+      summary: Mark all notifications as read
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  # ─── EXCHANGE RATES ──────────────────────────────────────────────────────
+  /exchange-rates:
+    get:
+      operationId: listExchangeRates
+      tags: [exchange-rates]
+      summary: List all exchange rates
+      responses:
+        "200":
+          description: List of exchange rates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ExchangeRate"
+    post:
+      operationId: createExchangeRate
+      tags: [exchange-rates]
+      summary: Create an exchange rate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeRateInput"
+      responses:
+        "201":
+          description: Created exchange rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+  /exchange-rates/{id}:
+    patch:
+      operationId: updateExchangeRate
+      tags: [exchange-rates]
+      summary: Update an exchange rate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExchangeRateUpdate"
+      responses:
+        "200":
+          description: Updated exchange rate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExchangeRate"
+    delete:
+      operationId: deleteExchangeRate
+      tags: [exchange-rates]
+      summary: Delete an exchange rate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── AGENCY SETTINGS ─────────────────────────────────────────────────────
+  /agency-settings:
+    get:
+      operationId: getAgencySettings
+      tags: [agency-settings]
+      summary: Get agency settings
+      responses:
+        "200":
+          description: Agency settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+    patch:
+      operationId: updateAgencySettings
+      tags: [agency-settings]
+      summary: Update agency settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgencySettingsUpdate"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgencySettings"
+
+  # ─── EMAIL TEMPLATES ─────────────────────────────────────────────────────
+  /email-templates:
+    get:
+      operationId: listEmailTemplates
+      tags: [email-templates]
+      summary: List all email templates
+      responses:
+        "200":
+          description: List of email templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailTemplate"
+    post:
+      operationId: createEmailTemplate
+      tags: [email-templates]
+      summary: Create an email template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplateInput"
+      responses:
+        "201":
+          description: Created template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailTemplate"
+  /email-templates/{id}:
+    get:
+      operationId: getEmailTemplate
+      tags: [email-templates]
+      summary: Get an email template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Email template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailTemplate"
+    patch:
+      operationId: updateEmailTemplate
+      tags: [email-templates]
+      summary: Update an email template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailTemplateUpdate"
+      responses:
+        "200":
+          description: Updated template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailTemplate"
+    delete:
+      operationId: deleteEmailTemplate
+      tags: [email-templates]
+      summary: Delete an email template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+
+  # ─── DASHBOARD ───────────────────────────────────────────────────────────
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard KPI stats
+      responses:
+        "200":
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+  /dashboard/alerts:
+    get:
+      operationId: getDashboardAlerts
+      tags: [dashboard]
+      summary: Get items requiring attention
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DashboardAlert"
+  /dashboard/charts:
+    get:
+      operationId: getDashboardCharts
+      tags: [dashboard]
+      summary: Get chart data for dashboard
+      responses:
+        "200":
+          description: Chart datasets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardCharts"
+
+  # ─── AI ──────────────────────────────────────────────────────────────────
+  /ai/analyze-request:
+    post:
+      operationId: analyzeCustomerRequest
+      tags: [ai]
+      summary: Analyze a customer message and extract structured data
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestAnalysisInput"
+      responses:
+        "200":
+          description: Extracted customer request data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestAnalysis"
+  /ai/generate-itinerary:
+    post:
+      operationId: generateItinerary
+      tags: [ai]
+      summary: Generate a day-by-day tour itinerary
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ItineraryInput"
+      responses:
+        "200":
+          description: Generated itinerary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItineraryResult"
+  /ai/generate-email:
+    post:
+      operationId: generateEmail
+      tags: [ai]
+      summary: Generate an email draft from a template type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailDraftInput"
+      responses:
+        "200":
+          description: Generated email draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailDraft"
+  /ai/assist:
+    post:
+      operationId: aiAssist
+      tags: [ai]
+      summary: General AI assistant command
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIAssistInput"
+      responses:
+        "200":
+          description: AI assistant response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIAssistResult"
+
 components:
   schemas:
     HealthStatus:
       type: object
       properties:
-        status:
-          type: string
-      required:
-        - status
+        status: { type: string }
+      required: [status]
 
+    SuccessResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+      required: [success]
+
+    # ── Profiles ────────────────────────────────────────────────────────
+    Profile:
+      type: object
+      properties:
+        id: { type: number }
+        clerkUserId: { type: string }
+        email: { type: string }
+        name: { type: ["string", "null"] }
+        role: { type: string, enum: [admin, staff] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, clerkUserId, email, role, createdAt, updatedAt]
+    ProfileUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        role: { type: string, enum: [admin, staff] }
+
+    # ── Customers ────────────────────────────────────────────────────────
+    Customer:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        company: { type: ["string", "null"] }
+        nationality: { type: ["string", "null"] }
+        language: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        whatsapp: { type: ["string", "null"] }
+        customerType: { type: string }
+        travelPreferences: { type: ["string", "null"] }
+        dietaryRestrictions: { type: ["string", "null"] }
+        accessibilityRequirements: { type: ["string", "null"] }
+        passportStatus: { type: string }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, customerType, passportStatus, createdAt, updatedAt]
+    CustomerInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        company: { type: string }
+        nationality: { type: string }
+        language: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        whatsapp: { type: string }
+        customerType: { type: string }
+        travelPreferences: { type: string }
+        dietaryRestrictions: { type: string }
+        accessibilityRequirements: { type: string }
+        passportStatus: { type: string }
+        notes: { type: string }
+      required: [name, customerType]
+    CustomerUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        company: { type: string }
+        nationality: { type: string }
+        language: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        whatsapp: { type: string }
+        customerType: { type: string }
+        travelPreferences: { type: string }
+        dietaryRestrictions: { type: string }
+        accessibilityRequirements: { type: string }
+        passportStatus: { type: string }
+        notes: { type: string }
+
+    # ── Suppliers ────────────────────────────────────────────────────────
+    Supplier:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        contactPerson: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        website: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        city: { type: ["string", "null"] }
+        category: { type: string }
+        currency: { type: string }
+        taxNumber: { type: ["string", "null"] }
+        bankDetails: { type: ["string", "null"] }
+        paymentTerms: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        rating: { type: ["number", "null"] }
+        isActive: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, category, currency, isActive, createdAt, updatedAt]
+    SupplierInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        contactPerson: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        website: { type: string }
+        address: { type: string }
+        city: { type: string }
+        category: { type: string }
+        currency: { type: string }
+        taxNumber: { type: string }
+        bankDetails: { type: string }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        rating: { type: number }
+        isActive: { type: boolean }
+      required: [name, category, currency]
+    SupplierUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        contactPerson: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        website: { type: string }
+        address: { type: string }
+        city: { type: string }
+        category: { type: string }
+        currency: { type: string }
+        taxNumber: { type: string }
+        bankDetails: { type: string }
+        paymentTerms: { type: string }
+        notes: { type: string }
+        rating: { type: number }
+        isActive: { type: boolean }
+
+    # ── Tours ────────────────────────────────────────────────────────────
+    Tour:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        code: { type: string }
+        startDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        nights: { type: number }
+        adultCount: { type: number }
+        childCount: { type: number }
+        mainDestination: { type: string }
+        tourType: { type: string }
+        customerNationality: { type: ["string", "null"] }
+        customerLanguage: { type: ["string", "null"] }
+        currency: { type: string }
+        status: { type: string }
+        customerId: { type: ["number", "null"] }
+        isCruiseExcursion: { type: boolean }
+        shipName: { type: ["string", "null"] }
+        portName: { type: ["string", "null"] }
+        shipArrivalTime: { type: ["string", "null"] }
+        shipDepartureTime: { type: ["string", "null"] }
+        cruiseSafetyBufferMinutes: { type: ["number", "null"] }
+        guideLanguage: { type: ["string", "null"] }
+        transferRequired: { type: boolean }
+        profitMargin: { type: number }
+        notes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, code, nights, adultCount, childCount, mainDestination, tourType, currency, status, isCruiseExcursion, transferRequired, profitMargin, createdAt, updatedAt]
+    TourInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        code: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        nights: { type: number }
+        adultCount: { type: number }
+        childCount: { type: number }
+        mainDestination: { type: string }
+        tourType: { type: string }
+        customerNationality: { type: string }
+        customerLanguage: { type: string }
+        currency: { type: string }
+        status: { type: string }
+        customerId: { type: number }
+        isCruiseExcursion: { type: boolean }
+        shipName: { type: string }
+        portName: { type: string }
+        shipArrivalTime: { type: string }
+        shipDepartureTime: { type: string }
+        cruiseSafetyBufferMinutes: { type: number }
+        guideLanguage: { type: string }
+        transferRequired: { type: boolean }
+        profitMargin: { type: number }
+        notes: { type: string }
+      required: [name, nights, adultCount, childCount, mainDestination, tourType, currency]
+    TourUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        code: { type: string }
+        startDate: { type: string }
+        endDate: { type: string }
+        nights: { type: number }
+        adultCount: { type: number }
+        childCount: { type: number }
+        mainDestination: { type: string }
+        tourType: { type: string }
+        customerNationality: { type: string }
+        customerLanguage: { type: string }
+        currency: { type: string }
+        status: { type: string }
+        customerId: { type: number }
+        isCruiseExcursion: { type: boolean }
+        shipName: { type: string }
+        portName: { type: string }
+        shipArrivalTime: { type: string }
+        shipDepartureTime: { type: string }
+        cruiseSafetyBufferMinutes: { type: number }
+        guideLanguage: { type: string }
+        transferRequired: { type: boolean }
+        profitMargin: { type: number }
+        notes: { type: string }
+    TourDay:
+      type: object
+      properties:
+        id: { type: number }
+        tourId: { type: number }
+        dayNumber: { type: number }
+        title: { type: string }
+        summary: { type: ["string", "null"] }
+        date: { type: ["string", "null"] }
+        startTime: { type: ["string", "null"] }
+        endTime: { type: ["string", "null"] }
+        locations: { type: string }
+        activities: { type: ["string", "null"] }
+        mealPlan: { type: ["string", "null"] }
+        transportPlan: { type: ["string", "null"] }
+        operationalNotes: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, tourId, dayNumber, title, locations, createdAt]
+    TourDayInput:
+      type: object
+      properties:
+        dayNumber: { type: number }
+        title: { type: string, minLength: 1 }
+        summary: { type: string }
+        date: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        locations: { type: string }
+        activities: { type: string }
+        mealPlan: { type: string }
+        transportPlan: { type: string }
+        operationalNotes: { type: string }
+      required: [dayNumber, title, locations]
+    TourDayUpdate:
+      type: object
+      properties:
+        dayNumber: { type: number }
+        title: { type: string }
+        summary: { type: string }
+        date: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        locations: { type: string }
+        activities: { type: string }
+        mealPlan: { type: string }
+        transportPlan: { type: string }
+        operationalNotes: { type: string }
+    TourCost:
+      type: object
+      properties:
+        id: { type: number }
+        tourId: { type: number }
+        description: { type: string }
+        supplierId: { type: ["number", "null"] }
+        quantity: { type: number }
+        unitCost: { type: number }
+        currency: { type: string }
+        taxRate: { type: number }
+        total: { type: number }
+        costType: { type: string }
+        isPerPerson: { type: boolean }
+        isConfirmed: { type: boolean }
+        category: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, tourId, description, quantity, unitCost, currency, taxRate, total, costType, isPerPerson, isConfirmed, category, createdAt]
+    TourCostInput:
+      type: object
+      properties:
+        description: { type: string, minLength: 1 }
+        supplierId: { type: number }
+        quantity: { type: number }
+        unitCost: { type: number }
+        currency: { type: string }
+        taxRate: { type: number }
+        costType: { type: string }
+        isPerPerson: { type: boolean }
+        isConfirmed: { type: boolean }
+        category: { type: string }
+      required: [description, quantity, unitCost, currency, category]
+    TourCostUpdate:
+      type: object
+      properties:
+        description: { type: string }
+        supplierId: { type: number }
+        quantity: { type: number }
+        unitCost: { type: number }
+        currency: { type: string }
+        taxRate: { type: number }
+        costType: { type: string }
+        isPerPerson: { type: boolean }
+        isConfirmed: { type: boolean }
+        category: { type: string }
+    TourCostSummary:
+      type: object
+      properties:
+        totalCost: { type: number }
+        costPerPerson: { type: number }
+        fixedCosts: { type: number }
+        variableCosts: { type: number }
+        taxAmount: { type: number }
+        commission: { type: number }
+        profitAmount: { type: number }
+        profitMargin: { type: number }
+        suggestedSellingPrice: { type: number }
+        breakEvenPrice: { type: number }
+        currency: { type: string }
+      required: [totalCost, costPerPerson, fixedCosts, variableCosts, taxAmount, commission, profitAmount, profitMargin, suggestedSellingPrice, breakEvenPrice, currency]
+    TourDetail:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        code: { type: string }
+        startDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        nights: { type: number }
+        adultCount: { type: number }
+        childCount: { type: number }
+        mainDestination: { type: string }
+        tourType: { type: string }
+        customerNationality: { type: ["string", "null"] }
+        customerLanguage: { type: ["string", "null"] }
+        currency: { type: string }
+        status: { type: string }
+        customerId: { type: ["number", "null"] }
+        isCruiseExcursion: { type: boolean }
+        shipName: { type: ["string", "null"] }
+        portName: { type: ["string", "null"] }
+        shipArrivalTime: { type: ["string", "null"] }
+        shipDepartureTime: { type: ["string", "null"] }
+        cruiseSafetyBufferMinutes: { type: ["number", "null"] }
+        guideLanguage: { type: ["string", "null"] }
+        transferRequired: { type: boolean }
+        profitMargin: { type: number }
+        notes: { type: ["string", "null"] }
+        days: { type: array, items: { $ref: "#/components/schemas/TourDay" } }
+        costs: { type: array, items: { $ref: "#/components/schemas/TourCost" } }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, code, nights, adultCount, childCount, mainDestination, tourType, currency, status, isCruiseExcursion, transferRequired, profitMargin, days, costs, createdAt, updatedAt]
+
+    # ── Quotations ───────────────────────────────────────────────────────
+    Quotation:
+      type: object
+      properties:
+        id: { type: number }
+        number: { type: string }
+        customerId: { type: number }
+        tourId: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: ["string", "null"] }
+        currency: { type: string }
+        subtotal: { type: number }
+        discount: { type: number }
+        finalPrice: { type: number }
+        paymentTerms: { type: ["string", "null"] }
+        cancellationPolicy: { type: ["string", "null"] }
+        includedServices: { type: ["string", "null"] }
+        excludedServices: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        status: { type: string }
+        updatedAt: { type: string, format: date-time }
+      required: [id, number, customerId, currency, subtotal, discount, finalPrice, status, createdAt, updatedAt]
+    QuotationDetail:
+      type: object
+      properties:
+        id: { type: number }
+        number: { type: string }
+        customerId: { type: number }
+        tourId: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+        expiresAt: { type: ["string", "null"] }
+        currency: { type: string }
+        subtotal: { type: number }
+        discount: { type: number }
+        finalPrice: { type: number }
+        paymentTerms: { type: ["string", "null"] }
+        cancellationPolicy: { type: ["string", "null"] }
+        includedServices: { type: ["string", "null"] }
+        excludedServices: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        status: { type: string }
+        customer: { $ref: "#/components/schemas/Customer" }
+        tour: { $ref: "#/components/schemas/Tour" }
+        updatedAt: { type: string, format: date-time }
+      required: [id, number, customerId, currency, subtotal, discount, finalPrice, status, customer, createdAt, updatedAt]
+    QuotationInput:
+      type: object
+      properties:
+        customerId: { type: number }
+        tourId: { type: number }
+        expiresAt: { type: string }
+        currency: { type: string }
+        subtotal: { type: number }
+        discount: { type: number }
+        finalPrice: { type: number }
+        paymentTerms: { type: string }
+        cancellationPolicy: { type: string }
+        includedServices: { type: string }
+        excludedServices: { type: string }
+        notes: { type: string }
+        status: { type: string }
+      required: [customerId, currency, subtotal, discount, finalPrice]
+    QuotationUpdate:
+      type: object
+      properties:
+        customerId: { type: number }
+        tourId: { type: number }
+        expiresAt: { type: string }
+        currency: { type: string }
+        subtotal: { type: number }
+        discount: { type: number }
+        finalPrice: { type: number }
+        paymentTerms: { type: string }
+        cancellationPolicy: { type: string }
+        includedServices: { type: string }
+        excludedServices: { type: string }
+        notes: { type: string }
+        status: { type: string }
+    QuotationStatusUpdate:
+      type: object
+      properties:
+        status: { type: string }
+      required: [status]
+
+    # ── Operations ───────────────────────────────────────────────────────
+    Operation:
+      type: object
+      properties:
+        id: { type: number }
+        quotationId: { type: ["number", "null"] }
+        tourId: { type: ["number", "null"] }
+        customerId: { type: number }
+        startDate: { type: ["string", "null"] }
+        status: { type: string }
+        assignedTo: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        completionRate: { type: number }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, customerId, status, completionRate, createdAt, updatedAt]
+    OperationDetail:
+      type: object
+      properties:
+        id: { type: number }
+        quotationId: { type: ["number", "null"] }
+        tourId: { type: ["number", "null"] }
+        customerId: { type: number }
+        startDate: { type: ["string", "null"] }
+        status: { type: string }
+        assignedTo: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        completionRate: { type: number }
+        tasks: { type: array, items: { $ref: "#/components/schemas/OperationTask" } }
+        customer: { $ref: "#/components/schemas/Customer" }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, customerId, status, completionRate, tasks, customer, createdAt, updatedAt]
+    OperationInput:
+      type: object
+      properties:
+        quotationId: { type: number }
+        tourId: { type: number }
+        customerId: { type: number }
+        startDate: { type: string }
+        status: { type: string }
+        assignedTo: { type: string }
+        notes: { type: string }
+      required: [customerId]
+    OperationUpdate:
+      type: object
+      properties:
+        startDate: { type: string }
+        status: { type: string }
+        assignedTo: { type: string }
+        notes: { type: string }
+    OperationTask:
+      type: object
+      properties:
+        id: { type: number }
+        operationId: { type: number }
+        title: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        dueDate: { type: ["string", "null"] }
+        assignedTo: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        completedAt: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, operationId, title, status, priority, createdAt]
+    OperationTaskInput:
+      type: object
+      properties:
+        title: { type: string, minLength: 1 }
+        status: { type: string }
+        priority: { type: string }
+        dueDate: { type: string }
+        assignedTo: { type: string }
+        notes: { type: string }
+      required: [title]
+    OperationTaskUpdate:
+      type: object
+      properties:
+        title: { type: string }
+        status: { type: string }
+        priority: { type: string }
+        dueDate: { type: string }
+        assignedTo: { type: string }
+        notes: { type: string }
+        completedAt: { type: string }
+
+    # ── Notifications ────────────────────────────────────────────────────
+    Notification:
+      type: object
+      properties:
+        id: { type: number }
+        type: { type: string }
+        title: { type: string }
+        message: { type: string }
+        isRead: { type: boolean }
+        severity: { type: string }
+        relatedId: { type: ["number", "null"] }
+        relatedType: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+      required: [id, type, title, message, isRead, severity, createdAt]
+
+    # ── Exchange Rates ───────────────────────────────────────────────────
+    ExchangeRate:
+      type: object
+      properties:
+        id: { type: number }
+        fromCurrency: { type: string }
+        toCurrency: { type: string }
+        rate: { type: number }
+        updatedAt: { type: string, format: date-time }
+      required: [id, fromCurrency, toCurrency, rate, updatedAt]
+    ExchangeRateInput:
+      type: object
+      properties:
+        fromCurrency: { type: string }
+        toCurrency: { type: string }
+        rate: { type: number }
+      required: [fromCurrency, toCurrency, rate]
+    ExchangeRateUpdate:
+      type: object
+      properties:
+        rate: { type: number }
+      required: [rate]
+
+    # ── Agency Settings ──────────────────────────────────────────────────
+    AgencySettings:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        logo: { type: ["string", "null"] }
+        address: { type: ["string", "null"] }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        website: { type: ["string", "null"] }
+        defaultCurrency: { type: string }
+        defaultProfitMargin: { type: number }
+        minProfitWarning: { type: number }
+        defaultQuotationValidity: { type: number }
+        cancellationPolicy: { type: ["string", "null"] }
+        paymentTerms: { type: ["string", "null"] }
+        cruiseSafetyBufferMinutes: { type: number }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, defaultCurrency, defaultProfitMargin, minProfitWarning, defaultQuotationValidity, cruiseSafetyBufferMinutes, updatedAt]
+    AgencySettingsUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        logo: { type: string }
+        address: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        website: { type: string }
+        defaultCurrency: { type: string }
+        defaultProfitMargin: { type: number }
+        minProfitWarning: { type: number }
+        defaultQuotationValidity: { type: number }
+        cancellationPolicy: { type: string }
+        paymentTerms: { type: string }
+        cruiseSafetyBufferMinutes: { type: number }
+
+    # ── Email Templates ──────────────────────────────────────────────────
+    EmailTemplate:
+      type: object
+      properties:
+        id: { type: number }
+        name: { type: string }
+        type: { type: string }
+        subject: { type: string }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, name, type, subject, body, createdAt, updatedAt]
+    EmailTemplateInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1 }
+        type: { type: string }
+        subject: { type: string }
+        body: { type: string }
+      required: [name, type, subject, body]
+    EmailTemplateUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        type: { type: string }
+        subject: { type: string }
+        body: { type: string }
+
+    # ── Dashboard ────────────────────────────────────────────────────────
+    DashboardStats:
+      type: object
+      properties:
+        activeTours: { type: number }
+        pendingQuotations: { type: number }
+        upcomingDepartures: { type: number }
+        unconfirmedReservations: { type: number }
+        totalEstimatedRevenue: { type: number }
+        avgProfitMargin: { type: number }
+        tasksDueToday: { type: number }
+        currency: { type: string }
+      required: [activeTours, pendingQuotations, upcomingDepartures, unconfirmedReservations, totalEstimatedRevenue, avgProfitMargin, tasksDueToday, currency]
+    DashboardAlert:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        message: { type: string }
+        severity: { type: string, enum: [warning, critical, info] }
+        relatedId: { type: ["number", "null"] }
+        relatedType: { type: ["string", "null"] }
+      required: [id, type, message, severity]
+    ChartDataPoint:
+      type: object
+      properties:
+        label: { type: string }
+        value: { type: number }
+      required: [label, value]
+    DashboardCharts:
+      type: object
+      properties:
+        monthlyQuotations: { type: array, items: { $ref: "#/components/schemas/ChartDataPoint" } }
+        monthlySales: { type: array, items: { $ref: "#/components/schemas/ChartDataPoint" } }
+        tourStatusDistribution: { type: array, items: { $ref: "#/components/schemas/ChartDataPoint" } }
+        topDestinations: { type: array, items: { $ref: "#/components/schemas/ChartDataPoint" } }
+      required: [monthlyQuotations, monthlySales, tourStatusDistribution, topDestinations]
+
+    # ── AI ───────────────────────────────────────────────────────────────
+    RequestAnalysisInput:
+      type: object
+      properties:
+        message: { type: string, minLength: 1 }
+      required: [message]
+    RequestAnalysis:
+      type: object
+      properties:
+        customerName: { type: ["string", "null"] }
+        startDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
+        adultCount: { type: ["number", "null"] }
+        childCount: { type: ["number", "null"] }
+        destination: { type: ["string", "null"] }
+        duration: { type: ["number", "null"] }
+        budget: { type: ["string", "null"] }
+        hotelCategory: { type: ["string", "null"] }
+        transferRequired: { type: ["boolean", "null"] }
+        guideLanguage: { type: ["string", "null"] }
+        activities: { type: ["string", "null"] }
+        mealPreferences: { type: ["string", "null"] }
+        specialRequests: { type: ["string", "null"] }
+        customerType: { type: ["string", "null"] }
+        missingFields: { type: array, items: { type: string } }
+      required: [missingFields]
+    ItineraryInput:
+      type: object
+      properties:
+        destination: { type: string, minLength: 1 }
+        startDate: { type: string }
+        endDate: { type: string }
+        nights: { type: number }
+        adultCount: { type: number }
+        childCount: { type: number }
+        interests: { type: string }
+        budgetLevel: { type: string }
+        hotelType: { type: string }
+        transportType: { type: string }
+        arrivalTime: { type: string }
+        departureTime: { type: string }
+        specialLimitations: { type: string }
+        modifyCommand: { type: string }
+        existingItinerary: { type: string }
+      required: [destination, nights, adultCount]
+    ItineraryDay:
+      type: object
+      properties:
+        dayNumber: { type: number }
+        title: { type: string }
+        summary: { type: string }
+        startTime: { type: string }
+        endTime: { type: string }
+        locations: { type: string }
+        activities: { type: string }
+        mealPlan: { type: string }
+        transportPlan: { type: string }
+        estimatedDrivingMinutes: { type: number }
+        estimatedActivityMinutes: { type: number }
+        accessibilityNotes: { type: ["string", "null"] }
+        operationalNotes: { type: ["string", "null"] }
+      required: [dayNumber, title, summary, startTime, endTime, locations, activities, mealPlan, transportPlan, estimatedDrivingMinutes, estimatedActivityMinutes]
+    ItineraryResult:
+      type: object
+      properties:
+        days: { type: array, items: { $ref: "#/components/schemas/ItineraryDay" } }
+        cruiseWarning: { type: ["string", "null"] }
+      required: [days]
+    AIAssistInput:
+      type: object
+      properties:
+        prompt: { type: string, minLength: 1 }
+        context: { type: string }
+      required: [prompt]
+    AIAssistResult:
+      type: object
+      properties:
+        result: { type: string }
+        type: { type: string }
+      required: [result, type]
+    EmailDraftInput:
+      type: object
+      properties:
+        templateType: { type: string, minLength: 1 }
+        context: { type: string }
+        language: { type: string }
+      required: [templateType]
+    EmailDraft:
+      type: object
+      properties:
+        subject: { type: string }
+        body: { type: string }
+        recipientSuggestion: { type: ["string", "null"] }
+      required: [subject, body]
