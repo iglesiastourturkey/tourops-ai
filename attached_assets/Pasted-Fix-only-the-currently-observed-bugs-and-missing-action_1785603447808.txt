@@ -1,0 +1,51 @@
+Fix only the currently observed bugs and missing actions.
+
+1. Receipt photo upload on mobile
+- Investigate why “Makbuz Ekle” photo upload fails on mobile.
+- Support camera capture and gallery selection using:
+  accept="image/*"
+  capture="environment"
+- Do not block receipt creation if the photo upload fails.
+- Show upload progress.
+- Show a clear Turkish error message.
+- Allow retrying the photo upload.
+- Validate file type and maximum file size.
+- Keep receipt metadata save separate from photo upload.
+- Test on mobile viewport.
+
+2. Dashboard statistics
+- Fix dashboard KPI calculations so they use real database data.
+- Active Tours = active/approved tours.
+- Pending Quotations = draft/sent/pending quotations.
+- Upcoming Departures = tours starting in the next 7 days.
+- Today's Tasks = operation tasks due today and not completed.
+- Estimated Revenue must use quotation currency correctly; do not display EUR totals with the TRY symbol.
+- Average Profit Margin must use real tour cost data.
+- Fix the monthly quotation chart if data exists.
+- Add a visible retry button when dashboard queries fail.
+
+3. Tour list actions
+- Add an actions menu to each tour row.
+- Include:
+  - View/Edit
+  - Archive
+  - Delete
+- Archive must use soft-delete or archived status, not permanently remove data.
+- Delete must require a confirmation dialog.
+- Prevent deleting a tour that is linked to an active quotation or operation; show a Turkish warning instead.
+- Add an Archived filter to the tour status filter.
+
+4. Operation PDF corrections
+- Populate operation start and end dates from the linked tour.
+- Use agency name, phone, email, website, address and logo from agency_settings.
+- Remove all demo agency values.
+- Fix Turkish headings such as “REHBER VE ŞOFÖR”.
+- Display operation status in Turkish.
+- If a value is missing, show “Belirtilmemiş” instead of “-”.
+
+5. Verification
+- Do not add new unrelated features.
+- Run database migration only if required.
+- Run full TypeScript check.
+- Run production build.
+- Report root causes, modified files and remaining known issues.

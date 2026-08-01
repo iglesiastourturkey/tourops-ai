@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { toursTable, tourDaysTable, tourCostsTable } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { toursTable, tourDaysTable, tourCostsTable, quotationsTable, operationsTable } from "@workspace/db/schema";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
@@ -48,7 +48,24 @@ router.patch("/:id", async (req, res) => {
 
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(toursTable).where(eq(toursTable.id, parseInt(req.params.id)));
+    const tourId = parseInt(req.params.id);
+    // Prevent deleting a tour that has active quotations or operations
+    const [activeQuotations, activeOperations] = await Promise.all([
+      db.select({ id: quotationsTable.id }).from(quotationsTable).where(
+        and(
+          eq(quotationsTable.tourId, tourId),
+          inArray(quotationsTable.status, ["draft", "sent", "viewed", "accepted"])
+        )
+      ),
+      db.select({ id: operationsTable.id }).from(operationsTable).where(
+        and(eq(operationsTable.tourId, tourId), inArray(operationsTable.status, ["active"]))
+      ),
+    ]);
+    if (activeQuotations.length > 0 || activeOperations.length > 0) {
+      res.status(409).json({ error: "Tour has active quotations or operations and cannot be deleted" });
+      return;
+    }
+    await db.delete(toursTable).where(eq(toursTable.id, tourId));
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete tour" }); }
 });

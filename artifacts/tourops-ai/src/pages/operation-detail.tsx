@@ -130,8 +130,14 @@ export default function OperationDetailPage() {
   const [receiptPhoto, setReceiptPhoto] = useState<File | null>(null);
   const [receiptPhotoPreview, setReceiptPhotoPreview] = useState<string | null>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [photoUploadError, setPhotoUploadError] = useState<string | null>(null);
   const [isPdfLoading, setIsPdfLoading] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
+  // Two separate inputs so each button reliably opens the intended picker on mobile.
+  // capture="environment" alone causes Chrome Android to skip the gallery; a second
+  // input without capture is the only cross-browser way to offer both options.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   // ── Queries ───────────────────────────────────────────────────────────────
   const { data: operation, isLoading: opLoading } = useGetOperation(id, {
@@ -231,11 +237,37 @@ export default function OperationDetailPage() {
   }
 
   // ── Receipt handlers ──────────────────────────────────────────────────────
+  const MAX_PHOTO_SIZE_MB = 10;
+
+  function clearPhotoInputs() {
+    if (cameraInputRef.current)  cameraInputRef.current.value = '';
+    if (galleryInputRef.current) galleryInputRef.current.value = '';
+  }
+
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null;
+    setPhotoUploadError(null);
+    if (!file) {
+      setReceiptPhoto(null);
+      if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview);
+      setReceiptPhotoPreview(null);
+      return;
+    }
+    // Validate type
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'Geçersiz dosya türü', description: 'Lütfen bir fotoğraf seçin (JPEG, PNG, vb.)', variant: 'destructive' });
+      clearPhotoInputs();
+      return;
+    }
+    // Validate size
+    if (file.size > MAX_PHOTO_SIZE_MB * 1024 * 1024) {
+      toast({ title: 'Dosya çok büyük', description: `Maksimum ${MAX_PHOTO_SIZE_MB} MB yüklenebilir.`, variant: 'destructive' });
+      clearPhotoInputs();
+      return;
+    }
     setReceiptPhoto(file);
     if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview);
-    setReceiptPhotoPreview(file ? URL.createObjectURL(file) : null);
+    setReceiptPhotoPreview(URL.createObjectURL(file));
   }
 
   async function handleCreateReceipt() {
@@ -244,38 +276,54 @@ export default function OperationDetailPage() {
       toast({ title: 'Tutar zorunludur', variant: 'destructive' }); return;
     }
     setIsUploadingReceipt(true);
-    try {
-      let photoObjectPath: string | undefined;
-      if (receiptPhoto) {
+    setUploadProgress(0);
+    setPhotoUploadError(null);
+
+    let photoObjectPath: string | undefined;
+
+    // Upload photo if selected — failure does NOT block receipt save
+    if (receiptPhoto) {
+      try {
+        setUploadProgress(30);
         const token = await getToken();
+        setUploadProgress(60);
         photoObjectPath = await uploadFile(receiptPhoto, token);
+        setUploadProgress(100);
+      } catch {
+        // Photo upload failed — save receipt without photo, warn user
+        setPhotoUploadError('Fotoğraf yüklenemedi. Makbuz fotoğrafsız kaydedilecek.');
+        setUploadProgress(0);
       }
-      createReceiptMutation.mutate({
-        id,
-        data: {
-          amount: amountNum,
-          currency: receiptForm.currency,
-          supplierName: receiptForm.supplierName || undefined,
-          receiptDate: receiptForm.receiptDate || undefined,
-          guideNote: receiptForm.guideNote || undefined,
-          photoObjectPath,
-        },
-      }, {
-        onSuccess: () => {
-          toast({ title: 'Makbuz eklendi' });
-          qc.invalidateQueries({ queryKey: getListOperationReceiptsQueryKey(id) });
-          setReceiptDialogOpen(false);
-          setReceiptForm({ amount: '', currency: 'TRY', supplierName: '', receiptDate: '', guideNote: '' });
-          setReceiptPhoto(null);
-          setReceiptPhotoPreview(null);
-        },
-        onError: () => toast({ title: 'Makbuz eklenemedi', variant: 'destructive' }),
-      });
-    } catch {
-      toast({ title: 'Fotoğraf yüklenemedi', description: 'Lütfen tekrar deneyin.', variant: 'destructive' });
-    } finally {
-      setIsUploadingReceipt(false);
     }
+
+    createReceiptMutation.mutate({
+      id,
+      data: {
+        amount: amountNum,
+        currency: receiptForm.currency,
+        supplierName: receiptForm.supplierName || undefined,
+        receiptDate: receiptForm.receiptDate || undefined,
+        guideNote: receiptForm.guideNote || undefined,
+        photoObjectPath,
+      },
+    }, {
+      onSuccess: () => {
+        if (photoUploadError || (!photoObjectPath && receiptPhoto)) {
+          toast({ title: 'Makbuz eklendi', description: 'Fotoğraf yüklenemedi; makbuz fotoğrafsız kaydedildi.', variant: 'default' });
+        } else {
+          toast({ title: 'Makbuz eklendi' });
+        }
+        qc.invalidateQueries({ queryKey: getListOperationReceiptsQueryKey(id) });
+        setReceiptDialogOpen(false);
+        setReceiptForm({ amount: '', currency: 'TRY', supplierName: '', receiptDate: '', guideNote: '' });
+        setReceiptPhoto(null);
+        setReceiptPhotoPreview(null);
+        setUploadProgress(0);
+        setPhotoUploadError(null);
+      },
+      onError: () => toast({ title: 'Makbuz eklenemedi', variant: 'destructive' }),
+      onSettled: () => setIsUploadingReceipt(false),
+    });
   }
 
   // ── PDF handler ───────────────────────────────────────────────────────────
@@ -626,7 +674,7 @@ export default function OperationDetailPage() {
       </Dialog>
 
       {/* ── Receipt add dialog ─────────────────────────────────────────────── */}
-      <Dialog open={receiptDialogOpen} onOpenChange={v => { setReceiptDialogOpen(v); if (!v) { setReceiptPhoto(null); setReceiptPhotoPreview(null); } }}>
+      <Dialog open={receiptDialogOpen} onOpenChange={v => { setReceiptDialogOpen(v); if (!v) { setReceiptPhoto(null); setReceiptPhotoPreview(null); setUploadProgress(0); setPhotoUploadError(null); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader><DialogTitle>Makbuz Ekle</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -664,40 +712,88 @@ export default function OperationDetailPage() {
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Makbuz Fotoğrafı</label>
               {receiptPhotoPreview ? (
+                /* Preview + remove/retake */
                 <div className="relative">
-                  <img src={receiptPhotoPreview} alt="Önizleme" className="w-full h-32 object-cover rounded-lg border" />
+                  <img src={receiptPhotoPreview} alt="Önizleme" className="w-full h-36 object-cover rounded-lg border" />
                   <button
-                    onClick={() => { setReceiptPhoto(null); setReceiptPhotoPreview(null); if (photoInputRef.current) photoInputRef.current.value = ''; }}
-                    className="absolute top-1 right-1 bg-background/80 rounded-full p-1 text-xs"
+                    type="button"
+                    onClick={() => {
+                      setReceiptPhoto(null);
+                      if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview);
+                      setReceiptPhotoPreview(null);
+                      clearPhotoInputs();
+                    }}
+                    className="absolute top-1.5 right-1.5 bg-background/90 border rounded-full p-1 leading-none text-xs hover:bg-background"
+                    aria-label="Fotoğrafı kaldır"
                   >
                     ✕
                   </button>
                 </div>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  className="w-full h-20 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1 text-muted-foreground hover:border-primary/50 hover:text-primary/70 transition-colors"
-                  data-testid="button-upload-photo"
-                >
-                  <Camera className="w-5 h-5" />
-                  <span className="text-xs">Fotoğraf Seç</span>
-                </button>
+                /* Two-button picker */
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="h-20 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary/70 transition-colors"
+                    data-testid="button-take-photo"
+                  >
+                    <Camera className="w-5 h-5" />
+                    <span className="text-xs font-medium">Fotoğraf Çek</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => galleryInputRef.current?.click()}
+                    className="h-20 border-2 border-dashed rounded-lg flex flex-col items-center justify-center gap-1.5 text-muted-foreground hover:border-primary/50 hover:text-primary/70 transition-colors"
+                    data-testid="button-choose-from-gallery"
+                  >
+                    <Receipt className="w-5 h-5" />
+                    <span className="text-xs font-medium">Galeriden Seç</span>
+                  </button>
+                </div>
               )}
+
+              {/* Camera input — opens rear camera on mobile */}
               <input
-                ref={photoInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handlePhotoChange}
+                data-testid="input-receipt-camera"
+              />
+              {/* Gallery input — shows file/gallery picker without forcing camera */}
+              <input
+                ref={galleryInputRef}
                 type="file"
                 accept="image/*"
                 className="hidden"
                 onChange={handlePhotoChange}
-                data-testid="input-receipt-photo"
+                data-testid="input-receipt-gallery"
               />
             </div>
           </div>
+          {/* Upload progress bar */}
+          {isUploadingReceipt && uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="px-1 pb-1">
+              <p className="text-xs text-muted-foreground mb-1">Fotoğraf yükleniyor...</p>
+              <Progress value={uploadProgress} className="h-1.5" />
+            </div>
+          )}
+
+          {/* Photo upload error (non-blocking) */}
+          {photoUploadError && (
+            <div className="flex items-start gap-2 text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+              <span>{photoUploadError}</span>
+            </div>
+          )}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReceiptDialogOpen(false)}>İptal</Button>
+            <Button variant="outline" onClick={() => setReceiptDialogOpen(false)} disabled={isUploadingReceipt || createReceiptMutation.isPending}>İptal</Button>
             <Button onClick={handleCreateReceipt} disabled={isUploadingReceipt || createReceiptMutation.isPending} data-testid="button-save-receipt">
-              {isUploadingReceipt ? 'Yükleniyor...' : createReceiptMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+              {isUploadingReceipt ? 'Fotoğraf yükleniyor...' : createReceiptMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>
           </DialogFooter>
         </DialogContent>

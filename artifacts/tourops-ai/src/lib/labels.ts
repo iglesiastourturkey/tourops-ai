@@ -38,6 +38,7 @@ export const TOUR_STATUS_LABELS: Record<string, string> = {
   approved: 'Onaylı',
   cancelled: 'İptal',
   completed: 'Tamamlandı',
+  archived: 'Arşivlendi',
 };
 
 export const TOUR_STATUS_COLORS: Record<string, string> = {
@@ -45,6 +46,7 @@ export const TOUR_STATUS_COLORS: Record<string, string> = {
   approved: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
   completed: 'bg-blue-100 text-blue-700',
+  archived: 'bg-orange-100 text-orange-700',
 };
 
 export const TOUR_TYPE_LABELS: Record<string, string> = {

@@ -7,13 +7,20 @@ import type { Operation, Tour, TourDay, Customer, AgencySettings } from '@worksp
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function trDate(d: string | null | undefined): string {
-  if (!d) return '-';
+  if (!d) return 'Belirtilmemiş';
   return new Date(d).toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
 function trToday(): string {
   return new Date().toLocaleDateString('tr-TR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+
+// Turkish operation status labels
+const OP_STATUS_TR: Record<string, string> = {
+  active: 'Aktif',
+  completed: 'Tamamlandı',
+  cancelled: 'İptal',
+};
 
 // ─── Brand constants ──────────────────────────────────────────────────────────
 
@@ -43,7 +50,7 @@ function infoRow(label: string, value: string | null | undefined, last = false):
   return {
     columns: [
       { text: label, width: 140, fontSize: 9, color: GRAY, bold: true },
-      { text: value || '-', fontSize: 9, color: BLACK },
+      { text: value || 'Belirtilmemiş', fontSize: 9, color: BLACK },
     ],
     margin: [0, 3, 0, last ? 0 : 1],
   };
@@ -55,7 +62,7 @@ function emergencyRow(label: string, name: string | null | undefined, phone: str
   return {
     columns: [
       { text: label, width: 140, fontSize: 9, color: RED, bold: true },
-      { text: `${name || '-'}  ${phone ? `· ${phone}` : ''}`, fontSize: 9, color: BLACK, bold: true },
+      { text: `${name || 'Belirtilmemiş'}  ${phone ? `· ${phone}` : ''}`, fontSize: 9, color: BLACK, bold: true },
     ],
     margin: [0, 3, 0, 1],
   };
@@ -83,9 +90,17 @@ export async function generateOperationPdf(
   const roboto  = robotoModule.default   ?? robotoModule;
   pdfMake.addFontContainer(roboto);
 
-  const agencyName  = agencySettings?.name  ?? 'TourOps Acentesi';
-  const agencyPhone = agencySettings?.phone ?? '';
-  const agencyEmail = agencySettings?.email ?? '';
+  const agencyName    = agencySettings?.name    ?? 'TourOps Acentesi';
+  const agencyPhone   = agencySettings?.phone   ?? '';
+  const agencyEmail   = agencySettings?.email   ?? '';
+  const agencyAddress = agencySettings?.address ?? '';
+  const agencyWebsite = agencySettings?.website ?? '';
+
+  // Use tour dates as fallback when operation dates are not set
+  const startDate = operation.startDate || tour?.startDate || null;
+  const endDate   = operation.endDate   || tour?.endDate   || null;
+
+  const statusTr = OP_STATUS_TR[operation.status ?? ''] ?? (operation.status ?? 'Belirtilmemiş');
 
   const sortedDays = [...tourDays].sort((a, b) => a.dayNumber - b.dayNumber);
 
@@ -126,6 +141,14 @@ export async function generateOperationPdf(
     }
   }
 
+  // ── Footer text ───────────────────────────────────────────────────────────
+  const footerParts = [agencyName];
+  if (agencyPhone)   footerParts.push(agencyPhone);
+  if (agencyEmail)   footerParts.push(agencyEmail);
+  if (agencyWebsite) footerParts.push(agencyWebsite);
+  if (agencyAddress) footerParts.push(agencyAddress);
+  const footerText = footerParts.join('  ·  ');
+
   // ── Document definition ───────────────────────────────────────────────────
   const docDefinition = {
     pageSize: 'A4' as const,
@@ -147,7 +170,7 @@ export async function generateOperationPdf(
     footer: (currentPage: number, pageCount: number) => ({
       columns: [
         {
-          text: `${agencyName}${agencyPhone ? `  ·  ${agencyPhone}` : ''}${agencyEmail ? `  ·  ${agencyEmail}` : ''}`,
+          text: footerText,
           fontSize: 7,
           color: GRAY,
           margin: [40, 0, 0, 0],
@@ -172,7 +195,7 @@ export async function generateOperationPdf(
           {
             stack: [
               { text: 'OPERASYON DOSYASI', fontSize: 18, bold: true, color: WHITE },
-              { text: `OP-${operation.id}  —  ${trDate(operation.startDate)}${operation.endDate ? ` → ${trDate(operation.endDate)}` : ''}`, fontSize: 10, color: ORANGE, margin: [0, 4, 0, 0] },
+              { text: `OP-${operation.id}  —  ${trDate(startDate)}${endDate ? ` → ${trDate(endDate)}` : ''}`, fontSize: 10, color: ORANGE, margin: [0, 4, 0, 0] },
             ],
           },
           {
@@ -192,17 +215,17 @@ export async function generateOperationPdf(
           columns: [
             {
               stack: [
-                infoRow('Tur Adı', tour?.name ?? '-'),
-                infoRow('Başlangıç', trDate(operation.startDate)),
-                infoRow('Bitiş', trDate(operation.endDate ?? null)),
+                infoRow('Tur Adı', tour?.name ?? null),
+                infoRow('Başlangıç', trDate(startDate)),
+                infoRow('Bitiş', trDate(endDate)),
               ],
               width: '50%',
             },
             {
               stack: [
-                infoRow('Müşteri', customer?.name ?? '-'),
-                infoRow('Müşteri Tel.', customer?.phone ?? '-'),
-                infoRow('Durum', operation.status ?? '-'),
+                infoRow('Müşteri', customer?.name ?? null),
+                infoRow('Müşteri Tel.', customer?.phone ?? null),
+                infoRow('Durum', statusTr),
               ],
               width: '50%',
             },
@@ -213,7 +236,7 @@ export async function generateOperationPdf(
       ]),
 
       // ── Guide & driver ────────────────────────────────────────────────────
-      ...section('REHBEr VE ŞOFÖR', [
+      ...section('REHBER VE ŞOFÖR', [
         {
           columns: [
             {
@@ -225,8 +248,8 @@ export async function generateOperationPdf(
                     body: [[
                       {
                         stack: [
-                          { text: 'REHBEr', fontSize: 8, bold: true, color: GRAY },
-                          { text: operation.guideName || 'Atanmadı', fontSize: 10, color: operation.guideName ? BLACK : GRAY, bold: !!operation.guideName, margin: [0, 2, 0, 0] },
+                          { text: 'REHBER', fontSize: 8, bold: true, color: GRAY },
+                          { text: operation.guideName || 'Belirtilmemiş', fontSize: 10, color: operation.guideName ? BLACK : GRAY, bold: !!operation.guideName, margin: [0, 2, 0, 0] },
                           { text: operation.guidePhone || '', fontSize: 9, color: GREEN },
                         ],
                         border: [false, false, false, false],
@@ -249,7 +272,7 @@ export async function generateOperationPdf(
                       {
                         stack: [
                           { text: 'ŞOFÖR', fontSize: 8, bold: true, color: GRAY },
-                          { text: operation.driverName || 'Atanmadı', fontSize: 10, color: operation.driverName ? BLACK : GRAY, bold: !!operation.driverName, margin: [0, 2, 0, 0] },
+                          { text: operation.driverName || 'Belirtilmemiş', fontSize: 10, color: operation.driverName ? BLACK : GRAY, bold: !!operation.driverName, margin: [0, 2, 0, 0] },
                           { text: operation.driverPhone || '', fontSize: 9, color: GREEN },
                           ...(operation.vehiclePlate ? [{ text: `Plaka: ${operation.vehiclePlate}`, fontSize: 9, color: NAVY, bold: true }] : []),
                         ],
