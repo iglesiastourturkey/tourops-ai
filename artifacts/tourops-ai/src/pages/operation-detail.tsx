@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'wouter';
+import { useAuth } from '@clerk/react';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,54 @@ import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, PRIORITY_LABELS, PRIO
 import { uploadFile, getStorageObjectUrl } from '@/lib/storage-service';
 import { generateOperationPdf } from '@/lib/operation-pdf-export';
 
+// ─── AuthenticatedImage ───────────────────────────────────────────────────────
+// Fetches a protected storage object with a Clerk Bearer token and renders it
+// as a blob URL. Necessary because plain <img> tags cannot attach auth headers.
+
+function AuthenticatedImage({ objectPath, alt, className }: {
+  objectPath: string;
+  alt: string;
+  className?: string;
+}) {
+  const { getToken } = useAuth();
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState(false);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const token = await getToken();
+        const url = getStorageObjectUrl(objectPath);
+        const res = await fetch(url, {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (!res.ok || cancelled) { if (!cancelled) setFetchError(true); return; }
+        const blob = await res.blob();
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBlobUrl(objectUrl);
+      } catch {
+        if (!cancelled) setFetchError(true);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  // objectPath and getToken are stable refs; re-run only when path changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectPath]);
+
+  if (fetchError || !blobUrl) return <Camera className="w-5 h-5 text-muted-foreground/50" />;
+  return <img src={blobUrl} alt={alt} className={className} />;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface GuideForm {
@@ -60,6 +109,7 @@ export default function OperationDetailPage() {
   const id = parseInt(params.id ?? '0');
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { getToken } = useAuth();
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -197,7 +247,8 @@ export default function OperationDetailPage() {
     try {
       let photoObjectPath: string | undefined;
       if (receiptPhoto) {
-        photoObjectPath = await uploadFile(receiptPhoto);
+        const token = await getToken();
+        photoObjectPath = await uploadFile(receiptPhoto, token);
       }
       createReceiptMutation.mutate({
         id,
@@ -471,8 +522,8 @@ export default function OperationDetailPage() {
                   {/* Photo thumbnail */}
                   <div className="w-12 h-12 rounded-md overflow-hidden flex-shrink-0 bg-muted flex items-center justify-center">
                     {r.photoObjectPath ? (
-                      <img
-                        src={getStorageObjectUrl(r.photoObjectPath)}
+                      <AuthenticatedImage
+                        objectPath={r.photoObjectPath}
                         alt="Makbuz"
                         className="w-full h-full object-cover"
                       />

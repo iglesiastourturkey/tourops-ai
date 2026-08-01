@@ -112,6 +112,19 @@ export class ObjectStorageService {
   }
 
   async getObjectEntityUploadURL(): Promise<string> {
+    const { uploadURL } = await this.getObjectEntityUploadInfo();
+    return uploadURL;
+  }
+
+  /**
+   * Generate a presigned PUT URL for a new private object upload.
+   *
+   * Returns BOTH the signed URL (for the client PUT) AND the canonical
+   * `/objects/uploads/<uuid>` object path (for storage in the DB).
+   * The object path is derived directly from the UUID — never by parsing the
+   * signed URL — so it is stable regardless of the signed-URL provider format.
+   */
+  async getObjectEntityUploadInfo(): Promise<{ uploadURL: string; objectPath: string }> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -125,12 +138,18 @@ export class ObjectStorageService {
 
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
-    return signObjectURL({
+    const uploadURL = await signObjectURL({
       bucketName,
       objectName,
       method: 'PUT',
       ttlSec: 900,
     });
+
+    // Build the canonical path from the UUID directly — do NOT parse the
+    // signed URL, which may use a different base depending on the provider.
+    const objectPath = `/objects/uploads/${objectId}`;
+
+    return { uploadURL, objectPath };
   }
 
   async getObjectEntityFile(objectPath: string): Promise<File> {

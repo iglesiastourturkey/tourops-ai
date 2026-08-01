@@ -3,6 +3,15 @@ import { db } from "@workspace/db";
 import { operationsTable, operationTasksTable, operationReceiptsTable } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
+import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+
+const objectStorageService = new ObjectStorageService();
+
+// Allowed image MIME types for receipt photos — must match the upload allowlist.
+const ALLOWED_RECEIPT_MIME_TYPES = new Set([
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif",
+]);
+const MAX_RECEIPT_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB
 
 const router = Router();
 router.use(requireAuth);
@@ -93,10 +102,56 @@ router.get("/:id/receipts", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to list receipts" }); }
 });
 
+// Canonical private-upload path pattern: /objects/uploads/<uuid>
+const CANONICAL_OBJECT_PATH_RE = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 router.post("/:id/receipts", async (req, res) => {
   try {
+    const body = { ...req.body };
+
+    // Validate photoObjectPath format before any GCS call.
+    if (body.photoObjectPath != null) {
+      if (typeof body.photoObjectPath !== "string" || !CANONICAL_OBJECT_PATH_RE.test(body.photoObjectPath)) {
+        res.status(400).json({ error: "Invalid photoObjectPath format" });
+        return;
+      }
+
+      // Post-upload server-side validation: fetch the actual GCS object
+      // metadata and verify content-type and size against the policy.
+      // This enforces constraints on the REAL uploaded bytes — not just the
+      // client-supplied JSON — so a caller cannot bypass the upload allowlist
+      // by requesting a URL as a 1-byte PNG then uploading arbitrary content.
+      let objectFile;
+      try {
+        objectFile = await objectStorageService.getObjectEntityFile(body.photoObjectPath);
+      } catch (err) {
+        if (err instanceof ObjectNotFoundError) {
+          res.status(400).json({ error: "Receipt photo not found in storage; upload the file first" });
+          return;
+        }
+        throw err;
+      }
+
+      const [metadata] = await objectFile.getMetadata();
+      const contentType = metadata.contentType as string | undefined;
+      const size = Number(metadata.size ?? 0);
+
+      if (!contentType || !ALLOWED_RECEIPT_MIME_TYPES.has(contentType.split(";")[0].trim())) {
+        // Delete the offending object so it cannot be re-registered later.
+        await objectFile.delete().catch(() => {/* best-effort */});
+        res.status(400).json({ error: "Uploaded file is not an allowed image type (JPEG, PNG, GIF, WEBP, HEIC)" });
+        return;
+      }
+
+      if (size > MAX_RECEIPT_PHOTO_BYTES) {
+        await objectFile.delete().catch(() => {/* best-effort */});
+        res.status(400).json({ error: "Uploaded file exceeds the 10 MB limit" });
+        return;
+      }
+    }
+
     const [row] = await db.insert(operationReceiptsTable)
-      .values({ ...req.body, operationId: parseInt(req.params.id) })
+      .values({ ...body, operationId: parseInt(req.params.id) })
       .returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create receipt" }); }

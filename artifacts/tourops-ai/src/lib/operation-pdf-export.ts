@@ -70,8 +70,12 @@ export async function generateOperationPdf(
   tourDays: TourDay[],
   customer: Customer | null,
 ): Promise<void> {
+  // Dynamic imports — pdfmake stays out of the initial bundle.
+  // Import explicitly from pdfmake/build/pdfmake (the UMD browser bundle)
+  // rather than the package root, which resolves to the Node/server entry
+  // (js/index.js) and does not expose addFontContainer.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfMakeModule = await import('pdfmake') as any;
+  const pdfMakeModule = await import('pdfmake/build/pdfmake') as any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const robotoModule  = await import('pdfmake/build/fonts/Roboto') as any;
 

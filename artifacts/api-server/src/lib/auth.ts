@@ -13,6 +13,7 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   next();
 }
 
+
 export async function getOrCreateProfile(clerkUserId: string, email: string, name?: string) {
   const existing = await db.select().from(profilesTable).where(eq(profilesTable.clerkUserId, clerkUserId)).limit(1);
   if (existing.length > 0) return existing[0];
