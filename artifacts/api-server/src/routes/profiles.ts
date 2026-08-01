@@ -36,10 +36,28 @@ router.patch("/me", requireAuth, requireActive(), async (req, res) => {
   }
 });
 
-// GET /api/profiles — admin only; for user management
-router.get("/", requireAuth, requireRole("admin"), async (req, res) => {
+// GET /api/profiles — admin: all profiles; operations: guide profiles only (for guide assignment)
+router.get("/", requireAuth, async (req, res) => {
   try {
-    const profiles = await db.select().from(profilesTable);
+    const profile = res.locals.profile;
+    const callerRole = profile?.role as string | undefined;
+
+    // Only admin and operations roles may list profiles
+    if (callerRole !== "admin" && callerRole !== "operations") {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
+
+    // Optional ?role= filter (e.g. role=guide). Operations staff always get only guides.
+    const roleFilter = (req.query as Record<string, string>).role;
+    const effectiveRoleFilter = callerRole === "operations" ? "guide" : roleFilter;
+
+    let profiles;
+    if (effectiveRoleFilter) {
+      profiles = await db.select().from(profilesTable).where(eq(profilesTable.role, effectiveRoleFilter as "admin" | "operations" | "guide" | "accounting"));
+    } else {
+      profiles = await db.select().from(profilesTable);
+    }
     res.json(profiles);
   } catch (err) {
     res.status(500).json({ error: "Failed to list profiles" });

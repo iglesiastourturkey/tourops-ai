@@ -51,8 +51,12 @@ export const UpdateMyProfileResponse = zod.object({
 
 
 /**
- * @summary List all user profiles (admin only)
+ * @summary List user profiles (admin sees all; operations sees guides only)
  */
+export const ListProfilesQueryParams = zod.object({
+  "role": zod.coerce.string().optional()
+})
+
 export const ListProfilesResponseItem = zod.object({
   "id": zod.number(),
   "clerkUserId": zod.string(),

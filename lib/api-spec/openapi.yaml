@@ -86,7 +86,12 @@ paths:
     get:
       operationId: listProfiles
       tags: [profiles]
-      summary: List all user profiles (admin only)
+      summary: List user profiles (admin sees all; operations sees guides only)
+      parameters:
+        - name: role
+          in: query
+          required: false
+          schema: { type: string }
       responses:
         "200":
           description: List of profiles

@@ -17,6 +17,7 @@ import {
   useListOperationTasks, useUpdateOperationTask, useCreateOperationTask, useDeleteOperationTask,
   useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
   useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer,
+  useListProfiles,
 } from '@workspace/api-client-react';
 import {
   getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
@@ -96,6 +97,7 @@ interface GuideForm {
   emergencyContact1Phone: string;
   emergencyContact2Name: string;
   emergencyContact2Phone: string;
+  assignedGuideUserId: string | null;
 }
 
 interface ReceiptForm {
@@ -129,6 +131,7 @@ export default function OperationDetailPage() {
     guideName: '', guidePhone: '', driverName: '', driverPhone: '', vehiclePlate: '',
     emergencyContact1Name: '', emergencyContact1Phone: '',
     emergencyContact2Name: '', emergencyContact2Phone: '',
+    assignedGuideUserId: null,
   });
   const [isSavingGuide, setIsSavingGuide] = useState(false);
 
@@ -187,6 +190,12 @@ export default function OperationDetailPage() {
   const createReceiptMutation = useCreateOperationReceipt();
   const deleteReceiptMutation = useDeleteOperationReceipt();
 
+  // ── Guide profiles (for assignment dropdown) ────────────────────────────
+  const { data: guideProfiles } = useListProfiles(
+    { role: 'guide' },
+    { query: { enabled: canEdit } },
+  );
+
   // ── Sync guide form when operation loads ────────────────────────────────
   useEffect(() => {
     if (operation) {
@@ -200,6 +209,7 @@ export default function OperationDetailPage() {
         emergencyContact1Phone: operation.emergencyContact1Phone ?? '',
         emergencyContact2Name: operation.emergencyContact2Name ?? '',
         emergencyContact2Phone: operation.emergencyContact2Phone ?? '',
+        assignedGuideUserId: operation.assignedGuideUserId ?? null,
       });
     }
   }, [operation]);
@@ -551,6 +561,18 @@ export default function OperationDetailPage() {
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Rehber</p>
                 <p className="text-sm font-medium">{operation?.guideName || <span className="text-muted-foreground italic">Atanmadı</span>}</p>
                 {operation?.guidePhone && <p className="text-sm text-muted-foreground">📞 {operation.guidePhone}</p>}
+                {operation?.assignedGuideUserId && (() => {
+                  const gp = (guideProfiles ?? []).find(p => p.clerkUserId === operation.assignedGuideUserId);
+                  return gp ? (
+                    <p className="text-xs text-primary flex items-center gap-1">
+                      <User className="w-3 h-3" />{gp.name || gp.email}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <User className="w-3 h-3" />Hesap atandı
+                    </p>
+                  );
+                })()}
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1.5">
@@ -770,6 +792,26 @@ export default function OperationDetailPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5" />Rehber
               </p>
+              {/* ── Assigned guide user account ─────────────────────────────── */}
+              <div className="mb-2">
+                <label className="text-xs text-muted-foreground mb-1 block">Kullanıcı Hesabı</label>
+                <Select
+                  value={guideForm.assignedGuideUserId ?? '__none__'}
+                  onValueChange={v => setGuideForm(f => ({ ...f, assignedGuideUserId: v === '__none__' ? null : v }))}
+                >
+                  <SelectTrigger data-testid="select-assigned-guide-user">
+                    <SelectValue placeholder="Rehber hesabı seç..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Atanmadı —</SelectItem>
+                    {(guideProfiles ?? []).map(p => (
+                      <SelectItem key={p.clerkUserId} value={p.clerkUserId}>
+                        {p.name || p.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label><Input value={guideForm.guideName} onChange={e => setGuideForm(f => ({ ...f, guideName: e.target.value }))} placeholder="Rehber adı" data-testid="input-guide-name" /></div>
                 <div><label className="text-xs text-muted-foreground mb-1 block">Telefon</label><Input value={guideForm.guidePhone} onChange={e => setGuideForm(f => ({ ...f, guidePhone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-guide-phone" /></div>

@@ -33,6 +33,7 @@ export * from './itineraryResult';
 export * from './listCustomersParams';
 export * from './listNotificationsParams';
 export * from './listOperationsParams';
+export * from './listProfilesParams';
 export * from './listQuotationsParams';
 export * from './listSuppliersParams';
 export * from './listToursParams';

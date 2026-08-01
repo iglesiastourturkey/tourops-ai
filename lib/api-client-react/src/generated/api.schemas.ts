@@ -971,6 +971,10 @@ export interface EmailDraft {
   recipientSuggestion?: string | null;
 }
 
+export type ListProfilesParams = {
+role?: string;
+};
+
 export type ListCustomersParams = {
 search?: string;
 customerType?: string;
