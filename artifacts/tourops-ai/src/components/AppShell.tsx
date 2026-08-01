@@ -53,9 +53,9 @@ export function AppShell({ children, title }: AppShellProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <img src="/tourops-ai/logo.svg" alt="TourOps AI" className="w-8 h-8 flex-shrink-0" />
+        <img src="/tourops-ai/logo.svg" alt="TourPilot" className="w-8 h-8 flex-shrink-0" />
         <div>
-          <div className="text-white font-bold text-base leading-tight">TourOps AI</div>
+          <div className="text-white font-bold text-base leading-tight">TourPilot</div>
           <div className="text-sidebar-foreground/60 text-xs">Tur Yönetim Sistemi</div>
         </div>
       </div>
