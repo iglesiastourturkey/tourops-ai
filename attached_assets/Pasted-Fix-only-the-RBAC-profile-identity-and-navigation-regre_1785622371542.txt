@@ -1,0 +1,57 @@
+Fix only the RBAC profile identity and navigation regression.
+
+Observed problems:
+
+1. The super_admin account can sign in, but the sidebar shows only Notifications.
+2. The account infoagrotechinsights@gmail.com still resolves as guide and is redirected to /operations.
+3. Clerk account details and the application profile role appear out of sync.
+4. There may be duplicate or incorrectly linked profile rows.
+
+Tasks:
+
+1. Audit the profiles table and Clerk users for:
+   - aydin254@gmail.com
+   - infoagrotechinsights@gmail.com
+
+2. For each account, report:
+   - Clerk userId
+   - profile row id
+   - profile clerkUserId
+   - stored email
+   - stored role
+   - isActive
+   - whether duplicate profile rows exist
+
+3. Fix profile matching rules:
+   - clerkUserId is the primary identity
+   - verified primary email may only be used to safely link an existing unlinked profile
+   - never create a second profile for the same Clerk user or verified email
+   - merge duplicates safely if they exist
+
+4. Ensure:
+   - aydin254@gmail.com = super_admin, active
+   - infoagrotechinsights@gmail.com keeps its explicitly assigned role; do not automatically force it to guide if an admin-assigned role exists
+
+5. Fix frontend role handling:
+   - super_admin must see every navigation item and access every route
+   - guide must see only guide-authorized pages
+   - sidebar and route guards must use the same loaded profile source
+   - do not render role-dependent navigation until the profile query finishes
+   - invalidate/refetch the profile immediately after sign-in or role changes
+
+6. Fix redirects:
+   - super_admin/admin/operations/accounting → /dashboard
+   - guide → /operations
+   - prevent stale-role redirect loops
+
+7. Ensure role changes become visible after refresh or new sign-in without requiring database edits.
+
+8. Do not modify invitations, password recovery, OCR, PDFs, dashboard calculations, landing page or unrelated modules.
+
+9. Run TypeScript check and production build.
+
+10. Report:
+   - exact root cause
+   - duplicate rows found and how they were merged
+   - roles before and after
+   - modified files

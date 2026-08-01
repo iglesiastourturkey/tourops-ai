@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import { useGetMyProfile } from '@workspace/api-client-react';
 
-export type UserRole = 'admin' | 'operations' | 'guide' | 'accounting';
+export type UserRole = 'super_admin' | 'admin' | 'operations' | 'guide' | 'accounting';
 
 export interface ProfileContextValue {
   role: UserRole | null;
@@ -36,6 +36,7 @@ export function useProfile() {
 }
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  super_admin: 'Süper Yönetici',
   admin: 'Yönetici',
   operations: 'Operasyon',
   guide: 'Rehber',

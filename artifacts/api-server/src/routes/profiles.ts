@@ -42,8 +42,8 @@ router.get("/", requireAuth, async (req, res) => {
     const profile = res.locals.profile;
     const callerRole = profile?.role as string | undefined;
 
-    // Only admin and operations roles may list profiles
-    if (callerRole !== "admin" && callerRole !== "operations") {
+    // Only admin, super_admin and operations roles may list profiles
+    if (callerRole !== "admin" && callerRole !== "super_admin" && callerRole !== "operations") {
       res.status(403).json({ error: "Forbidden" });
       return;
     }

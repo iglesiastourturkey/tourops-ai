@@ -7,3 +7,6 @@
 - [OCR receipt feature](ocr-receipt.md) — POST /api/ai/ocr-receipt; Zod-validated; per-user in-memory rate limit; image sent as base64 JSON; frontend ocr-service.ts utility
 - [Auth: Bearer token via AuthGate](auth-bearer-token.md) — Clerk cookies unreliable in Replit proxy; AuthGate blocks QueryClientProvider until Clerk isLoaded, then setAuthTokenGetter wires getToken() for all generated hooks
 - [RBAC implementation](rbac-implementation.md) — 4-role RBAC (admin/operations/guide/accounting); Express 5 params type gotcha; guide ownership check pattern
+- [Clerk v4 future API](clerk-v4-future-api.md) — useSignIn() returns { signIn, errors, fetchStatus }; no isLoaded; methods return { error } not throw; reset-password uses signIn.resetPasswordEmailCode namespace
+- [User invite flow](user-invite-flow.md) — POST /api/users/invite calls clerkClient.invitations.createInvitation + pre-creates pending-<email> profile stub; getOrCreateProfile claims stub on first sign-in by email lookup
+- [Super admin role](super-admin-role.md) — super_admin is universal-pass: requireRole() passes for super_admin on any check; RoleRoute skips restriction for super_admin; user mgmt restricted to super_admin only

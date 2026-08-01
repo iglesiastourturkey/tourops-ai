@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting', 'guide'] },
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
   { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
-  { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['admin'] },
+  { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['super_admin'] },
 ];
 
 interface AppShellProps {
@@ -44,8 +44,9 @@ export function AppShell({ children, title }: AppShellProps) {
 
   const visibleNavItems = navItems.filter(item => {
     if (profileLoading) return false;
-    if (!item.roles) return true; // visible to all roles
+    if (!item.roles) return true;          // visible to all authenticated roles
     if (!role) return false;
+    if (role === 'super_admin') return true; // super_admin sees every nav item
     return item.roles.includes(role);
   });
 

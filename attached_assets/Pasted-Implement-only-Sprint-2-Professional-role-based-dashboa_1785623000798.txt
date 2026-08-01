@@ -1,0 +1,163 @@
+Implement only Sprint 2: Professional role-based dashboard and application UX for TourPilot.
+
+Goal:
+Transform the existing dashboard and shared application shell into a professional, easy-to-use operational command center. Use real existing data only. Do not add accounting, AI CEO, landing page, OCR, PDF/Excel export or unrelated business features in this sprint.
+
+Roles:
+- super_admin
+- admin
+- operations
+- accounting
+- guide
+
+1. Role-based dashboard content
+
+super_admin / admin:
+- Today’s active operations
+- Active tours
+- Pending quotations
+- Today’s tasks
+- Estimated revenue
+- Average profit margin
+- Missing guide assignments
+- Receipts missing photos
+- Recent activity
+- Upcoming operations
+
+operations:
+- Today’s operations
+- Unassigned guides/drivers
+- Incomplete tasks
+- Upcoming departures
+- Operation completion rate
+- Recent operational activity
+
+accounting:
+- Receipt count
+- Receipts missing photos
+- Total recorded expenses
+- Quotations awaiting action
+- Recent financial documents
+- Show only data already available in the current system
+- Do not build the accounting module yet
+
+guide:
+- Only assigned operations
+- Today’s assigned operation
+- Pending tasks
+- Receipt upload shortcut
+- Recent notifications
+- Never show company-wide financial KPIs
+
+2. Dashboard layout
+
+Desktop:
+- Header with greeting, current date and role label
+- Responsive KPI card grid
+- Main chart area
+- “Dikkat Gerektirenler” panel
+- “Yaklaşan Operasyonlar” list
+- “Son Aktiviteler” feed
+- Quick actions appropriate to the user role
+
+Mobile:
+- Single-column cards
+- No horizontal overflow
+- Important actions visible without opening the sidebar
+- Guide dashboard optimized for phone use
+
+3. Real data
+
+- Use existing database tables and APIs
+- Remove hardcoded dashboard values
+- Do not use mock data
+- Add only the minimum new backend aggregation endpoints required
+- All role restrictions must be enforced by the backend
+- super_admin must inherit all admin access
+- guide queries must return only assigned operations and related records
+
+4. Shared UX improvements
+
+Apply consistent improvements to the app shell and existing main pages:
+- TourPilot branding instead of TourOps AI inside the authenticated application
+- Fix broken or missing logo display with a clean temporary text/icon mark
+- Consistent page titles and descriptions
+- Consistent spacing, card borders and empty states
+- Skeleton loading states
+- Clear Turkish error states with “Yeniden Dene”
+- Accessible button labels and dropdown actions
+- Responsive tables: cards or horizontal scroll on small screens
+- Clear active navigation state
+- Preserve the existing navy and teal visual identity
+- Do not perform a complete visual redesign
+
+5. Navigation
+
+Role-aware navigation:
+- super_admin: all modules including User Management
+- admin: all operational modules except protected super-admin actions
+- operations: operational modules only
+- accounting: relevant read/finance-facing modules
+- guide: assigned tours/operations, notifications and receipt-related actions only
+
+Ensure:
+- no stale-role navigation
+- no forbidden redirect loops
+- navigation waits for profile loading
+- role changes become visible after refetch/sign-in
+
+6. Quick actions
+
+super_admin/admin:
+- Yeni Talep
+- Yeni Teklif
+- Yeni Tur
+- Yeni Operasyon
+
+operations:
+- Yeni Operasyon
+- Rehber Ata
+- Görev Ekle
+
+accounting:
+- Makbuzları Gör
+- Teklifleri Gör
+
+guide:
+- Operasyonuma Git
+- Makbuz Ekle
+- Görevlerimi Gör
+
+Only show actions the role is authorized to use.
+
+7. Scope restrictions
+
+Do not modify:
+- Clerk invitation/password flows
+- profile identity sync
+- OCR/OpenRouter logic
+- quotation or operation PDF generation
+- receipt storage flow
+- archive/delete behavior
+- database business records
+- landing page
+- accounting module
+- AI CEO assistant
+
+8. Verification
+
+- Test all five roles
+- Test desktop and mobile viewport
+- Run full TypeScript check
+- Run production build
+- Fix all errors
+
+9. Report
+
+Report only:
+- modified files
+- dashboard data sources
+- role-to-dashboard mapping
+- any new API endpoints
+- mobile improvements
+- remaining limitations

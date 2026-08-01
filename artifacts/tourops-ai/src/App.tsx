@@ -1,4 +1,6 @@
 import { ClerkProvider, SignIn, SignUp, Show, useAuth } from '@clerk/react';
+import { useEffect, useRef } from 'react';
+import { Link } from 'wouter';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { shadcn } from '@clerk/themes';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -27,6 +29,7 @@ import NewRequestPage from '@/pages/new-request';
 import NotFound from '@/pages/not-found';
 import ForbiddenPage from '@/pages/forbidden';
 import UsersPage from '@/pages/users';
+import ForgotPasswordPage from '@/pages/forgot-password';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -61,9 +64,21 @@ const clerkAppearance = {
  * Cookies alone are unreliable in Replit's proxied-iframe environment.
  */
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { getToken, isLoaded } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
   // Register synchronously every render — idempotent, always up-to-date.
   setAuthTokenGetter(() => getToken());
+
+  // When user identity changes (sign-in / sign-out / account switch) clear the
+  // entire React Query cache so a new user never receives a stale profile from
+  // the previous session. queryClient lives at module scope so it's accessible here.
+  const prevUserId = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevUserId.current !== undefined && prevUserId.current !== userId) {
+      queryClient.clear();
+    }
+    prevUserId.current = userId;
+  }, [userId]);
+
   // Block children until Clerk has finished initialising to prevent the
   // race where stale React-Query cache triggers a refetch before the
   // Bearer token getter is ready.
@@ -86,6 +101,7 @@ function ProtectedRoute({ component: Comp }: { component: React.ComponentType })
  * Falls back gracefully while the profile is still loading.
  */
 function RoleRoute({ component: Comp, roles }: { component: React.ComponentType; roles: UserRole[] }) {
+  // super_admin is a universal-pass role — can access everything
   const { role, isLoading } = useProfile();
 
   // Show nothing while loading to avoid flash
@@ -94,7 +110,8 @@ function RoleRoute({ component: Comp, roles }: { component: React.ComponentType;
   // Not signed in — let ProtectedRoute handle this, but gate by role too
   if (role === null) return <Redirect to="/" />;
 
-  if (!roles.includes(role)) return <Redirect to="/forbidden" />;
+  // super_admin bypasses all role restrictions
+  if (role !== 'super_admin' && !roles.includes(role)) return <Redirect to="/forbidden" />;
 
   return <Comp />;
 }
@@ -108,10 +125,29 @@ function ProtectedRoleRoute({ component: Comp, roles }: { component: React.Compo
   );
 }
 
+/**
+ * Post-sign-in landing redirect, role-aware.
+ * Waits for the profile to load before redirecting so the correct
+ * role is used (avoids forbidden-loop for guides).
+ *
+ *   guide                      → /operations
+ *   admin / operations / accounting / super_admin → /dashboard
+ *   profile still loading      → render nothing (Clerk Show handles
+ *                                 the signed-out → landing page case)
+ */
 function HomeRedirect() {
+  const { role, isLoading } = useProfile();
+
+  let signedInContent: React.ReactNode = null;
+  if (!isLoading) {
+    signedInContent = role === 'guide'
+      ? <Redirect to="/operations" />
+      : <Redirect to="/dashboard" />;
+  }
+
   return (
     <>
-      <Show when="signed-in"><Redirect to="/dashboard" /></Show>
+      <Show when="signed-in">{signedInContent}</Show>
       <Show when="signed-out"><LandingPage /></Show>
     </>
   );
@@ -120,7 +156,12 @@ function HomeRedirect() {
 function SignInPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} appearance={clerkAppearance} />
+      <div className="flex flex-col items-center gap-3">
+        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} appearance={clerkAppearance} />
+        <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+          Şifremi Unuttum?
+        </Link>
+      </div>
     </div>
   );
 }
@@ -140,6 +181,7 @@ function Router() {
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/forbidden" component={ForbiddenPage} />
+      <Route path="/forgot-password" component={ForgotPasswordPage} />
       <Route path="/dashboard" component={() => <ProtectedRoleRoute component={Dashboard} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/requests/new" component={() => <ProtectedRoleRoute component={NewRequestPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/customers" component={() => <ProtectedRoleRoute component={CustomersPage} roles={['admin', 'operations', 'accounting']} />} />
@@ -156,7 +198,7 @@ function Router() {
       <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
-      <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['admin']} />} />
+      <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />
       <Route component={NotFound} />
     </Switch>
   );

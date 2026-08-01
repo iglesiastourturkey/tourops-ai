@@ -1,0 +1,58 @@
+Implement only Super Admin and complete user management.
+
+Current problems:
+- Google sign-in users are sometimes created as guide even when they should be admin.
+- User rows show empty name/email.
+- Admin can invite users but cannot properly manage existing users.
+- Role assignment must persist and must never be overwritten by profile sync.
+
+Requirements:
+
+1. Add a protected super-admin concept.
+2. Set this existing account as the initial super admin:
+   aydin254@gmail.com
+
+3. Super admin permissions:
+   - view all users
+   - invite users
+   - assign/change roles
+   - activate/deactivate users
+   - revoke active sessions
+   - resend or revoke invitations
+   - send password-reset instructions
+   - view user name, email, role, status and last sign-in
+4. Super admin must not:
+   - view passwords
+   - create a permanent password for a user
+   - downgrade or deactivate their own account
+5. Do not allow deletion or deactivation of the last active super admin.
+
+6. Fix profile synchronization:
+   - match Clerk user by clerkUserId first
+   - otherwise match by verified primary email
+   - populate name and email from Clerk
+   - preserve any existing admin-assigned role
+   - never overwrite admin or super-admin with the default guide role
+   - default only truly new, unassigned users to guide
+
+7. User Management page:
+   - display real name and email
+   - working role dropdown for other users
+   - active/inactive toggle
+   - actions menu:
+     role change
+     deactivate/reactivate
+     revoke sessions
+     send password reset
+   - invitation section with pending, accepted, expired and revoked states
+8. User-selected roles must never exist on the login page.
+9. Backend must enforce all permissions; hiding buttons is not sufficient.
+10. Keep Clerk authentication and existing RBAC routes.
+11. Do not modify landing page, dashboard design, OCR, PDFs or business modules.
+12. Run database migration if required.
+13. Run TypeScript check and production build.
+14. Report:
+   - root cause of incorrect guide assignment
+   - affected database fields
+   - modified files
+   - how the initial super admin was established
