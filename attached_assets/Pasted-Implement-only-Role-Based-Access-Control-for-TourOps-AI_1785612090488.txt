@@ -1,0 +1,77 @@
+Implement only Role-Based Access Control for TourOps AI.
+
+Goal:
+Different user types must see and access only the parts of the system relevant to their role.
+
+Roles:
+- admin
+- operations
+- guide
+- accounting
+
+Permissions:
+
+admin
+- Full access to all modules, settings, users, reports and destructive actions
+
+operations
+- Dashboard
+- Customers
+- Suppliers
+- Tours
+- Quotations
+- Operations
+- Notifications
+- Can assign guides and drivers
+- Cannot manage users or global system settings
+
+guide
+- Can only see operations assigned to them
+- Can view assigned tour details
+- Can update assigned operation tasks
+- Can add, scan and delete their own receipt records
+- Cannot see customers list, suppliers, quotations, settings, financial summaries or other guides' operations
+
+accounting
+- Can access receipts, expenses, quotations and operation financial data
+- Can view customers and suppliers
+- Cannot create tours, edit itineraries, assign guides or change system settings
+
+Technical requirements:
+
+1. Keep Clerk authentication.
+2. Add role storage to the existing profiles table.
+3. Default new users to guide unless assigned another role by admin.
+4. Add an Admin-only User Management page:
+   - list users
+   - show name, email and role
+   - change role
+   - deactivate/reactivate user
+5. Enforce permissions in two places:
+   - frontend route/navigation guards
+   - backend authorization middleware
+6. Hiding a menu item is not enough; unauthorized API calls must return 403.
+7. Add reusable middleware/helpers:
+   - requireRole(...)
+   - requireAnyRole(...)
+8. Protect all existing routes according to the permission matrix.
+9. For guide access:
+   - add guideUserId or assignedGuideUserId to operations
+   - only return operations assigned to the logged-in guide
+10. Prevent users from changing their own role.
+11. Add Turkish 403 and unauthorized screens.
+12. Add role labels in Turkish:
+   - admin = Yönetici
+   - operations = Operasyon
+   - guide = Rehber
+   - accounting = Muhasebe
+13. Do not redesign the UI.
+14. Do not modify OCR, OpenRouter, PDFs, dashboard calculations or unrelated business logic.
+15. Run required database migration.
+16. Run full TypeScript check and production build.
+17. Report:
+   - database changes
+   - permission matrix
+   - modified files
+   - migration result
+   - remaining limitations
