@@ -21,7 +21,7 @@ import {
 } from '@workspace/api-client-react';
 import {
   getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
-  getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey,
+  getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey, getListProfilesQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -193,7 +193,7 @@ export default function OperationDetailPage() {
   // ── Guide profiles (for assignment dropdown) ────────────────────────────
   const { data: guideProfiles } = useListProfiles(
     { role: 'guide' },
-    { query: { enabled: canEdit } },
+    { query: { enabled: canEdit, queryKey: getListProfilesQueryKey({ role: 'guide' }) } },
   );
 
   // ── Sync guide form when operation loads ────────────────────────────────

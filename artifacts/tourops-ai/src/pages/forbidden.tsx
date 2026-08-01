@@ -11,10 +11,16 @@ function homePathForRole(role: string | null): string {
 }
 
 export default function ForbiddenPage() {
-  const { role } = useProfile();
+  const { role, isLoading } = useProfile();
   const [, navigate] = useLocation();
 
-  const homePath = homePathForRole(role);
+  // Do not derive a destination until the profile has loaded — prevents redirect
+  // loops where null role resolves to /dashboard and the user bounces back here.
+  const homePath = isLoading ? null : homePathForRole(role);
+
+  function handleBack() {
+    if (homePath) navigate(homePath);
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -27,7 +33,12 @@ export default function ForbiddenPage() {
           <p className="text-muted-foreground text-sm">
             Bu sayfaya erişim yetkiniz bulunmamaktadır.
           </p>
-          <Button variant="outline" className="mt-2" onClick={() => navigate(homePath)}>
+          <Button
+            variant="outline"
+            className="mt-2"
+            disabled={isLoading}
+            onClick={handleBack}
+          >
             {role === 'guide' ? 'Operasyonlara Dön' : 'Kontrol Paneline Dön'}
           </Button>
         </CardContent>

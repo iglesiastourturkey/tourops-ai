@@ -17,12 +17,15 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
 
 export async function getOrCreateProfile(clerkUserId: string, email: string, name?: string) {
   const existing = await db.select().from(profilesTable).where(eq(profilesTable.clerkUserId, clerkUserId)).limit(1);
+  // Return the existing profile WITHOUT modifying it — this preserves the role
+  // that was assigned by an admin (e.g. admin → admin) and prevents any sync
+  // from ever downgrading a user to the default "guide" role.
   if (existing.length > 0) return existing[0];
   const [created] = await db.insert(profilesTable).values({
     clerkUserId,
     email,
     name: name ?? null,
-    role: "guide",
+    role: "guide", // Default for brand-new users only; never applied to existing rows
   }).returning();
   return created;
 }

@@ -616,6 +616,8 @@ export interface OperationDetail {
   emergencyContact2Name?: string | null;
   /** @nullable */
   emergencyContact2Phone?: string | null;
+  /** @nullable */
+  assignedGuideUserId?: string | null;
   tasks: OperationTask[];
   customer: Customer;
   createdAt: string;
