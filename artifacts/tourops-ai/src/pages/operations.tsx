@@ -9,7 +9,7 @@ import { ExternalLink } from 'lucide-react';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
 
 export default function OperationsPage() {
-  const { data: operations, isLoading } = useListOperations();
+  const { data: operations, isLoading, isError } = useListOperations();
 
   return (
     <AppShell title="Operasyonlar">
@@ -27,7 +27,9 @@ export default function OperationsPage() {
           <TableBody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
-            )) : !operations || operations.length === 0 ? (
+            )) : isError ? (
+              <TableRow><TableCell colSpan={5} className="text-center text-destructive py-10">Veriler yüklenemedi. Lütfen sayfayı yenileyin.</TableCell></TableRow>
+            ) : !operations || operations.length === 0 ? (
               <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">Operasyon bulunamadı</TableCell></TableRow>
             ) : operations.map(op => (
               <TableRow key={op.id} data-testid={`row-operation-${op.id}`}>

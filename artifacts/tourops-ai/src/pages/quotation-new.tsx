@@ -16,8 +16,8 @@ export default function QuotationNewPage() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const createMutation = useCreateQuotation();
-  const { data: customers } = useListCustomers();
-  const { data: tours } = useListTours();
+  const { data: customers, isLoading: customersLoading } = useListCustomers();
+  const { data: tours, isLoading: toursLoading } = useListTours();
 
   const [form, setForm] = useState({
     customerId: '', tourId: '', currency: 'EUR',
@@ -65,15 +65,15 @@ export default function QuotationNewPage() {
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="md:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Müşteri *</label>
-            <Select value={form.customerId} onValueChange={v => set('customerId', v)}>
-              <SelectTrigger data-testid="select-quotation-customer"><SelectValue placeholder="Müşteri seçin..." /></SelectTrigger>
+            <Select value={form.customerId} onValueChange={v => set('customerId', v)} disabled={customersLoading}>
+              <SelectTrigger data-testid="select-quotation-customer"><SelectValue placeholder={customersLoading ? 'Yükleniyor...' : 'Müşteri seçin...'} /></SelectTrigger>
               <SelectContent>{(customers ?? []).map(c => <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           <div className="md:col-span-2">
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Tur (opsiyonel)</label>
-            <Select value={form.tourId} onValueChange={v => set('tourId', v)}>
-              <SelectTrigger data-testid="select-quotation-tour"><SelectValue placeholder="Tur seçin..." /></SelectTrigger>
+            <Select value={form.tourId} onValueChange={v => set('tourId', v)} disabled={toursLoading}>
+              <SelectTrigger data-testid="select-quotation-tour"><SelectValue placeholder={toursLoading ? 'Yükleniyor...' : 'Tur seçin...'} /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Tur seçilmedi</SelectItem>
                 {(tours ?? []).map(t => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}

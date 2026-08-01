@@ -56,11 +56,23 @@ export default function OperationDetailPage() {
     if (!confirm('Bu görevi silmek istiyor musunuz?')) return;
     deleteTaskMutation.mutate({ id, taskId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListOperationTasksQueryKey(id) }),
+      onError: () => toast({ title: 'Hata', description: 'Görev silinemedi', variant: 'destructive' }),
     });
   }
 
   const allTasks = tasks ?? [];
   const completedCount = allTasks.filter(t => t.status === 'completed').length;
+
+  if (!opLoading && !operation) {
+    return (
+      <AppShell title="Operasyon Bulunamadı">
+        <div className="flex items-center gap-3 mb-4">
+          <Link href="/operations"><Button variant="ghost" size="sm" className="gap-1.5"><ArrowLeft className="w-4 h-4" />Operasyonlar</Button></Link>
+        </div>
+        <p className="text-muted-foreground">Operasyon bulunamadı veya erişim izniniz yok.</p>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell title={`Operasyon OP-${id}`}>

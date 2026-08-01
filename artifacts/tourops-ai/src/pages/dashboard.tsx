@@ -19,9 +19,9 @@ const SEVERITY_STYLES: Record<string, { bg: string; icon: typeof AlertTriangle }
 };
 
 export default function Dashboard() {
-  const { data: stats, isLoading: statsLoading } = useGetDashboardStats();
-  const { data: alerts, isLoading: alertsLoading } = useGetDashboardAlerts();
-  const { data: charts } = useGetDashboardCharts();
+  const { data: stats, isLoading: statsLoading, isError: statsError } = useGetDashboardStats();
+  const { data: alerts, isLoading: alertsLoading, isError: alertsError } = useGetDashboardAlerts();
+  const { data: charts, isLoading: chartsLoading, isError: chartsError } = useGetDashboardCharts();
 
   const kpis = stats ? [
     { label: 'Aktif Turlar', value: stats.activeTours, icon: MapPin, color: 'text-teal-600' },
@@ -38,6 +38,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {statsLoading
           ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          : statsError
+          ? <div className="col-span-2 lg:col-span-4 text-center text-destructive text-sm py-6">İstatistikler yüklenemedi.</div>
           : kpis.map(({ label, value, icon: Icon, color }) => (
             <Card key={label} className="border">
               <CardContent className="p-4">
@@ -59,7 +61,11 @@ export default function Dashboard() {
             <CardTitle className="text-sm font-semibold">Aylık Teklifler</CardTitle>
           </CardHeader>
           <CardContent>
-            {charts?.monthlyQuotations ? (
+            {chartsLoading ? (
+              <div className="h-[220px] flex items-center justify-center"><Skeleton className="h-full w-full rounded-lg" /></div>
+            ) : chartsError ? (
+              <div className="h-[220px] flex items-center justify-center text-destructive text-sm">Grafik yüklenemedi.</div>
+            ) : charts?.monthlyQuotations ? (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={charts.monthlyQuotations}>
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -70,7 +76,7 @@ export default function Dashboard() {
                 </BarChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">Veri yükleniyor...</div>
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-sm">Henüz veri yok.</div>
             )}
           </CardContent>
         </Card>
@@ -103,6 +109,8 @@ export default function Dashboard() {
       {/* Alerts */}
       {alertsLoading ? (
         <Skeleton className="h-32 rounded-xl" />
+      ) : alertsError ? (
+        <Card><CardContent className="p-6 text-center text-destructive text-sm">Uyarılar yüklenemedi.</CardContent></Card>
       ) : alerts && alerts.length > 0 ? (
         <Card>
           <CardHeader className="pb-2">

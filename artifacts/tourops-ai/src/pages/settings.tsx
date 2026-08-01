@@ -24,9 +24,9 @@ export default function SettingsPage() {
   const qc = useQueryClient();
 
   const { data: agencySettings, isLoading: agencyLoading } = useGetAgencySettings();
-  const { data: exchangeRates } = useListExchangeRates();
-  const { data: emailTemplates } = useListEmailTemplates();
-  const { data: profile } = useGetMyProfile();
+  const { data: exchangeRates, isLoading: ratesLoading } = useListExchangeRates();
+  const { data: emailTemplates, isLoading: templatesLoading } = useListEmailTemplates();
+  const { data: profile, isLoading: profileLoading } = useGetMyProfile();
 
   const updateAgencyMutation = useUpdateAgencySettings();
   const updateRateMutation = useUpdateExchangeRate();
@@ -82,7 +82,8 @@ export default function SettingsPage() {
   function handleDeleteRate(id: number) {
     if (!confirm('Bu kuru silmek istiyor musunuz?')) return;
     deleteRateMutation.mutate({ id }, {
-      onSuccess: () => qc.invalidateQueries({ queryKey: getListExchangeRatesQueryKey() }),
+      onSuccess: () => { toast({ title: 'Kur silindi' }); qc.invalidateQueries({ queryKey: getListExchangeRatesQueryKey() }); },
+      onError: () => toast({ title: 'Hata', description: 'Kur silinemedi', variant: 'destructive' }),
     });
   }
 
@@ -164,6 +165,7 @@ export default function SettingsPage() {
             <h3 className="font-medium text-sm">Döviz Kurları</h3>
             <Button size="sm" onClick={() => setRateDialogOpen(true)} className="gap-1.5" data-testid="button-add-rate"><Plus className="w-3.5 h-3.5" />Kur Ekle</Button>
           </div>
+          {ratesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="border rounded-lg overflow-hidden bg-card">
             <Table>
               <TableHeader>
@@ -203,6 +205,7 @@ export default function SettingsPage() {
             <h3 className="font-medium text-sm">E-posta Şablonları</h3>
             <Button size="sm" onClick={() => setNewTemplateDialogOpen(true)} className="gap-1.5" data-testid="button-add-template"><Plus className="w-3.5 h-3.5" />Yeni Şablon</Button>
           </div>
+          {templatesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {(emailTemplates ?? []).map(t => (
               <Card key={t.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => { setSelectedTemplate({ id: t.id, name: t.name, type: t.type, subject: t.subject, body: t.body }); setTemplateDialogOpen(true); }} data-testid={`card-template-${t.id}`}>
@@ -221,14 +224,16 @@ export default function SettingsPage() {
 
         {/* ACCOUNT */}
         <TabsContent value="account">
-          <Card className="max-w-md">
-            <CardHeader><CardTitle className="text-base">Hesap Bilgileri</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Ad</label><p className="text-sm font-medium">{profile?.name ?? '-'}</p></div>
-              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">E-posta</label><p className="text-sm font-medium">{profile?.email ?? '-'}</p></div>
-              <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label><span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{profile?.role === 'admin' ? 'Yönetici' : 'Personel'}</span></div>
-            </CardContent>
-          </Card>
+          {profileLoading ? <Skeleton className="h-40 rounded-xl max-w-md" /> : (
+            <Card className="max-w-md">
+              <CardHeader><CardTitle className="text-base">Hesap Bilgileri</CardTitle></CardHeader>
+              <CardContent className="space-y-3">
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Ad</label><p className="text-sm font-medium">{profile?.name ?? '-'}</p></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">E-posta</label><p className="text-sm font-medium">{profile?.email ?? '-'}</p></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label><span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{profile?.role === 'admin' ? 'Yönetici' : 'Personel'}</span></div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
 

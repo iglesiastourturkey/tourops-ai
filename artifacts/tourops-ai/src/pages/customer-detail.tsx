@@ -31,7 +31,7 @@ export default function CustomerDetailPage() {
     if (!form.name.trim()) { toast({ title: 'Ad zorunludur', variant: 'destructive' }); return; }
     updateMutation.mutate({ id, data: form }, {
       onSuccess: () => { toast({ title: 'Müşteri güncellendi' }); qc.invalidateQueries({ queryKey: getGetCustomerQueryKey(id) }); },
-      onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+      onError: () => toast({ title: 'Hata', description: 'Müşteri güncellenemedi', variant: 'destructive' }),
     });
   }
 
@@ -42,48 +42,59 @@ export default function CustomerDetailPage() {
     </div>
   );
 
+  if (isLoading) {
+    return <AppShell title="Müşteri Detayı"><Skeleton className="h-96 rounded-xl" /></AppShell>;
+  }
+
+  if (!customer) {
+    return (
+      <AppShell title="Müşteri Bulunamadı">
+        <div className="mb-4"><Link href="/customers"><Button variant="ghost" size="sm" className="gap-1.5"><ArrowLeft className="w-4 h-4" />Müşteriler</Button></Link></div>
+        <p className="text-muted-foreground">Müşteri bulunamadı veya erişim izniniz yok.</p>
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell title={customer?.name ?? 'Müşteri Detayı'}>
+    <AppShell title={customer.name}>
       <div className="mb-4">
         <Link href="/customers"><Button variant="ghost" size="sm" className="gap-1.5" data-testid="button-back-customers"><ArrowLeft className="w-4 h-4" />Müşteriler</Button></Link>
       </div>
-      {isLoading ? <Skeleton className="h-96 rounded-xl" /> : (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Müşteri Bilgileri</CardTitle>
-            <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-customer">
-              <Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-            </Button>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <F label="Ad Soyad *" field="name" placeholder="Ad Soyad" />
-            <F label="Şirket" field="company" placeholder="Şirket adı" />
-            <F label="Uyruk" field="nationality" placeholder="Uyruk" />
-            <F label="Dil" field="language" placeholder="Konuşulan dil" />
-            <F label="Telefon" field="phone" placeholder="+90..." />
-            <F label="E-posta" field="email" placeholder="ornek@mail.com" />
-            <F label="WhatsApp" field="whatsapp" placeholder="+90..." />
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Müşteri Tipi</label>
-              <Select value={form.customerType} onValueChange={v => setForm(f => ({ ...f, customerType: v }))}>
-                <SelectTrigger data-testid="select-detail-customer-type"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(CUSTOMER_TYPE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Pasaport Durumu</label>
-              <Select value={form.passportStatus} onValueChange={v => setForm(f => ({ ...f, passportStatus: v }))}>
-                <SelectTrigger data-testid="select-passport-status"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(PASSPORT_STATUS_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <F label="Seyahat Tercihleri" field="travelPreferences" placeholder="Seyahat tercihleri..." />
-            <F label="Diyet Kısıtlamaları" field="dietaryRestrictions" placeholder="Diyet kısıtlamaları..." />
-            <F label="Engel Durumu" field="accessibilityRequirements" placeholder="Erişilebilirlik gereksinimleri..." />
-            <div className="md:col-span-2"><F label="Notlar" field="notes" placeholder="Ek notlar..." /></div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Müşteri Bilgileri</CardTitle>
+          <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-customer">
+            <Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+          </Button>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <F label="Ad Soyad *" field="name" placeholder="Ad Soyad" />
+          <F label="Şirket" field="company" placeholder="Şirket adı" />
+          <F label="Uyruk" field="nationality" placeholder="Uyruk" />
+          <F label="Dil" field="language" placeholder="Konuşulan dil" />
+          <F label="Telefon" field="phone" placeholder="+90..." />
+          <F label="E-posta" field="email" placeholder="ornek@mail.com" />
+          <F label="WhatsApp" field="whatsapp" placeholder="+90..." />
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Müşteri Tipi</label>
+            <Select value={form.customerType} onValueChange={v => setForm(f => ({ ...f, customerType: v }))}>
+              <SelectTrigger data-testid="select-detail-customer-type"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(CUSTOMER_TYPE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Pasaport Durumu</label>
+            <Select value={form.passportStatus} onValueChange={v => setForm(f => ({ ...f, passportStatus: v }))}>
+              <SelectTrigger data-testid="select-passport-status"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(PASSPORT_STATUS_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <F label="Seyahat Tercihleri" field="travelPreferences" placeholder="Seyahat tercihleri..." />
+          <F label="Diyet Kısıtlamaları" field="dietaryRestrictions" placeholder="Diyet kısıtlamaları..." />
+          <F label="Engel Durumu" field="accessibilityRequirements" placeholder="Erişilebilirlik gereksinimleri..." />
+          <div className="md:col-span-2"><F label="Notlar" field="notes" placeholder="Ek notlar..." /></div>
+        </CardContent>
+      </Card>
     </AppShell>
   );
 }

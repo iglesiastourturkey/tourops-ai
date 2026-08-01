@@ -16,7 +16,7 @@ export default function QuotationsPage() {
   const { data: quotations, isLoading } = useListQuotations();
 
   const filtered = (quotations ?? []).filter(q => {
-    const ms = !search || q.number.toLowerCase().includes(search.toLowerCase());
+    const ms = !search || (q.number?.toLowerCase() ?? '').includes(search.toLowerCase());
     const mst = statusFilter === 'all' || q.status === statusFilter;
     return ms && mst;
   });

@@ -23,12 +23,14 @@ export default function NotificationsPage() {
   function handleMarkRead(id: number) {
     markReadMutation.mutate({ id }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() }),
+      onError: () => toast({ title: 'Hata', description: 'Bildirim güncellenemedi', variant: 'destructive' }),
     });
   }
 
   function handleMarkAll() {
     markAllMutation.mutate(undefined, {
       onSuccess: () => { toast({ title: 'Tüm bildirimler okundu olarak işaretlendi' }); qc.invalidateQueries({ queryKey: getListNotificationsQueryKey() }); },
+      onError: () => toast({ title: 'Hata', description: 'Bildirimler güncellenemedi', variant: 'destructive' }),
     });
   }
 

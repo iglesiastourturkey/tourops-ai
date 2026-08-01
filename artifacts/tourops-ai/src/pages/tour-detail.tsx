@@ -93,6 +93,7 @@ export default function TourDetailPage() {
     if (!confirm('Bu günü silmek istiyor musunuz?')) return;
     deleteDayMutation.mutate({ id, dayId }, {
       onSuccess: () => qc.invalidateQueries({ queryKey: getListTourDaysQueryKey(id) }),
+      onError: () => toast({ title: 'Hata', description: 'Gün silinemedi', variant: 'destructive' }),
     });
   }
 
@@ -113,6 +114,7 @@ export default function TourDetailPage() {
     if (!confirm('Bu maliyeti silmek istiyor musunuz?')) return;
     deleteCostMutation.mutate({ id, costId }, {
       onSuccess: () => { qc.invalidateQueries({ queryKey: getListTourCostsQueryKey(id) }); qc.invalidateQueries({ queryKey: getComputeTourCostSummaryQueryKey(id) }); },
+      onError: () => toast({ title: 'Hata', description: 'Maliyet silinemedi', variant: 'destructive' }),
     });
   }
 

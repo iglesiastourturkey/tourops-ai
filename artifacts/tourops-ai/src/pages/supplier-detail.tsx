@@ -27,9 +27,10 @@ export default function SupplierDetailPage() {
   }, [supplier]);
 
   function handleSave() {
+    if (!form.name.trim()) { toast({ title: 'Ad zorunludur', variant: 'destructive' }); return; }
     updateMutation.mutate({ id, data: form }, {
       onSuccess: () => { toast({ title: 'Tedarikçi güncellendi' }); qc.invalidateQueries({ queryKey: getGetSupplierQueryKey(id) }); },
-      onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+      onError: () => toast({ title: 'Hata', description: 'Tedarikçi güncellenemedi', variant: 'destructive' }),
     });
   }
 
@@ -37,43 +38,54 @@ export default function SupplierDetailPage() {
     <div><label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label><Input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} placeholder={placeholder} data-testid={`input-supplier-${field}`} /></div>
   );
 
+  if (isLoading) {
+    return <AppShell title="Tedarikçi Detayı"><Skeleton className="h-96 rounded-xl" /></AppShell>;
+  }
+
+  if (!supplier) {
+    return (
+      <AppShell title="Tedarikçi Bulunamadı">
+        <div className="mb-4"><Link href="/suppliers"><Button variant="ghost" size="sm" className="gap-1.5"><ArrowLeft className="w-4 h-4" />Tedarikçiler</Button></Link></div>
+        <p className="text-muted-foreground">Tedarikçi bulunamadı veya erişim izniniz yok.</p>
+      </AppShell>
+    );
+  }
+
   return (
-    <AppShell title={supplier?.name ?? 'Tedarikçi Detayı'}>
+    <AppShell title={supplier.name}>
       <div className="mb-4"><Link href="/suppliers"><Button variant="ghost" size="sm" className="gap-1.5" data-testid="button-back-suppliers"><ArrowLeft className="w-4 h-4" />Tedarikçiler</Button></Link></div>
-      {isLoading ? <Skeleton className="h-96 rounded-xl" /> : (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Tedarikçi Bilgileri</CardTitle>
-            <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-supplier"><Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <F label="Ad *" field="name" placeholder="Tedarikçi adı" />
-            <F label="İletişim Kişisi" field="contactPerson" placeholder="Ad Soyad" />
-            <F label="Telefon" field="phone" placeholder="+90..." />
-            <F label="E-posta" field="email" placeholder="ornek@mail.com" />
-            <F label="Website" field="website" placeholder="https://" />
-            <F label="Şehir" field="city" placeholder="Şehir" />
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Kategori</label>
-              <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
-                <SelectTrigger data-testid="select-supplier-detail-category"><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(SUPPLIER_CATEGORY_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Para Birimi</label>
-              <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{['TRY','EUR','USD','GBP'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <F label="Vergi No" field="taxNumber" placeholder="Vergi numarası" />
-            <F label="Adres" field="address" placeholder="Adres" />
-            <div className="md:col-span-2"><F label="Banka Bilgileri" field="bankDetails" placeholder="IBAN vb." /></div>
-            <div className="md:col-span-2"><F label="Notlar" field="notes" placeholder="Notlar..." /></div>
-          </CardContent>
-        </Card>
-      )}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Tedarikçi Bilgileri</CardTitle>
+          <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-supplier"><Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <F label="Ad *" field="name" placeholder="Tedarikçi adı" />
+          <F label="İletişim Kişisi" field="contactPerson" placeholder="Ad Soyad" />
+          <F label="Telefon" field="phone" placeholder="+90..." />
+          <F label="E-posta" field="email" placeholder="ornek@mail.com" />
+          <F label="Website" field="website" placeholder="https://" />
+          <F label="Şehir" field="city" placeholder="Şehir" />
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Kategori</label>
+            <Select value={form.category} onValueChange={v => setForm(f => ({ ...f, category: v }))}>
+              <SelectTrigger data-testid="select-supplier-detail-category"><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(SUPPLIER_CATEGORY_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Para Birimi</label>
+            <Select value={form.currency} onValueChange={v => setForm(f => ({ ...f, currency: v }))}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{['TRY','EUR','USD','GBP'].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <F label="Vergi No" field="taxNumber" placeholder="Vergi numarası" />
+          <F label="Adres" field="address" placeholder="Adres" />
+          <div className="md:col-span-2"><F label="Banka Bilgileri" field="bankDetails" placeholder="IBAN vb." /></div>
+          <div className="md:col-span-2"><F label="Notlar" field="notes" placeholder="Notlar..." /></div>
+        </CardContent>
+      </Card>
     </AppShell>
   );
 }

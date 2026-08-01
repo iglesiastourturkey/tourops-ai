@@ -16,7 +16,7 @@ export default function ToursPage() {
   const { data: tours, isLoading } = useListTours();
 
   const filtered = (tours ?? []).filter(t => {
-    const ms = !search || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase());
+    const ms = !search || (t.name?.toLowerCase() ?? '').includes(search.toLowerCase()) || (t.code?.toLowerCase() ?? '').includes(search.toLowerCase());
     const mst = statusFilter === 'all' || t.status === statusFilter;
     return ms && mst;
   });
