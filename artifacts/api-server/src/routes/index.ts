@@ -12,6 +12,8 @@ import settingsRouter from "./settings";
 import dashboardRouter from "./dashboard";
 import aiRouter from "./ai";
 import usersRouter from "./users";
+import accountingRouter from "./accounting";
+import accountingExportRouter from "./accounting-export";
 
 const router: IRouter = Router();
 
@@ -28,5 +30,7 @@ router.use(settingsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/ai", aiRouter);
 router.use("/", usersRouter);
+router.use("/accounting/export", accountingExportRouter);
+router.use("/accounting", accountingRouter);
 
 export default router;

@@ -1,0 +1,422 @@
+Implement only Sprint 3: Accounting Module and Bulk Export System for TourPilot.
+
+Goal:
+Create a practical tourism-operation accounting workflow that collects income, expenses, receipts and invoices in one place, links them to operations/customers/suppliers, and allows accounting users or managers to export complete records as PDF, Excel and ZIP packages.
+
+Do not attempt to build a legally complete Turkish accounting/ERP system. This is an operational finance and document-management module.
+
+Roles and access:
+- super_admin: full access
+- admin: full operational finance access
+- accounting: full accounting module access
+- operations: can view operation-level financial summaries and submit documents, but cannot approve accounting records
+- guide: can only add/view receipts related to their assigned operations
+- all permissions must be enforced in backend APIs, not only hidden in the UI
+
+1. Navigation and pages
+
+Add a role-aware “Muhasebe” navigation item for:
+- super_admin
+- admin
+- accounting
+
+Create these pages:
+
+/accounting
+- accounting dashboard
+
+/accounting/transactions
+- all income and expense records
+
+/accounting/documents
+- receipt and invoice review queue
+
+/accounting/reports
+- filters and bulk exports
+
+/accounting/operations/:operationId
+- complete accounting file for one operation
+
+Do not expose these pages to guides.
+
+2. Database schema
+
+Create accounting_transactions table:
+
+- id
+- type: income | expense
+- category
+- amount
+- currency
+- exchangeRate nullable
+- amountTry nullable
+- taxRate nullable
+- taxAmount nullable
+- netAmount nullable
+- paymentMethod nullable
+- paymentStatus: pending | paid | partially_paid | cancelled
+- accountingStatus: pending_review | approved | rejected | missing_information
+- transactionDate
+- dueDate nullable
+- paidAt nullable
+- description nullable
+- documentNumber nullable
+- customerId nullable FK
+- supplierId nullable FK
+- tourId nullable FK
+- operationId nullable FK
+- receiptId nullable FK
+- createdByProfileId
+- approvedByProfileId nullable
+- approvedAt nullable
+- rejectionReason nullable
+- createdAt
+- updatedAt
+
+Create accounting_documents table only if existing receipt storage cannot represent invoices and general financial documents.
+
+Required document fields:
+- id
+- documentType: receipt | invoice | expense_note | other
+- operationId nullable
+- transactionId nullable
+- supplierId nullable
+- customerId nullable
+- objectPath
+- originalFileName
+- mimeType
+- fileSize
+- ocrStatus: not_processed | processed | failed
+- reviewStatus: pending | approved | rejected | missing_information
+- notes nullable
+- createdByProfileId
+- reviewedByProfileId nullable
+- reviewedAt nullable
+- createdAt
+- updatedAt
+
+Reuse existing operation_receipts wherever possible.
+Do not duplicate existing receipt records unnecessarily.
+
+3. Existing receipt integration
+
+All operation receipts must appear automatically in the accounting document queue.
+
+For each existing receipt show:
+- operation
+- tour
+- guide
+- supplier/store
+- date
+- amount
+- currency
+- guide note
+- photo status
+- OCR status if available
+- accounting review status
+
+Accounting users can:
+- approve
+- reject with reason
+- mark missing information
+- create/link an expense transaction from a receipt
+
+Do not automatically approve OCR-extracted data.
+
+4. Income and expense workflow
+
+Income records:
+- customer payment
+- quotation payment
+- operation income
+- other income
+
+Expense categories:
+- transportation
+- guide
+- hotel
+- restaurant
+- activity
+- entrance ticket
+- fuel
+- parking
+- commission
+- office
+- tax
+- other
+
+Features:
+- create income/expense
+- edit pending records
+- approve/reject
+- mark paid/partially paid
+- link customer, supplier, tour or operation
+- attach an existing receipt/invoice
+- show currency and TRY equivalent when exchange rate exists
+- preserve original currency
+
+Do not add automatic bank integrations.
+
+5. Accounting dashboard
+
+Show real data only:
+
+- This month income
+- This month expenses
+- Estimated gross profit
+- Pending-review documents
+- Missing-photo receipts
+- Unpaid transactions
+- Upcoming due payments
+- Expense category breakdown
+- Monthly income vs expense chart
+- Recent financial activity
+
+Role behavior:
+- super_admin/admin/accounting see company-wide data
+- operations sees only operation-level financial summaries where already authorized
+- guide sees none of the accounting dashboard
+
+No mock values.
+
+6. Operation accounting file
+
+For each operation, create a single page containing:
+
+- operation details
+- customer
+- tour
+- guide and driver
+- income records
+- expense records
+- receipts
+- invoices
+- document review statuses
+- totals by currency
+- TRY-converted summary when rates exist
+- gross profit estimate
+- missing document warnings
+- accounting notes
+
+Add actions:
+
+- “Muhasebe Dosyası PDF”
+- “Excel İndir”
+- “Belgeleri ZIP İndir”
+
+7. PDF export
+
+Create a professional A4 accounting package.
+
+PDF sections:
+
+- TourPilot / agency header
+- report date and filters
+- operation/customer/tour summary
+- income table
+- expense table
+- totals by currency
+- TRY summary
+- tax summary where recorded
+- payment status summary
+- document checklist
+- receipt/invoice list
+- missing-information warnings
+- approval information
+- page numbers
+
+For a single operation, include small document thumbnails only when practical.
+Do not embed huge full-resolution images into the PDF.
+
+Use lazy loading so PDF libraries do not increase the initial bundle unnecessarily.
+
+8. Excel export
+
+Generate a real .xlsx file, not CSV renamed as Excel.
+
+Workbook sheets:
+
+- Summary
+- Income
+- Expenses
+- Documents
+- Receipts
+- Suppliers
+- Customers
+
+Requirements:
+- filters on header rows
+- readable column widths
+- date formatting
+- numeric amount cells
+- original currency columns
+- TRY equivalent columns
+- totals/formulas where practical
+- Turkish headings
+
+Use a suitable library such as ExcelJS or SheetJS.
+Lazy-load it on export.
+
+9. ZIP export
+
+Create a ZIP package containing:
+
+- accounting-report.pdf
+- accounting-data.xlsx
+- /receipts/
+- /invoices/
+- manifest.json or manifest.csv
+
+Manifest fields:
+- file name
+- document type
+- operation
+- supplier/customer
+- date
+- amount
+- currency
+- review status
+- source record id
+
+Retrieve files securely from object storage.
+Do not expose private object paths publicly.
+Skip missing files and include a warning report rather than failing the entire export.
+
+10. Filters and bulk selection
+
+Reports page filters:
+
+- date range
+- transaction type
+- accounting status
+- payment status
+- currency
+- category
+- operation
+- tour
+- customer
+- supplier
+- document type
+- missing photo
+- pending review
+
+Allow:
+- export all filtered records
+- select individual rows
+- export selected rows only
+
+11. Safety and integrity
+
+- Confirmation required before rejecting or deleting pending records
+- Approved financial records should not be hard-deleted
+- Use archive/cancel or reversal logic for approved records
+- Prevent duplicate transaction creation from the same receipt
+- Validate positive amounts
+- Validate supported currencies
+- Return Turkish HTTP 409 warnings for linked/duplicate/conflicting records
+- Record who created and approved each financial record
+- Protect all export endpoints with RBAC
+- Do not return files belonging to unauthorized operations
+
+12. UI/UX
+
+Use existing TourPilot navy/teal design.
+
+Desktop:
+- summary cards
+- filter toolbar
+- responsive tables
+- document review drawer/detail panel
+- clear status badges
+- bulk action bar
+
+Mobile:
+- transaction and document cards
+- usable filters in drawer/sheet
+- receipt thumbnail
+- approve/reject actions large enough for touch
+- no horizontal overflow
+
+Show:
+- skeleton states
+- empty states
+- Turkish error messages
+- “Yeniden Dene”
+- success/error toasts
+- loading progress for exports
+
+13. Scope restrictions
+
+Do not modify:
+- Clerk authentication
+- profile identity sync
+- existing RBAC rules except adding accounting-route permissions
+- OpenRouter/OCR extraction logic
+- current quotation PDF
+- current operation PDF
+- landing page
+- TourPilot dashboard except adding navigation or linking accounting alerts
+- unrelated CRUD modules
+
+Do not build:
+- e-Fatura/e-Arşiv integration
+- bank integration
+- official ledger
+- payroll
+- legal tax filing
+- automatic accounting software synchronization
+
+14. API and code quality
+
+- Update database schema and run migration
+- Update OpenAPI specification
+- Regenerate typed clients/hooks
+- Use server-side filtering for large lists
+- Avoid loading all document images at once
+- Keep exports memory-safe
+- Keep code modular:
+  - accounting routes/service
+  - export service
+  - PDF exporter
+  - Excel exporter
+  - ZIP exporter
+
+15. Verification
+
+Test:
+- super_admin
+- admin
+- accounting
+- operations
+- guide denial
+- create income
+- create expense
+- convert receipt to expense
+- approve/reject document
+- duplicate receipt prevention
+- filtered PDF export
+- Excel workbook opens correctly
+- ZIP contains report, workbook and available documents
+- missing object does not crash export
+- desktop and mobile layouts
+
+Run:
+- database migration
+- OpenAPI codegen
+- full TypeScript check
+- production build
+
+Fix all errors before completion.
+
+16. Final report
+
+Report only:
+- database changes
+- new pages and API endpoints
+- receipt/document integration
+- export formats and contents
+- RBAC matrix
+- modified files
+- migration result
+- TypeScript/build result
+- remaining limitations

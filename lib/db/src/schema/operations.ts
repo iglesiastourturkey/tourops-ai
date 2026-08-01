@@ -58,6 +58,12 @@ export const operationReceiptsTable = pgTable("operation_receipts", {
   guideNote: text("guide_note"),
   photoObjectPath: text("photo_object_path"),
   createdByUserId: text("created_by_user_id"), // Clerk userId of the creator; used for guide receipt scoping
+  // Accounting review tracking
+  reviewStatus: text("review_status").notNull().default("pending_review"),
+  // 'pending_review' | 'approved' | 'rejected' | 'missing_information'
+  reviewNotes: text("review_notes"),
+  reviewedByProfileId: integer("reviewed_by_profile_id"),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

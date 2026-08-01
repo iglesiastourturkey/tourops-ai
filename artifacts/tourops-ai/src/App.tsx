@@ -30,6 +30,11 @@ import NotFound from '@/pages/not-found';
 import ForbiddenPage from '@/pages/forbidden';
 import UsersPage from '@/pages/users';
 import ForgotPasswordPage from '@/pages/forgot-password';
+import AccountingDashboardPage from '@/pages/accounting';
+import AccountingTransactionsPage from '@/pages/accounting-transactions';
+import AccountingDocumentsPage from '@/pages/accounting-documents';
+import AccountingReportsPage from '@/pages/accounting-reports';
+import AccountingOperationPage from '@/pages/accounting-operation';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -197,6 +202,11 @@ function Router() {
       <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
       <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
+      <Route path="/accounting/operations/:id" component={() => <ProtectedRoleRoute component={AccountingOperationPage} roles={['admin', 'accounting', 'operations']} />} />
+      <Route path="/accounting/transactions" component={() => <ProtectedRoleRoute component={AccountingTransactionsPage} roles={['admin', 'accounting', 'operations']} />} />
+      <Route path="/accounting/documents" component={() => <ProtectedRoleRoute component={AccountingDocumentsPage} roles={['admin', 'accounting']} />} />
+      <Route path="/accounting/reports" component={() => <ProtectedRoleRoute component={AccountingReportsPage} roles={['admin', 'accounting']} />} />
+      <Route path="/accounting" component={() => <ProtectedRoleRoute component={AccountingDashboardPage} roles={['admin', 'accounting']} />} />
       <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
       <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />
       <Route component={NotFound} />

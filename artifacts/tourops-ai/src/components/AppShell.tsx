@@ -4,7 +4,7 @@ import { UserButton } from '@clerk/react';
 import { useListNotifications } from '@workspace/api-client-react';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
-  FileText, ClipboardList, Bell, Settings, Menu, UserCog
+  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting', 'guide'] },
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
   { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
+  { icon: BookOpen, label: 'Muhasebe', href: '/accounting', roles: ['super_admin', 'admin', 'accounting'] },
   { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['super_admin'] },
 ];
 
