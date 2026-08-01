@@ -22,4 +22,5 @@ export interface SupplierUpdate {
   notes?: string;
   rating?: number;
   isActive?: boolean;
+  archivedAt?: Date;
 }

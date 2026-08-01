@@ -34,6 +34,8 @@ export interface Supplier {
   /** @nullable */
   rating?: number | null;
   isActive: boolean;
+  /** @nullable */
+  archivedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

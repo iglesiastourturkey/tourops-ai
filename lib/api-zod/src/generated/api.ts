@@ -87,6 +87,7 @@ export const ListCustomersResponseItem = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -130,6 +131,7 @@ export const CreateCustomerResponse = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -157,6 +159,7 @@ export const GetCustomerResponse = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -185,7 +188,8 @@ export const UpdateCustomerBody = zod.object({
   "dietaryRestrictions": zod.string().optional(),
   "accessibilityRequirements": zod.string().optional(),
   "passportStatus": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "archivedAt": zod.coerce.date().optional()
 })
 
 export const UpdateCustomerResponse = zod.object({
@@ -203,6 +207,7 @@ export const UpdateCustomerResponse = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -244,6 +249,7 @@ export const ListSuppliersResponseItem = zod.object({
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "isActive": zod.boolean(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -291,6 +297,7 @@ export const CreateSupplierResponse = zod.object({
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "isActive": zod.boolean(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -320,6 +327,7 @@ export const GetSupplierResponse = zod.object({
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "isActive": zod.boolean(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -347,7 +355,8 @@ export const UpdateSupplierBody = zod.object({
   "paymentTerms": zod.string().optional(),
   "notes": zod.string().optional(),
   "rating": zod.number().optional(),
-  "isActive": zod.boolean().optional()
+  "isActive": zod.boolean().optional(),
+  "archivedAt": zod.coerce.date().optional()
 })
 
 export const UpdateSupplierResponse = zod.object({
@@ -367,6 +376,7 @@ export const UpdateSupplierResponse = zod.object({
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
   "isActive": zod.boolean(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1000,6 +1010,7 @@ export const GetQuotationResponse = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -1265,6 +1276,16 @@ export const CreateOperationResponse = zod.object({
 
 
 /**
+ * @summary Delete an operation and all its tasks and receipts
+ */
+export const DeleteOperationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const DeleteOperationResponse = zod.void()
+
+
+/**
  * @summary Get operation with tasks
  */
 export const GetOperationParams = zod.object({
@@ -1318,6 +1339,7 @@ export const GetOperationResponse = zod.object({
   "accessibilityRequirements": zod.string().nullish(),
   "passportStatus": zod.string(),
   "notes": zod.string().nullish(),
+  "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 }),
@@ -1523,6 +1545,17 @@ export const CreateOperationReceiptResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
+
+
+/**
+ * @summary Delete a receipt and its storage object
+ */
+export const DeleteOperationReceiptParams = zod.object({
+  "id": zod.coerce.number(),
+  "receiptId": zod.coerce.number()
+})
+
+export const DeleteOperationReceiptResponse = zod.void()
 
 
 /**

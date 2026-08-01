@@ -1,28 +1,25 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
-import { customersTable } from "@workspace/db/schema";
-import { eq, like, or, desc } from "drizzle-orm";
+import { customersTable, quotationsTable, operationsTable } from "@workspace/db/schema";
+import { eq, like, or, desc, and, isNull, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
-
 router.use(requireAuth);
 
 // GET /api/customers
 router.get("/", async (req, res) => {
   try {
-    const { search, customerType, page = "1", limit = "50" } = req.query as Record<string, string>;
-    let query = db.select().from(customersTable).$dynamic();
-    const conditions = [];
-    if (search) conditions.push(or(like(customersTable.name, `%${search}%`), like(customersTable.email, `%${search}%`), like(customersTable.phone, `%${search}%`)));
-    if (customerType) conditions.push(eq(customersTable.customerType, customerType));
-    if (conditions.length) query = query.where(conditions.length === 1 ? conditions[0] : conditions[0]); // simplified
-    const offset = (parseInt(page) - 1) * parseInt(limit);
-    const customers = await query.orderBy(desc(customersTable.createdAt)).limit(parseInt(limit)).offset(offset);
-    res.json(customers);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to list customers" });
-  }
+    const { search, customerType } = req.query as Record<string, string>;
+    let rows = await db.select().from(customersTable).orderBy(desc(customersTable.createdAt));
+    if (search) rows = rows.filter(r =>
+      r.name.toLowerCase().includes(search.toLowerCase()) ||
+      r.email?.toLowerCase().includes(search.toLowerCase()) ||
+      r.phone?.toLowerCase().includes(search.toLowerCase())
+    );
+    if (customerType) rows = rows.filter(r => r.customerType === customerType);
+    res.json(rows);
+  } catch { res.status(500).json({ error: "Failed to list customers" }); }
 });
 
 // POST /api/customers
@@ -30,44 +27,46 @@ router.post("/", async (req, res) => {
   try {
     const [customer] = await db.insert(customersTable).values(req.body).returning();
     res.status(201).json(customer);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to create customer" });
-  }
+  } catch { res.status(500).json({ error: "Failed to create customer" }); }
 });
 
 // GET /api/customers/:id
 router.get("/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, id));
+    const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, parseInt(req.params.id)));
     if (!customer) { res.status(404).json({ error: "Customer not found" }); return; }
     res.json(customer);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to get customer" });
-  }
+  } catch { res.status(500).json({ error: "Failed to get customer" }); }
 });
 
-// PATCH /api/customers/:id
+// PATCH /api/customers/:id (also used for archive: set archivedAt)
 router.patch("/:id", async (req, res) => {
   try {
-    const id = parseInt(req.params.id);
-    const [updated] = await db.update(customersTable).set(req.body).where(eq(customersTable.id, id)).returning();
+    const [updated] = await db.update(customersTable).set(req.body).where(eq(customersTable.id, parseInt(req.params.id))).returning();
     if (!updated) { res.status(404).json({ error: "Customer not found" }); return; }
     res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: "Failed to update customer" });
-  }
+  } catch { res.status(500).json({ error: "Failed to update customer" }); }
 });
 
-// DELETE /api/customers/:id
+// DELETE /api/customers/:id — blocked if customer has active quotations or operations
 router.delete("/:id", async (req, res) => {
   try {
     const id = parseInt(req.params.id);
+    const [activeQuotations, activeOperations] = await Promise.all([
+      db.select({ id: quotationsTable.id }).from(quotationsTable).where(
+        and(eq(quotationsTable.customerId, id), inArray(quotationsTable.status, ["draft", "sent", "viewed", "accepted"]))
+      ),
+      db.select({ id: operationsTable.id }).from(operationsTable).where(
+        and(eq(operationsTable.customerId, id), inArray(operationsTable.status, ["active"]))
+      ),
+    ]);
+    if (activeQuotations.length > 0 || activeOperations.length > 0) {
+      res.status(409).json({ error: "Bu müşteriye bağlı aktif teklif veya operasyon bulunmaktadır." });
+      return;
+    }
     await db.delete(customersTable).where(eq(customersTable.id, id));
     res.status(204).send();
-  } catch (err) {
-    res.status(500).json({ error: "Failed to delete customer" });
-  }
+  } catch { res.status(500).json({ error: "Failed to delete customer" }); }
 });
 
 export default router;

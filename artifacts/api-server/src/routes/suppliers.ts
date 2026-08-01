@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { suppliersTable } from "@workspace/db/schema";
-import { eq, like, or, desc } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
@@ -33,6 +33,7 @@ router.get("/:id", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to get supplier" }); }
 });
 
+// PATCH /suppliers/:id (also used for archive: set archivedAt)
 router.patch("/:id", async (req, res) => {
   try {
     const [row] = await db.update(suppliersTable).set(req.body).where(eq(suppliersTable.id, parseInt(req.params.id))).returning();
@@ -41,6 +42,7 @@ router.patch("/:id", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to update supplier" }); }
 });
 
+// DELETE /suppliers/:id — no FK constraints block deletion for suppliers
 router.delete("/:id", async (req, res) => {
   try {
     await db.delete(suppliersTable).where(eq(suppliersTable.id, parseInt(req.params.id)));

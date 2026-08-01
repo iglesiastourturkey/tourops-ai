@@ -760,6 +760,20 @@ paths:
               schema:
                 $ref: "#/components/schemas/Operation"
   /operations/{id}:
+    delete:
+      operationId: deleteOperation
+      tags: [operations]
+      summary: Delete an operation and all its tasks and receipts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+        "409":
+          description: Conflict
     get:
       operationId: getOperation
       tags: [operations]
@@ -926,6 +940,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/OperationReceipt"
+
+  /operations/{id}/receipts/{receiptId}:
+    delete:
+      operationId: deleteOperationReceipt
+      tags: [operations]
+      summary: Delete a receipt and its storage object
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: receiptId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
 
   # ─── STORAGE ──────────────────────────────────────────────────────────────
   /storage/uploads/request-url:
@@ -1347,6 +1381,7 @@ components:
         accessibilityRequirements: { type: ["string", "null"] }
         passportStatus: { type: string }
         notes: { type: ["string", "null"] }
+        archivedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, name, customerType, passportStatus, createdAt, updatedAt]
@@ -1383,6 +1418,7 @@ components:
         accessibilityRequirements: { type: string }
         passportStatus: { type: string }
         notes: { type: string }
+        archivedAt: { type: string, format: date-time }
 
     # ── Suppliers ────────────────────────────────────────────────────────
     Supplier:
@@ -1404,6 +1440,7 @@ components:
         notes: { type: ["string", "null"] }
         rating: { type: ["number", "null"] }
         isActive: { type: boolean }
+        archivedAt: { type: ["string", "null"], format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, name, category, currency, isActive, createdAt, updatedAt]
@@ -1444,6 +1481,7 @@ components:
         notes: { type: string }
         rating: { type: number }
         isActive: { type: boolean }
+        archivedAt: { type: string, format: date-time }
 
     # ── Tours ────────────────────────────────────────────────────────────
     Tour:

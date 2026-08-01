@@ -2952,6 +2952,77 @@ export const useCreateOperation = <TError = ErrorType<unknown>,
       return useMutation(getCreateOperationMutationOptions(options));
     }
 
+export const getDeleteOperationUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}`
+}
+
+/**
+ * @summary Delete an operation and all its tasks and receipts
+ */
+export const deleteOperation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteOperationUrl(id),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOperationMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOperation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['deleteOperation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOperation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  deleteOperation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOperationMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOperation>>>
+
+    export type DeleteOperationMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an operation and all its tasks and receipts
+ */
+export const useDeleteOperation = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOperation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOperationMutationOptions(options));
+    }
+
 export const getGetOperationUrl = (id: number,) => {
 
 
@@ -3544,6 +3615,79 @@ export const useCreateOperationReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateOperationReceiptMutationOptions(options));
+    }
+
+export const getDeleteOperationReceiptUrl = (id: number,
+    receiptId: number,) => {
+
+
+
+
+  return `/api/operations/${id}/receipts/${receiptId}`
+}
+
+/**
+ * @summary Delete a receipt and its storage object
+ */
+export const deleteOperationReceipt = async (id: number,
+    receiptId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteOperationReceiptUrl(id,receiptId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOperationReceiptMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperationReceipt>>, TError,{id: number;receiptId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOperationReceipt>>, TError,{id: number;receiptId: number}, TContext> => {
+
+const mutationKey = ['deleteOperationReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOperationReceipt>>, {id: number;receiptId: number}> = (props) => {
+          const {id,receiptId} = props ?? {};
+
+          return  deleteOperationReceipt(id,receiptId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOperationReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOperationReceipt>>>
+
+    export type DeleteOperationReceiptMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete a receipt and its storage object
+ */
+export const useDeleteOperationReceipt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperationReceipt>>, TError,{id: number;receiptId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOperationReceipt>>,
+        TError,
+        {id: number;receiptId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOperationReceiptMutationOptions(options));
     }
 
 export const getRequestUploadUrlUrl = () => {

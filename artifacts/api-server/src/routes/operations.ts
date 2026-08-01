@@ -50,6 +50,31 @@ router.patch("/:id", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to update operation" }); }
 });
 
+// DELETE /operations/:id — cascades tasks; deletes receipts + their GCS objects
+router.delete("/:id", async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.id);
+
+    // Delete GCS objects for all receipts that have photos
+    const receipts = await db.select().from(operationReceiptsTable)
+      .where(eq(operationReceiptsTable.operationId, operationId));
+
+    await Promise.all(receipts
+      .filter(r => r.photoObjectPath)
+      .map(async r => {
+        try {
+          const file = await objectStorageService.getObjectEntityFile(r.photoObjectPath!);
+          await file.delete();
+        } catch { /* best-effort — don't block delete if GCS object is already gone */ }
+      })
+    );
+
+    // DB cascades delete tasks and receipts (operationId FK cascade)
+    await db.delete(operationsTable).where(eq(operationsTable.id, operationId));
+    res.status(204).send();
+  } catch { res.status(500).json({ error: "Failed to delete operation" }); }
+});
+
 // ─── Operation Tasks ─────────────────────────────────────────────────────────
 
 router.get("/:id/tasks", async (req, res) => {
@@ -109,18 +134,12 @@ router.post("/:id/receipts", async (req, res) => {
   try {
     const body = { ...req.body };
 
-    // Validate photoObjectPath format before any GCS call.
     if (body.photoObjectPath != null) {
       if (typeof body.photoObjectPath !== "string" || !CANONICAL_OBJECT_PATH_RE.test(body.photoObjectPath)) {
         res.status(400).json({ error: "Invalid photoObjectPath format" });
         return;
       }
 
-      // Post-upload server-side validation: fetch the actual GCS object
-      // metadata and verify content-type and size against the policy.
-      // This enforces constraints on the REAL uploaded bytes — not just the
-      // client-supplied JSON — so a caller cannot bypass the upload allowlist
-      // by requesting a URL as a 1-byte PNG then uploading arbitrary content.
       let objectFile;
       try {
         objectFile = await objectStorageService.getObjectEntityFile(body.photoObjectPath);
@@ -137,7 +156,6 @@ router.post("/:id/receipts", async (req, res) => {
       const size = Number(metadata.size ?? 0);
 
       if (!contentType || !ALLOWED_RECEIPT_MIME_TYPES.has(contentType.split(";")[0].trim())) {
-        // Delete the offending object so it cannot be re-registered later.
         await objectFile.delete().catch(() => {/* best-effort */});
         res.status(400).json({ error: "Uploaded file is not an allowed image type (JPEG, PNG, GIF, WEBP, HEIC)" });
         return;
@@ -155,6 +173,27 @@ router.post("/:id/receipts", async (req, res) => {
       .returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create receipt" }); }
+});
+
+// DELETE /operations/:id/receipts/:receiptId — deletes DB record + GCS object
+router.delete("/:id/receipts/:receiptId", async (req, res) => {
+  try {
+    const receiptId = parseInt(req.params.receiptId);
+    const [receipt] = await db.select().from(operationReceiptsTable)
+      .where(eq(operationReceiptsTable.id, receiptId));
+    if (!receipt) { res.status(404).json({ error: "Receipt not found" }); return; }
+
+    // Best-effort GCS cleanup before DB delete
+    if (receipt.photoObjectPath) {
+      try {
+        const file = await objectStorageService.getObjectEntityFile(receipt.photoObjectPath);
+        await file.delete();
+      } catch { /* best-effort — object may already be gone */ }
+    }
+
+    await db.delete(operationReceiptsTable).where(eq(operationReceiptsTable.id, receiptId));
+    res.status(204).send();
+  } catch { res.status(500).json({ error: "Failed to delete receipt" }); }
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

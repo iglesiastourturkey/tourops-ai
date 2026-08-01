@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useListCustomers, useCreateCustomer, useDeleteCustomer } from '@workspace/api-client-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useListCustomers, useCreateCustomer, useDeleteCustomer, useUpdateCustomer } from '@workspace/api-client-react';
 import { getListCustomersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Trash2, ExternalLink } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2 } from 'lucide-react';
 import { CUSTOMER_TYPE_LABELS, PASSPORT_STATUS_LABELS, PASSPORT_STATUS_COLORS } from '@/lib/labels';
 
 export default function CustomersPage() {
@@ -19,14 +21,20 @@ export default function CustomersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', company: '', nationality: '', language: '', phone: '', email: '', whatsapp: '', customerType: 'individual', notes: '' });
 
   const { data: customers, isLoading } = useListCustomers();
   const createMutation = useCreateCustomer();
   const deleteMutation = useDeleteCustomer();
+  const archiveMutation = useUpdateCustomer();
 
   const filtered = (customers ?? []).filter(c => {
+    const isArchived = !!c.archivedAt;
+    if (!showArchived && isArchived) return false;
+    if (showArchived && !isArchived) return false;
     const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.email?.toLowerCase().includes(search.toLowerCase()) || false;
     const matchType = typeFilter === 'all' || c.customerType === typeFilter;
     return matchSearch && matchType;
@@ -45,11 +53,27 @@ export default function CustomersPage() {
     });
   }
 
-  function handleDelete(id: number, name: string) {
-    if (!confirm(`"${name}" müşterisini silmek istediğinize emin misiniz?`)) return;
+  function handleArchive(id: number, name: string) {
+    archiveMutation.mutate({ id, data: { archivedAt: new Date().toISOString() } }, {
+      onSuccess: () => { toast({ title: `"${name}" arşivlendi` }); qc.invalidateQueries({ queryKey: getListCustomersQueryKey() }); },
+      onError: () => toast({ title: 'Arşivleme başarısız', variant: 'destructive' }),
+    });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
     deleteMutation.mutate({ id }, {
-      onSuccess: () => { toast({ title: 'Müşteri silindi' }); qc.invalidateQueries({ queryKey: getListCustomersQueryKey() }); },
-      onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+      onSuccess: () => { toast({ title: `"${name}" silindi` }); qc.invalidateQueries({ queryKey: getListCustomersQueryKey() }); setDeleteTarget(null); },
+      onError: (err) => {
+        setDeleteTarget(null);
+        const status = (err as { response?: { status?: number } })?.response?.status;
+        if (status === 409) {
+          toast({ title: 'Silinemez', description: 'Bu müşteriye bağlı aktif teklif veya operasyon bulunmaktadır. Önce bunları arşivleyin ya da silin.', variant: 'destructive' });
+        } else {
+          toast({ title: 'Silme başarısız', variant: 'destructive' });
+        }
+      },
     });
   }
 
@@ -67,6 +91,14 @@ export default function CustomersPage() {
             {Object.entries(CUSTOMER_TYPE_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button
+          variant={showArchived ? 'secondary' : 'outline'}
+          onClick={() => setShowArchived(s => !s)}
+          className="gap-2"
+          data-testid="button-toggle-archived-customers"
+        >
+          <Archive className="w-4 h-4" />{showArchived ? 'Aktif Müşteriler' : 'Arşivlenenler'}
+        </Button>
         <Button onClick={() => setDialogOpen(true)} className="gap-2" data-testid="button-new-customer">
           <Plus className="w-4 h-4" /> Yeni Müşteri
         </Button>
@@ -81,14 +113,16 @@ export default function CustomersPage() {
               <TableHead className="hidden lg:table-cell">Telefon</TableHead>
               <TableHead>Müşteri Tipi</TableHead>
               <TableHead className="hidden md:table-cell">Pasaport</TableHead>
-              <TableHead className="w-20">İşlemler</TableHead>
+              <TableHead className="w-12">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
             )) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">Müşteri bulunamadı</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                {showArchived ? 'Arşivlenmiş müşteri bulunamadı' : 'Müşteri bulunamadı'}
+              </TableCell></TableRow>
             ) : filtered.map(c => (
               <TableRow key={c.id} data-testid={`row-customer-${c.id}`}>
                 <TableCell className="font-medium">{c.name}</TableCell>
@@ -105,14 +139,33 @@ export default function CustomersPage() {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Link href={`/customers/${c.id}`}>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-view-customer-${c.id}`}><ExternalLink className="w-3.5 h-3.5" /></Button>
-                    </Link>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(c.id, c.name)} data-testid={`button-delete-customer-${c.id}`}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-customer-${c.id}`}>
+                        <MoreHorizontal className="w-3.5 h-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/customers/${c.id}`} className="flex items-center gap-2 cursor-pointer">
+                          <ExternalLink className="w-3.5 h-3.5" />Görüntüle / Düzenle
+                        </Link>
+                      </DropdownMenuItem>
+                      {!c.archivedAt && (
+                        <DropdownMenuItem className="gap-2" onClick={() => handleArchive(c.id, c.name)}>
+                          <Archive className="w-3.5 h-3.5" />Arşivle
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="gap-2 text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget({ id: c.id, name: c.name })}
+                        data-testid={`button-delete-customer-${c.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />Sil
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
@@ -120,6 +173,7 @@ export default function CustomersPage() {
         </Table>
       </div>
 
+      {/* ── Create dialog ──────────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Yeni Müşteri</DialogTitle></DialogHeader>
@@ -147,6 +201,28 @@ export default function CustomersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete confirm dialog ──────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Müşteriyi sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{deleteTarget?.name}</strong> müşterisi kalıcı olarak silinecek. Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+              data-testid="button-confirm-delete-customer"
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

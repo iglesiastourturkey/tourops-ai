@@ -21,4 +21,5 @@ export interface CustomerUpdate {
   accessibilityRequirements?: string;
   passportStatus?: string;
   notes?: string;
+  archivedAt?: Date;
 }

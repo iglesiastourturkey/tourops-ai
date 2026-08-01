@@ -31,6 +31,8 @@ export interface Customer {
   passportStatus: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  archivedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

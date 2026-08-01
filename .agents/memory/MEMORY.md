@@ -2,3 +2,4 @@
 - [PDF exports use agency settings](pdf-agency-settings.md) — both quotation and operation PDFs read from DB via agencySettings param, never hardcode agency info
 - [Customer schema is single name field](customer-schema.md) — Customer.name is one field; no firstName/lastName
 - [DB schema: operations extended](operations-schema.md) — guide/driver/emergency fields + operation_receipts table added; all nullable
+- [Archive/delete strategy](archive-delete-strategy.md) — customers/suppliers: archivedAt timestamp column; quotations/operations: status='archived'; 409 blocks delete when active linked records exist

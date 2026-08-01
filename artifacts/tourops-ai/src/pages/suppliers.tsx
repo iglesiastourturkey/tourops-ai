@@ -5,13 +5,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useListSuppliers, useCreateSupplier, useDeleteSupplier } from '@workspace/api-client-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier } from '@workspace/api-client-react';
 import { getListSuppliersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Trash2, ExternalLink, Star } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star } from 'lucide-react';
 import { SUPPLIER_CATEGORY_LABELS } from '@/lib/labels';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
@@ -21,14 +23,20 @@ export default function SuppliersPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [catFilter, setCatFilter] = useState('all');
+  const [showArchived, setShowArchived] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', city: '', category: 'hotel', currency: 'TRY', notes: '' });
 
   const { data: suppliers, isLoading } = useListSuppliers();
   const createMutation = useCreateSupplier();
   const deleteMutation = useDeleteSupplier();
+  const archiveMutation = useUpdateSupplier();
 
   const filtered = (suppliers ?? []).filter(s => {
+    const isArchived = !!s.archivedAt;
+    if (!showArchived && isArchived) return false;
+    if (showArchived && !isArchived) return false;
     const ms = !search || s.name.toLowerCase().includes(search.toLowerCase()) || s.city?.toLowerCase().includes(search.toLowerCase());
     const mc = catFilter === 'all' || s.category === catFilter;
     return ms && mc;
@@ -42,11 +50,19 @@ export default function SuppliersPage() {
     });
   }
 
-  function handleDelete(id: number, name: string) {
-    if (!confirm(`"${name}" tedarikçisini silmek istiyor musunuz?`)) return;
+  function handleArchive(id: number, name: string) {
+    archiveMutation.mutate({ id, data: { archivedAt: new Date().toISOString() } }, {
+      onSuccess: () => { toast({ title: `"${name}" arşivlendi` }); qc.invalidateQueries({ queryKey: getListSuppliersQueryKey() }); },
+      onError: () => toast({ title: 'Arşivleme başarısız', variant: 'destructive' }),
+    });
+  }
+
+  function confirmDelete() {
+    if (!deleteTarget) return;
+    const { id, name } = deleteTarget;
     deleteMutation.mutate({ id }, {
-      onSuccess: () => { toast({ title: 'Tedarikçi silindi' }); qc.invalidateQueries({ queryKey: getListSuppliersQueryKey() }); },
-      onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+      onSuccess: () => { toast({ title: `"${name}" silindi` }); qc.invalidateQueries({ queryKey: getListSuppliersQueryKey() }); setDeleteTarget(null); },
+      onError: () => { setDeleteTarget(null); toast({ title: 'Silme başarısız', variant: 'destructive' }); },
     });
   }
 
@@ -64,6 +80,14 @@ export default function SuppliersPage() {
             {Object.entries(SUPPLIER_CATEGORY_LABELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>
+        <Button
+          variant={showArchived ? 'secondary' : 'outline'}
+          onClick={() => setShowArchived(s => !s)}
+          className="gap-2"
+          data-testid="button-toggle-archived-suppliers"
+        >
+          <Archive className="w-4 h-4" />{showArchived ? 'Aktif Tedarikçiler' : 'Arşivlenenler'}
+        </Button>
         <Button onClick={() => setDialogOpen(true)} className="gap-2" data-testid="button-new-supplier"><Plus className="w-4 h-4" />Yeni Tedarikçi</Button>
       </div>
 
@@ -77,14 +101,16 @@ export default function SuppliersPage() {
               <TableHead className="hidden lg:table-cell">Para Birimi</TableHead>
               <TableHead className="hidden lg:table-cell">Puan</TableHead>
               <TableHead>Durum</TableHead>
-              <TableHead className="w-20">İşlemler</TableHead>
+              <TableHead className="w-12">İşlemler</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
             )) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">Tedarikçi bulunamadı</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                {showArchived ? 'Arşivlenmiş tedarikçi bulunamadı' : 'Tedarikçi bulunamadı'}
+              </TableCell></TableRow>
             ) : filtered.map(s => (
               <TableRow key={s.id} data-testid={`row-supplier-${s.id}`}>
                 <TableCell className="font-medium">{s.name}</TableCell>
@@ -96,12 +122,41 @@ export default function SuppliersPage() {
                     <div className="flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" /><span className="text-sm">{s.rating}</span></div>
                   ) : <span className="text-muted-foreground text-sm">-</span>}
                 </TableCell>
-                <TableCell><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{s.isActive ? 'Aktif' : 'Pasif'}</span></TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-1">
-                    <Link href={`/suppliers/${s.id}`}><Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-view-supplier-${s.id}`}><ExternalLink className="w-3.5 h-3.5" /></Button></Link>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDelete(s.id, s.name)} data-testid={`button-delete-supplier-${s.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
-                  </div>
+                  {s.archivedAt ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-orange-100 text-orange-700">Arşiv</span>
+                  ) : (
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{s.isActive ? 'Aktif' : 'Pasif'}</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-supplier-${s.id}`}>
+                        <MoreHorizontal className="w-3.5 h-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href={`/suppliers/${s.id}`} className="flex items-center gap-2 cursor-pointer">
+                          <ExternalLink className="w-3.5 h-3.5" />Görüntüle / Düzenle
+                        </Link>
+                      </DropdownMenuItem>
+                      {!s.archivedAt && (
+                        <DropdownMenuItem className="gap-2" onClick={() => handleArchive(s.id, s.name)}>
+                          <Archive className="w-3.5 h-3.5" />Arşivle
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="gap-2 text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget({ id: s.id, name: s.name })}
+                        data-testid={`button-delete-supplier-${s.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />Sil
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </TableCell>
               </TableRow>
             ))}
@@ -109,6 +164,7 @@ export default function SuppliersPage() {
         </Table>
       </div>
 
+      {/* ── Create dialog ──────────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>Yeni Tedarikçi</DialogTitle></DialogHeader>
@@ -140,6 +196,28 @@ export default function SuppliersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete confirm dialog ──────────────────────────────────────────── */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Tedarikçiyi sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>{deleteTarget?.name}</strong> kalıcı olarak silinecek. Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+              data-testid="button-confirm-delete-supplier"
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

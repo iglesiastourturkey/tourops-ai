@@ -17,6 +17,7 @@ export const customersTable = pgTable("customers", {
   accessibilityRequirements: text("accessibility_requirements"),
   passportStatus: text("passport_status").notNull().default("not_requested"),
   notes: text("notes"),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

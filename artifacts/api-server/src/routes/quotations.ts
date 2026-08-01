@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db } from "@workspace/db";
 import { quotationsTable, operationsTable } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireAuth } from "../lib/auth";
 
 const router = Router();
@@ -47,9 +47,18 @@ router.patch("/:id", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to update quotation" }); }
 });
 
+// DELETE /quotations/:id — blocked if quotation has an active operation
 router.delete("/:id", async (req, res) => {
   try {
-    await db.delete(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id)));
+    const id = parseInt(req.params.id);
+    const activeOps = await db.select({ id: operationsTable.id }).from(operationsTable).where(
+      and(eq(operationsTable.quotationId, id), inArray(operationsTable.status, ["active"]))
+    );
+    if (activeOps.length > 0) {
+      res.status(409).json({ error: "Bu teklife bağlı aktif bir operasyon bulunmaktadır." });
+      return;
+    }
+    await db.delete(quotationsTable).where(eq(quotationsTable.id, id));
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete quotation" }); }
 });

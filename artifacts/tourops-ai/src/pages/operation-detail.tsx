@@ -15,19 +15,21 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   useGetOperation, useUpdateOperation,
   useListOperationTasks, useUpdateOperationTask, useCreateOperationTask, useDeleteOperationTask,
-  useListOperationReceipts, useCreateOperationReceipt,
+  useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
   useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer,
 } from '@workspace/api-client-react';
 import {
-  getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey,
+  getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
   getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, User, Car, AlertTriangle,
-  FileDown, Receipt, Camera, AlertCircle,
+  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal,
 } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, PRIORITY_LABELS, PRIORITY_COLORS, TASK_STATUS_LABELS, formatDate } from '@/lib/labels';
 import { uploadFile, getStorageObjectUrl } from '@/lib/storage-service';
 import { generateOperationPdf } from '@/lib/operation-pdf-export';
@@ -156,12 +158,16 @@ export default function OperationDetailPage() {
   const { data: tourDays } = useListTourDays(tourId!, { query: { enabled: !!tourId, queryKey: getListTourDaysQueryKey(tourId!) } });
   const { data: customer } = useGetCustomer(customerId!, { query: { enabled: !!customerId, queryKey: getGetCustomerQueryKey(customerId!) } });
 
+  // ── Delete receipt state ──────────────────────────────────────────────────
+  const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<number | null>(null);
+
   // ── Mutations ─────────────────────────────────────────────────────────────
   const updateTaskMutation = useUpdateOperationTask();
   const createTaskMutation = useCreateOperationTask();
   const deleteTaskMutation = useDeleteOperationTask();
   const updateOperationMutation = useUpdateOperation();
   const createReceiptMutation = useCreateOperationReceipt();
+  const deleteReceiptMutation = useDeleteOperationReceipt();
 
   // ── Sync guide form when operation loads ────────────────────────────────
   useEffect(() => {
@@ -596,6 +602,23 @@ export default function OperationDetailPage() {
                       {r.guideNote && <p className="italic">"{r.guideNote}"</p>}
                     </div>
                   </div>
+                  {/* Receipt actions */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" data-testid={`button-menu-receipt-${r.id}`}>
+                        <MoreHorizontal className="w-3.5 h-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        className="gap-2 text-destructive focus:text-destructive"
+                        onClick={() => setDeleteReceiptTarget(r.id)}
+                        data-testid={`button-delete-receipt-${r.id}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />Makbuzu Sil
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               ))}
             </div>
@@ -672,6 +695,42 @@ export default function OperationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Receipt delete confirm ─────────────────────────────────────────── */}
+      <AlertDialog open={deleteReceiptTarget !== null} onOpenChange={open => { if (!open) setDeleteReceiptTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Makbuzu sil</AlertDialogTitle>
+            <AlertDialogDescription>
+              Bu makbuz ve varsa fotoğrafı kalıcı olarak silinecek. Bu işlem geri alınamaz.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>İptal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteReceiptTarget === null) return;
+                const receiptId = deleteReceiptTarget;
+                deleteReceiptMutation.mutate({ id, receiptId }, {
+                  onSuccess: () => {
+                    toast({ title: 'Makbuz silindi' });
+                    qc.invalidateQueries({ queryKey: getListOperationReceiptsQueryKey(id) });
+                    setDeleteReceiptTarget(null);
+                  },
+                  onError: () => {
+                    setDeleteReceiptTarget(null);
+                    toast({ title: 'Silme başarısız', variant: 'destructive' });
+                  },
+                });
+              }}
+              data-testid="button-confirm-delete-receipt"
+            >
+              Sil
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* ── Receipt add dialog ─────────────────────────────────────────────── */}
       <Dialog open={receiptDialogOpen} onOpenChange={v => { setReceiptDialogOpen(v); if (!v) { setReceiptPhoto(null); setReceiptPhotoPreview(null); setUploadProgress(0); setPhotoUploadError(null); } }}>

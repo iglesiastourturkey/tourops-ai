@@ -18,6 +18,7 @@ export const suppliersTable = pgTable("suppliers", {
   bankDetails: text("bank_details"),
   taxNumber: text("tax_number"),
   isActive: boolean("is_active").notNull().default(true),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

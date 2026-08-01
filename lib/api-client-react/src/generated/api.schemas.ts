@@ -70,6 +70,8 @@ export interface Customer {
   passportStatus: string;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -106,6 +108,7 @@ export interface CustomerUpdate {
   accessibilityRequirements?: string;
   passportStatus?: string;
   notes?: string;
+  archivedAt?: string;
 }
 
 export interface Supplier {
@@ -136,6 +139,8 @@ export interface Supplier {
   /** @nullable */
   rating?: number | null;
   isActive: boolean;
+  /** @nullable */
+  archivedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -175,6 +180,7 @@ export interface SupplierUpdate {
   notes?: string;
   rating?: number;
   isActive?: boolean;
+  archivedAt?: string;
 }
 
 export interface Tour {
