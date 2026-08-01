@@ -18,7 +18,9 @@ export type ProfileRole = typeof ProfileRole[keyof typeof ProfileRole];
 
 export const ProfileRole = {
   admin: 'admin',
-  staff: 'staff',
+  operations: 'operations',
+  guide: 'guide',
+  accounting: 'accounting',
 } as const;
 
 export interface Profile {
@@ -28,21 +30,13 @@ export interface Profile {
   /** @nullable */
   name?: string | null;
   role: ProfileRole;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type ProfileUpdateRole = typeof ProfileUpdateRole[keyof typeof ProfileUpdateRole];
-
-
-export const ProfileUpdateRole = {
-  admin: 'admin',
-  staff: 'staff',
-} as const;
-
 export interface ProfileUpdate {
   name?: string;
-  role?: ProfileUpdateRole;
 }
 
 export interface Customer {

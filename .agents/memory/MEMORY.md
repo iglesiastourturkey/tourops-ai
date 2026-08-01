@@ -6,3 +6,4 @@
 - [AI routes pattern](ai-routes-pattern.md) — all AI calls use fetch() to OpenRouter directly; model from AI_MODEL env var (default openai/gpt-4o-mini); mock responses when OPENROUTER_API_KEY missing
 - [OCR receipt feature](ocr-receipt.md) — POST /api/ai/ocr-receipt; Zod-validated; per-user in-memory rate limit; image sent as base64 JSON; frontend ocr-service.ts utility
 - [Auth: Bearer token via AuthGate](auth-bearer-token.md) — Clerk cookies unreliable in Replit proxy; AuthGate blocks QueryClientProvider until Clerk isLoaded, then setAuthTokenGetter wires getToken() for all generated hooks
+- [RBAC implementation](rbac-implementation.md) — 4-role RBAC (admin/operations/guide/accounting); Express 5 params type gotcha; guide ownership check pattern

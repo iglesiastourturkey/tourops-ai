@@ -2,10 +2,11 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { toursTable, quotationsTable, operationTasksTable } from "@workspace/db/schema";
 import { eq, gte, lt, and, inArray, ne, not, desc } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { requireAuth, requireAnyRole } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
+router.use(requireAnyRole("admin", "operations", "accounting"));
 
 const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 

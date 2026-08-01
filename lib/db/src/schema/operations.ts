@@ -27,6 +27,8 @@ export const operationsTable = pgTable("operations", {
   emergencyContact1Phone: text("emergency_contact1_phone"),
   emergencyContact2Name: text("emergency_contact2_name"),
   emergencyContact2Phone: text("emergency_contact2_phone"),
+  // Assigned guide user (Clerk userId, soft FK to profiles)
+  assignedGuideUserId: text("assigned_guide_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -55,6 +57,7 @@ export const operationReceiptsTable = pgTable("operation_receipts", {
   receiptDate: text("receipt_date"),
   guideNote: text("guide_note"),
   photoObjectPath: text("photo_object_path"),
+  createdByUserId: text("created_by_user_id"), // Clerk userId of the creator; used for guide receipt scoping
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

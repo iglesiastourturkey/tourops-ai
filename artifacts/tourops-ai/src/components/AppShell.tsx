@@ -4,21 +4,30 @@ import { UserButton } from '@clerk/react';
 import { useListNotifications } from '@workspace/api-client-react';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
-  FileText, ClipboardList, Bell, Settings, Menu, X
+  FileText, ClipboardList, Bell, Settings, Menu, UserCog
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Kontrol Paneli', href: '/dashboard' },
-  { icon: Sparkles, label: 'Yeni Talep', href: '/requests/new' },
-  { icon: Users, label: 'Müşteriler', href: '/customers' },
-  { icon: Building2, label: 'Tedarikçiler', href: '/suppliers' },
-  { icon: MapPin, label: 'Turlar', href: '/tours' },
-  { icon: FileText, label: 'Teklifler', href: '/quotations' },
-  { icon: ClipboardList, label: 'Operasyonlar', href: '/operations' },
+type NavItem = {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  href: string;
+  roles?: UserRole[]; // undefined = all authenticated roles
+};
+
+const navItems: NavItem[] = [
+  { icon: LayoutDashboard, label: 'Kontrol Paneli', href: '/dashboard', roles: ['admin', 'operations', 'accounting'] },
+  { icon: Sparkles, label: 'Yeni Talep', href: '/requests/new', roles: ['admin', 'operations', 'accounting'] },
+  { icon: Users, label: 'Müşteriler', href: '/customers', roles: ['admin', 'operations', 'accounting'] },
+  { icon: Building2, label: 'Tedarikçiler', href: '/suppliers', roles: ['admin', 'operations', 'accounting'] },
+  { icon: MapPin, label: 'Turlar', href: '/tours', roles: ['admin', 'operations', 'guide', 'accounting'] },
+  { icon: FileText, label: 'Teklifler', href: '/quotations', roles: ['admin', 'operations', 'accounting'] },
+  { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting', 'guide'] },
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
-  { icon: Settings, label: 'Ayarlar', href: '/settings' },
+  { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
+  { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['admin'] },
 ];
 
 interface AppShellProps {
@@ -31,6 +40,14 @@ export function AppShell({ children, title }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { data: notifications } = useListNotifications();
   const unreadCount = notifications?.filter(n => !n.isRead).length ?? 0;
+  const { role, isLoading: profileLoading } = useProfile();
+
+  const visibleNavItems = navItems.filter(item => {
+    if (profileLoading) return false;
+    if (!item.roles) return true; // visible to all roles
+    if (!role) return false;
+    return item.roles.includes(role);
+  });
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
@@ -43,7 +60,7 @@ export function AppShell({ children, title }: AppShellProps) {
       </div>
 
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ icon: Icon, label, href }) => {
+        {visibleNavItems.map(({ icon: Icon, label, href }) => {
           const isActive = location === href || (href !== '/dashboard' && location.startsWith(href));
           return (
             <Link key={href} href={href}
@@ -68,8 +85,13 @@ export function AppShell({ children, title }: AppShellProps) {
         })}
       </nav>
 
-      <div className="px-4 py-4 border-t border-sidebar-border">
+      <div className="px-4 py-4 border-t border-sidebar-border flex items-center gap-2">
         <UserButton appearance={{ elements: { avatarBox: 'w-8 h-8' } }} />
+        {role && (
+          <span className="text-xs text-sidebar-foreground/70 font-medium">
+            {ROLE_LABELS[role]}
+          </span>
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import notificationsRouter from "./notifications";
 import settingsRouter from "./settings";
 import dashboardRouter from "./dashboard";
 import aiRouter from "./ai";
+import usersRouter from "./users";
 
 const router: IRouter = Router();
 
@@ -26,5 +27,6 @@ router.use("/notifications", notificationsRouter);
 router.use(settingsRouter);
 router.use("/dashboard", dashboardRouter);
 router.use("/ai", aiRouter);
+router.use("/", usersRouter);
 
 export default router;

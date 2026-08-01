@@ -23,6 +23,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowLeft, Save, Plus, Trash2, AlertTriangle, Ship, Sparkles, Send } from 'lucide-react';
 import { TOUR_TYPE_LABELS, COST_CATEGORY_LABELS, TOUR_STATUS_LABELS, formatCurrency } from '@/lib/labels';
+import { useProfile } from '@/contexts/ProfileContext';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 
@@ -32,10 +33,16 @@ export default function TourDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
+  const { role } = useProfile();
+  /** Can create/update/delete tours, days, costs (admin or operations) */
+  const canEdit = ['admin', 'operations'].includes(role ?? '');
+  /** Can view cost financial data (admin, operations, accounting — not guide) */
+  const canSeeCosts = ['admin', 'operations', 'accounting'].includes(role ?? '');
+
   const { data: tour, isLoading } = useGetTour(id, { query: { enabled: !!id, queryKey: getGetTourQueryKey(id) } });
   const { data: days } = useListTourDays(id, { query: { enabled: !!id, queryKey: getListTourDaysQueryKey(id) } });
-  const { data: costs } = useListTourCosts(id, { query: { enabled: !!id, queryKey: getListTourCostsQueryKey(id) } });
-  const { data: costSummary } = useComputeTourCostSummary(id, { query: { enabled: !!id, queryKey: getComputeTourCostSummaryQueryKey(id) } });
+  const { data: costs } = useListTourCosts(id, { query: { enabled: !!id && canSeeCosts, queryKey: getListTourCostsQueryKey(id) } });
+  const { data: costSummary } = useComputeTourCostSummary(id, { query: { enabled: !!id && canSeeCosts, queryKey: getComputeTourCostSummaryQueryKey(id) } });
 
   const updateMutation = useUpdateTour();
   const createDayMutation = useCreateTourDay();
@@ -182,7 +189,7 @@ export default function TourDetailPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Tur Bilgileri</CardTitle>
-              <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-tour"><Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+              {canEdit && <Button onClick={handleSave} disabled={updateMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-tour"><Save className="w-4 h-4" />{updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>}
             </CardHeader>
             <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[['Tur Adı *', 'name', 'text'], ['Tur Kodu', 'code', 'text'], ['Başlangıç Tarihi', 'startDate', 'date'], ['Bitiş Tarihi', 'endDate', 'date'], ['Gece Sayısı', 'nights', 'number'], ['Yetişkin', 'adultCount', 'number'], ['Çocuk', 'childCount', 'number'], ['Ana Destinasyon', 'mainDestination', 'text'], ['Rehber Dili', 'guideLanguage', 'text'], ['Kar Marjı (%)', 'profitMargin', 'number']].map(([label, field, type]) => (
@@ -228,10 +235,12 @@ export default function TourDetailPage() {
         <TabsContent value="days">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Tur Programı</h3>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setAiItineraryOpen(true)} className="gap-1.5" data-testid="button-ai-itinerary"><Sparkles className="w-3.5 h-3.5" />AI ile Oluştur</Button>
-              <Button size="sm" onClick={() => setDayDialogOpen(true)} className="gap-1.5" data-testid="button-add-day"><Plus className="w-3.5 h-3.5" />Gün Ekle</Button>
-            </div>
+            {canEdit && (
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setAiItineraryOpen(true)} className="gap-1.5" data-testid="button-ai-itinerary"><Sparkles className="w-3.5 h-3.5" />AI ile Oluştur</Button>
+                <Button size="sm" onClick={() => setDayDialogOpen(true)} className="gap-1.5" data-testid="button-add-day"><Plus className="w-3.5 h-3.5" />Gün Ekle</Button>
+              </div>
+            )}
           </div>
           {!days || days.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">Henüz program eklenmedi. "Gün Ekle" veya "AI ile Oluştur" butonunu kullanın.</CardContent></Card>
@@ -252,7 +261,7 @@ export default function TourDetailPage() {
                         {day.mealPlan && <p className="text-xs text-muted-foreground mb-1"><strong>Yemek:</strong> {day.mealPlan}</p>}
                         {day.operationalNotes && <p className="text-xs text-orange-600 mt-2 bg-orange-50 rounded p-2"><strong>Operasyon Notu:</strong> {day.operationalNotes}</p>}
                       </div>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteDay(day.id)} data-testid={`button-delete-day-${day.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      {canEdit && <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteDay(day.id)} data-testid={`button-delete-day-${day.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </div>
                   </CardContent>
                 </Card>
@@ -265,7 +274,7 @@ export default function TourDetailPage() {
         <TabsContent value="costs">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Maliyetler</h3>
-            <Button size="sm" onClick={() => setCostDialogOpen(true)} className="gap-1.5" data-testid="button-add-cost"><Plus className="w-3.5 h-3.5" />Maliyet Ekle</Button>
+            {canEdit && <Button size="sm" onClick={() => setCostDialogOpen(true)} className="gap-1.5" data-testid="button-add-cost"><Plus className="w-3.5 h-3.5" />Maliyet Ekle</Button>}
           </div>
 
           {costSummary && (
@@ -320,7 +329,7 @@ export default function TourDetailPage() {
                     <TableCell className="text-sm">{cost.unitCost} {cost.currency}</TableCell>
                     <TableCell className="font-semibold text-sm">{formatCurrency(cost.total ?? 0, cost.currency)}</TableCell>
                     <TableCell>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCost(cost.id)} data-testid={`button-delete-cost-${cost.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      {canEdit && <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteCost(cost.id)} data-testid={`button-delete-cost-${cost.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </TableCell>
                   </TableRow>
                 ))}

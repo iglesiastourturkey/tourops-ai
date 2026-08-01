@@ -3,12 +3,12 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { profilesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth, getOrCreateProfile } from "../lib/auth";
+import { requireAuth, requireActive, requireRole, getOrCreateProfile } from "../lib/auth";
 
 const router = Router();
 
 // GET /api/profiles/me
-router.get("/me", requireAuth, async (req, res) => {
+router.get("/me", requireAuth, requireActive(), async (req, res) => {
   try {
     const { userId, sessionClaims } = getAuth(req);
     const email = (sessionClaims?.email as string) ?? "";
@@ -20,13 +20,14 @@ router.get("/me", requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/profiles/me
-router.patch("/me", requireAuth, async (req, res) => {
+// PATCH /api/profiles/me — only name is allowed; role/isActive changes go through /api/users (admin only)
+router.patch("/me", requireAuth, requireActive(), async (req, res) => {
   try {
     const { userId } = getAuth(req);
-    const { name, role } = req.body;
+    // Whitelist: only allow updating display name
+    const { name } = req.body;
     const [updated] = await db.update(profilesTable)
-      .set({ name, role })
+      .set({ name })
       .where(eq(profilesTable.clerkUserId, userId!))
       .returning();
     res.json(updated);
@@ -35,8 +36,8 @@ router.patch("/me", requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/profiles
-router.get("/", requireAuth, async (req, res) => {
+// GET /api/profiles — admin only; for user management
+router.get("/", requireAuth, requireRole("admin"), async (req, res) => {
   try {
     const profiles = await db.select().from(profilesTable);
     res.json(profiles);

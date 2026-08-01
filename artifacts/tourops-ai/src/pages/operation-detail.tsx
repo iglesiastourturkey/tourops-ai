@@ -34,6 +34,7 @@ import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, PRIORITY_LABELS, PRIO
 import { uploadFile, getStorageObjectUrl } from '@/lib/storage-service';
 import { generateOperationPdf } from '@/lib/operation-pdf-export';
 import { ocrReceiptImage, OCR_LOW_CONFIDENCE_THRESHOLD, type OcrReceiptResult } from '@/lib/ocr-service';
+import { useProfile } from '@/contexts/ProfileContext';
 
 // ─── AuthenticatedImage ───────────────────────────────────────────────────────
 // Fetches a protected storage object with a Clerk Bearer token and renders it
@@ -113,6 +114,11 @@ export default function OperationDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { getToken } = useAuth();
+  const { role } = useProfile();
+  /** Can create/delete tasks and edit whole operation (admin or operations) */
+  const canEdit = ['admin', 'operations'].includes(role ?? '');
+  /** Can add/delete receipts (admin, operations, guide) */
+  const canManageReceipts = ['admin', 'operations', 'guide'].includes(role ?? '');
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -152,7 +158,8 @@ export default function OperationDetailPage() {
   const { data: receipts, isLoading: receiptsLoading } = useListOperationReceipts(id, {
     query: { enabled: !!id, queryKey: getListOperationReceiptsQueryKey(id) },
   });
-  const { data: agencySettings } = useGetAgencySettings();
+  // Agency settings only needed for PDF export; accounting/guide will get 403 so skip the call
+  const { data: agencySettings } = useGetAgencySettings({ query: { enabled: canEdit, queryKey: ['agencySettings'] } });
   const tourId = operation?.tourId ?? null;
   const customerId = operation?.customerId ?? null;
   const { data: tour } = useGetTour(tourId!, { query: { enabled: !!tourId, queryKey: getGetTourQueryKey(tourId!) } });
@@ -528,9 +535,11 @@ export default function OperationDetailPage() {
               <User className="w-4 h-4 text-muted-foreground" />
               Rehber & Şoför
             </CardTitle>
-            <Button variant="outline" size="sm" onClick={() => setGuideEditOpen(true)} data-testid="button-edit-guide">
-              Düzenle
-            </Button>
+            {canEdit && (
+              <Button variant="outline" size="sm" onClick={() => setGuideEditOpen(true)} data-testid="button-edit-guide">
+                Düzenle
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -586,9 +595,11 @@ export default function OperationDetailPage() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Görevler</CardTitle>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTaskDialogOpen(true)} data-testid="button-add-task">
-              <Plus className="w-3.5 h-3.5" />Görev Ekle
-            </Button>
+            {canEdit && (
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTaskDialogOpen(true)} data-testid="button-add-task">
+                <Plus className="w-3.5 h-3.5" />Görev Ekle
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -615,9 +626,11 @@ export default function OperationDetailPage() {
                       {task.assignedTo && <span className="text-xs text-muted-foreground">Sorumlu: {task.assignedTo}</span>}
                     </div>
                   </div>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteTask(task.id)} data-testid={`button-delete-task-${task.id}`}>
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+                  {canEdit && (
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteTask(task.id)} data-testid={`button-delete-task-${task.id}`}>
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -638,15 +651,17 @@ export default function OperationDetailPage() {
                 <Badge variant="secondary" className="text-xs">{allReceipts.length}</Badge>
               )}
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => setReceiptDialogOpen(true)}
-              data-testid="button-add-receipt"
-            >
-              <Plus className="w-3.5 h-3.5" />Makbuz Ekle
-            </Button>
+            {canManageReceipts && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => setReceiptDialogOpen(true)}
+                data-testid="button-add-receipt"
+              >
+                <Plus className="w-3.5 h-3.5" />Makbuz Ekle
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -695,23 +710,25 @@ export default function OperationDetailPage() {
                       {r.guideNote && <p className="italic">"{r.guideNote}"</p>}
                     </div>
                   </div>
-                  {/* Receipt actions */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" data-testid={`button-menu-receipt-${r.id}`}>
-                        <MoreHorizontal className="w-3.5 h-3.5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem
-                        className="gap-2 text-destructive focus:text-destructive"
-                        onClick={() => setDeleteReceiptTarget(r.id)}
-                        data-testid={`button-delete-receipt-${r.id}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />Makbuzu Sil
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  {/* Receipt actions — only for roles that can manage receipts */}
+                  {canManageReceipts && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" data-testid={`button-menu-receipt-${r.id}`}>
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="gap-2 text-destructive focus:text-destructive"
+                          onClick={() => setDeleteReceiptTarget(r.id)}
+                          data-testid={`button-delete-receipt-${r.id}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />Makbuzu Sil
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
               ))}
             </div>

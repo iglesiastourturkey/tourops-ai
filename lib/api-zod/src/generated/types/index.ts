@@ -49,7 +49,6 @@ export * from './operationUpdate';
 export * from './profile';
 export * from './profileRole';
 export * from './profileUpdate';
-export * from './profileUpdateRole';
 export * from './quotation';
 export * from './quotationDetail';
 export * from './quotationInput';

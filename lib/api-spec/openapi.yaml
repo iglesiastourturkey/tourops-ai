@@ -1353,15 +1353,15 @@ components:
         clerkUserId: { type: string }
         email: { type: string }
         name: { type: ["string", "null"] }
-        role: { type: string, enum: [admin, staff] }
+        role: { type: string, enum: [admin, operations, guide, accounting] }
+        isActive: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, clerkUserId, email, role, createdAt, updatedAt]
+      required: [id, clerkUserId, email, role, isActive, createdAt, updatedAt]
     ProfileUpdate:
       type: object
       properties:
         name: { type: string }
-        role: { type: string, enum: [admin, staff] }
 
     # ── Customers ────────────────────────────────────────────────────────
     Customer:

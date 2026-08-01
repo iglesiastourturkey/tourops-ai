@@ -1,9 +1,11 @@
 import { Router } from "express";
+import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { operationsTable, operationTasksTable, operationReceiptsTable } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
-import { requireAuth } from "../lib/auth";
+import { eq, desc, and } from "drizzle-orm";
+import { requireAuth, requireAnyRole } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import type { UserRole } from "@workspace/db/schema";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -16,44 +18,83 @@ const MAX_RECEIPT_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB
 const router = Router();
 router.use(requireAuth);
 
+/**
+ * Helper: verifies that the given operation belongs to the guide user (by assignedGuideUserId).
+ * Returns null if ownership is confirmed or role is not guide.
+ * Returns 403 response if guide does not own the operation.
+ */
+async function checkGuideOwnership(
+  res: Parameters<typeof requireAuth>[1],
+  operationId: number,
+  userId: string,
+  role: string
+): Promise<boolean> {
+  if (role !== "guide") return true; // non-guide: no ownership check needed
+  const [op] = await db.select({ assignedGuideUserId: operationsTable.assignedGuideUserId })
+    .from(operationsTable).where(eq(operationsTable.id, operationId));
+  if (!op || op.assignedGuideUserId !== userId) {
+    res.status(403).json({ error: "Forbidden" });
+    return false;
+  }
+  return true;
+}
+
 // ─── Operations ──────────────────────────────────────────────────────────────
 
-router.get("/", async (req, res) => {
+router.get("/", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    const profile = res.locals.profile;
+    const role = profile?.role as UserRole;
+
     const { status } = req.query as Record<string, string>;
     let rows = await db.select().from(operationsTable).orderBy(desc(operationsTable.createdAt));
+
+    // Guides only see their assigned operations
+    if (role === "guide") {
+      rows = rows.filter(r => r.assignedGuideUserId === userId);
+    }
     if (status) rows = rows.filter(r => r.status === status);
     res.json(rows);
   } catch { res.status(500).json({ error: "Failed to list operations" }); }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
   try {
     const [row] = await db.insert(operationsTable).values(req.body).returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create operation" }); }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
   try {
-    const [row] = await db.select().from(operationsTable).where(eq(operationsTable.id, parseInt(req.params.id)));
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    const [row] = await db.select().from(operationsTable).where(eq(operationsTable.id, operationId));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    if (role === "guide" && row.assignedGuideUserId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to get operation" }); }
 });
 
-router.patch("/:id", async (req, res) => {
+// Guides cannot PATCH the whole operation — they can only update tasks/receipts on their own operations
+router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
   try {
-    const [row] = await db.update(operationsTable).set(req.body).where(eq(operationsTable.id, parseInt(req.params.id))).returning();
+    const operationId = parseInt(req.params.id as string);
+    const [row] = await db.update(operationsTable).set(req.body).where(eq(operationsTable.id, operationId)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to update operation" }); }
 });
 
 // DELETE /operations/:id — cascades tasks; deletes receipts + their GCS objects
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
   try {
-    const operationId = parseInt(req.params.id);
+    const operationId = parseInt(req.params.id as string);
 
     // Delete GCS objects for all receipts that have photos
     const receipts = await db.select().from(operationReceiptsTable)
@@ -77,51 +118,72 @@ router.delete("/:id", async (req, res) => {
 
 // ─── Operation Tasks ─────────────────────────────────────────────────────────
 
-router.get("/:id/tasks", async (req, res) => {
+router.get("/:id/tasks", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
     const rows = await db.select().from(operationTasksTable)
-      .where(eq(operationTasksTable.operationId, parseInt(req.params.id)))
+      .where(eq(operationTasksTable.operationId, operationId))
       .orderBy(operationTasksTable.sortOrder);
     res.json(rows);
   } catch { res.status(500).json({ error: "Failed to list tasks" }); }
 });
 
-router.post("/:id/tasks", async (req, res) => {
+router.post("/:id/tasks", requireAnyRole("admin", "operations"), async (req, res) => {
   try {
     const [row] = await db.insert(operationTasksTable)
-      .values({ ...req.body, operationId: parseInt(req.params.id) })
+      .values({ ...req.body, operationId: parseInt(req.params.id as string) })
       .returning();
-    await updateCompletionRate(parseInt(req.params.id));
+    await updateCompletionRate(parseInt(req.params.id as string));
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create task" }); }
 });
 
-router.patch("/:id/tasks/:taskId", async (req, res) => {
+router.patch("/:id/tasks/:taskId", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    const taskId = parseInt(req.params.taskId as string);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
     const body = { ...req.body };
     if (body.status === "completed" && !body.completedAt) body.completedAt = new Date();
+    // Scope update to both operationId AND taskId to prevent cross-operation task mutation
     const [row] = await db.update(operationTasksTable).set(body)
-      .where(eq(operationTasksTable.id, parseInt(req.params.taskId)))
+      .where(and(eq(operationTasksTable.id, taskId), eq(operationTasksTable.operationId, operationId)))
       .returning();
-    await updateCompletionRate(parseInt(req.params.id));
+    if (!row) { res.status(404).json({ error: "Task not found" }); return; }
+    await updateCompletionRate(operationId);
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to update task" }); }
 });
 
-router.delete("/:id/tasks/:taskId", async (req, res) => {
+router.delete("/:id/tasks/:taskId", requireAnyRole("admin", "operations"), async (req, res) => {
   try {
-    await db.delete(operationTasksTable).where(eq(operationTasksTable.id, parseInt(req.params.taskId)));
-    await updateCompletionRate(parseInt(req.params.id));
+    const operationId = parseInt(req.params.id as string);
+    const taskId = parseInt(req.params.taskId as string);
+    // Scope deletion to both operationId AND taskId to prevent cross-operation task deletion
+    const [deleted] = await db.delete(operationTasksTable)
+      .where(and(eq(operationTasksTable.id, taskId), eq(operationTasksTable.operationId, operationId)))
+      .returning({ id: operationTasksTable.id });
+    if (!deleted) { res.status(404).json({ error: "Task not found" }); return; }
+    await updateCompletionRate(operationId);
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete task" }); }
 });
 
 // ─── Operation Receipts ───────────────────────────────────────────────────────
 
-router.get("/:id/receipts", async (req, res) => {
+router.get("/:id/receipts", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
     const rows = await db.select().from(operationReceiptsTable)
-      .where(eq(operationReceiptsTable.operationId, parseInt(req.params.id)))
+      .where(eq(operationReceiptsTable.operationId, operationId))
       .orderBy(desc(operationReceiptsTable.createdAt));
     res.json(rows);
   } catch { res.status(500).json({ error: "Failed to list receipts" }); }
@@ -130,8 +192,13 @@ router.get("/:id/receipts", async (req, res) => {
 // Canonical private-upload path pattern: /objects/uploads/<uuid>
 const CANONICAL_OBJECT_PATH_RE = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-router.post("/:id/receipts", async (req, res) => {
+router.post("/:id/receipts", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
   try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
+
     const body = { ...req.body };
 
     if (body.photoObjectPath != null) {
@@ -168,20 +235,32 @@ router.post("/:id/receipts", async (req, res) => {
       }
     }
 
+    // Record creator for guide-scoped deletion enforcement
     const [row] = await db.insert(operationReceiptsTable)
-      .values({ ...body, operationId: parseInt(req.params.id) })
+      .values({ ...body, operationId, createdByUserId: userId })
       .returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create receipt" }); }
 });
 
 // DELETE /operations/:id/receipts/:receiptId — deletes DB record + GCS object
-router.delete("/:id/receipts/:receiptId", async (req, res) => {
+router.delete("/:id/receipts/:receiptId", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
   try {
-    const receiptId = parseInt(req.params.receiptId);
+    const { userId } = getAuth(req);
+    const role = res.locals.profile?.role as UserRole;
+    const operationId = parseInt(req.params.id as string);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
+
+    const receiptId = parseInt(req.params.receiptId as string);
+    // Scope by both receiptId AND operationId to prevent cross-operation receipt deletion
     const [receipt] = await db.select().from(operationReceiptsTable)
-      .where(eq(operationReceiptsTable.id, receiptId));
+      .where(and(eq(operationReceiptsTable.id, receiptId), eq(operationReceiptsTable.operationId, operationId)));
     if (!receipt) { res.status(404).json({ error: "Receipt not found" }); return; }
+    // Guides may only delete receipts they created
+    if (role === "guide" && receipt.createdByUserId !== userId) {
+      res.status(403).json({ error: "Forbidden" });
+      return;
+    }
 
     // Best-effort GCS cleanup before DB delete
     if (receipt.photoObjectPath) {

@@ -14,6 +14,7 @@ export interface Profile {
   /** @nullable */
   name?: string | null;
   role: ProfileRole;
+  isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

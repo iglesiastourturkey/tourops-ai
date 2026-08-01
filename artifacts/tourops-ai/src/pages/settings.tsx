@@ -14,6 +14,7 @@ import { getGetAgencySettingsQueryKey, getListExchangeRatesQueryKey, getListEmai
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Plus, Trash2 } from 'lucide-react';
+import { useProfile } from '@/contexts/ProfileContext';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const EMAIL_TYPES = ['quotation', 'follow_up', 'confirmation', 'cancellation', 'welcome', 'custom'];
@@ -22,6 +23,10 @@ const EMAIL_TYPE_LABELS: Record<string, string> = { quotation: 'Teklif', follow_
 export default function SettingsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const { role } = useProfile();
+  /** Only admin can mutate settings; operations can read */
+  const isAdmin = role === 'admin';
 
   const { data: agencySettings, isLoading: agencyLoading } = useGetAgencySettings();
   const { data: exchangeRates, isLoading: ratesLoading } = useListExchangeRates();
@@ -127,7 +132,7 @@ export default function SettingsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">Ajans Bilgileri</CardTitle>
-                <Button onClick={handleSaveAgency} disabled={updateAgencyMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-agency"><Save className="w-4 h-4" />{updateAgencyMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+                {isAdmin && <Button onClick={handleSaveAgency} disabled={updateAgencyMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-agency"><Save className="w-4 h-4" />{updateAgencyMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>}
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AF label="Ajans Adı" field="name" />
@@ -163,7 +168,7 @@ export default function SettingsPage() {
         <TabsContent value="rates">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Döviz Kurları</h3>
-            <Button size="sm" onClick={() => setRateDialogOpen(true)} className="gap-1.5" data-testid="button-add-rate"><Plus className="w-3.5 h-3.5" />Kur Ekle</Button>
+            {isAdmin && <Button size="sm" onClick={() => setRateDialogOpen(true)} className="gap-1.5" data-testid="button-add-rate"><Plus className="w-3.5 h-3.5" />Kur Ekle</Button>}
           </div>
           {ratesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="border rounded-lg overflow-hidden bg-card">
@@ -187,10 +192,12 @@ export default function SettingsPage() {
                       <Input type="number" step="0.001" className="h-7 w-28 text-sm" value={editRates[rate.id] ?? rate.rate} onChange={e => setEditRates(r => ({ ...r, [rate.id]: parseFloat(e.target.value) }))} data-testid={`input-rate-${rate.id}`} />
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleSaveRate(rate.id)} data-testid={`button-save-rate-${rate.id}`}>Kaydet</Button>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteRate(rate.id)} data-testid={`button-delete-rate-${rate.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleSaveRate(rate.id)} data-testid={`button-save-rate-${rate.id}`}>Kaydet</Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteRate(rate.id)} data-testid={`button-delete-rate-${rate.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -203,7 +210,7 @@ export default function SettingsPage() {
         <TabsContent value="templates">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">E-posta Şablonları</h3>
-            <Button size="sm" onClick={() => setNewTemplateDialogOpen(true)} className="gap-1.5" data-testid="button-add-template"><Plus className="w-3.5 h-3.5" />Yeni Şablon</Button>
+            {isAdmin && <Button size="sm" onClick={() => setNewTemplateDialogOpen(true)} className="gap-1.5" data-testid="button-add-template"><Plus className="w-3.5 h-3.5" />Yeni Şablon</Button>}
           </div>
           {templatesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

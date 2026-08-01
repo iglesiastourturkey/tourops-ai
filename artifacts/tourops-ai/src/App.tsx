@@ -6,6 +6,7 @@ import { Switch, Route, Redirect, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
+import { ProfileProvider, useProfile, type UserRole } from '@/contexts/ProfileContext';
 import LandingPage from '@/pages/landing';
 import Dashboard from '@/pages/dashboard';
 import CustomersPage from '@/pages/customers';
@@ -24,6 +25,8 @@ import NotificationsPage from '@/pages/notifications';
 import SettingsPage from '@/pages/settings';
 import NewRequestPage from '@/pages/new-request';
 import NotFound from '@/pages/not-found';
+import ForbiddenPage from '@/pages/forbidden';
+import UsersPage from '@/pages/users';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -77,6 +80,34 @@ function ProtectedRoute({ component: Comp }: { component: React.ComponentType })
   );
 }
 
+/**
+ * Route guard that checks the user's role before rendering the component.
+ * Redirects to /forbidden if the user's role is not in the allowed set.
+ * Falls back gracefully while the profile is still loading.
+ */
+function RoleRoute({ component: Comp, roles }: { component: React.ComponentType; roles: UserRole[] }) {
+  const { role, isLoading } = useProfile();
+
+  // Show nothing while loading to avoid flash
+  if (isLoading) return null;
+
+  // Not signed in — let ProtectedRoute handle this, but gate by role too
+  if (role === null) return <Redirect to="/" />;
+
+  if (!roles.includes(role)) return <Redirect to="/forbidden" />;
+
+  return <Comp />;
+}
+
+function ProtectedRoleRoute({ component: Comp, roles }: { component: React.ComponentType; roles: UserRole[] }) {
+  return (
+    <>
+      <Show when="signed-in"><RoleRoute component={Comp} roles={roles} /></Show>
+      <Show when="signed-out"><Redirect to="/" /></Show>
+    </>
+  );
+}
+
 function HomeRedirect() {
   return (
     <>
@@ -108,22 +139,24 @@ function Router() {
       <Route path="/" component={HomeRedirect} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
-      <Route path="/dashboard" component={() => <ProtectedRoute component={Dashboard} />} />
-      <Route path="/requests/new" component={() => <ProtectedRoute component={NewRequestPage} />} />
-      <Route path="/customers" component={() => <ProtectedRoute component={CustomersPage} />} />
-      <Route path="/customers/:id" component={() => <ProtectedRoute component={CustomerDetailPage} />} />
-      <Route path="/suppliers" component={() => <ProtectedRoute component={SuppliersPage} />} />
-      <Route path="/suppliers/:id" component={() => <ProtectedRoute component={SupplierDetailPage} />} />
-      <Route path="/tours/new" component={() => <ProtectedRoute component={TourNewPage} />} />
-      <Route path="/tours/:id" component={() => <ProtectedRoute component={TourDetailPage} />} />
-      <Route path="/tours" component={() => <ProtectedRoute component={ToursPage} />} />
-      <Route path="/quotations/new" component={() => <ProtectedRoute component={QuotationNewPage} />} />
-      <Route path="/quotations/:id" component={() => <ProtectedRoute component={QuotationDetailPage} />} />
-      <Route path="/quotations" component={() => <ProtectedRoute component={QuotationsPage} />} />
-      <Route path="/operations/:id" component={() => <ProtectedRoute component={OperationDetailPage} />} />
-      <Route path="/operations" component={() => <ProtectedRoute component={OperationsPage} />} />
+      <Route path="/forbidden" component={ForbiddenPage} />
+      <Route path="/dashboard" component={() => <ProtectedRoleRoute component={Dashboard} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/requests/new" component={() => <ProtectedRoleRoute component={NewRequestPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/customers" component={() => <ProtectedRoleRoute component={CustomersPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/customers/:id" component={() => <ProtectedRoleRoute component={CustomerDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/suppliers" component={() => <ProtectedRoleRoute component={SuppliersPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/suppliers/:id" component={() => <ProtectedRoleRoute component={SupplierDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/tours/new" component={() => <ProtectedRoleRoute component={TourNewPage} roles={['admin', 'operations']} />} />
+      <Route path="/tours/:id" component={() => <ProtectedRoleRoute component={TourDetailPage} roles={['admin', 'operations', 'guide', 'accounting']} />} />
+      <Route path="/tours" component={() => <ProtectedRoleRoute component={ToursPage} roles={['admin', 'operations', 'guide', 'accounting']} />} />
+      <Route path="/quotations/new" component={() => <ProtectedRoleRoute component={QuotationNewPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/quotations/:id" component={() => <ProtectedRoleRoute component={QuotationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/quotations" component={() => <ProtectedRoleRoute component={QuotationsPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
+      <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+      <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
+      <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['admin']} />} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -134,12 +167,14 @@ export default function App() {
     <ClerkProvider publishableKey={clerkPubKey!} proxyUrl={clerkProxyUrl} appearance={clerkAppearance}>
       <AuthGate>
         <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <WouterRouter base={basePath}>
-              <Router />
-            </WouterRouter>
-            <Toaster />
-          </TooltipProvider>
+          <ProfileProvider>
+            <TooltipProvider>
+              <WouterRouter base={basePath}>
+                <Router />
+              </WouterRouter>
+              <Toaster />
+            </TooltipProvider>
+          </ProfileProvider>
         </QueryClientProvider>
       </AuthGate>
     </ClerkProvider>

@@ -24,7 +24,8 @@ export const GetMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'staff']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -34,8 +35,7 @@ export const GetMyProfileResponse = zod.object({
  * @summary Update current user profile
  */
 export const UpdateMyProfileBody = zod.object({
-  "name": zod.string().optional(),
-  "role": zod.enum(['admin', 'staff']).optional()
+  "name": zod.string().optional()
 })
 
 export const UpdateMyProfileResponse = zod.object({
@@ -43,7 +43,8 @@ export const UpdateMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'staff']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -57,7 +58,8 @@ export const ListProfilesResponseItem = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'staff']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
