@@ -12,15 +12,36 @@ export interface Operation {
   quotationId?: number | null;
   /** @nullable */
   tourId?: number | null;
-  customerId: number;
+  /** @nullable */
+  customerId?: number | null;
   /** @nullable */
   startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
   status: string;
   /** @nullable */
   assignedTo?: string | null;
   /** @nullable */
   notes?: string | null;
   completionRate: number;
+  /** @nullable */
+  guideName?: string | null;
+  /** @nullable */
+  guidePhone?: string | null;
+  /** @nullable */
+  driverName?: string | null;
+  /** @nullable */
+  driverPhone?: string | null;
+  /** @nullable */
+  vehiclePlate?: string | null;
+  /** @nullable */
+  emergencyContact1Name?: string | null;
+  /** @nullable */
+  emergencyContact1Phone?: string | null;
+  /** @nullable */
+  emergencyContact2Name?: string | null;
+  /** @nullable */
+  emergencyContact2Phone?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

@@ -77,6 +77,8 @@
   "dependencies": {
     "@clerk/react": "^6.12.8",
     "@clerk/themes": "^2.4.57",
-    "internal": "link:@clerk/react/internal"
+    "@types/pdfmake": "^0.3.3",
+    "internal": "link:@clerk/react/internal",
+    "pdfmake": "^0.3.11"
   }
 }

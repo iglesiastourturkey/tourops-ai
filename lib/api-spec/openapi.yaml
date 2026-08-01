@@ -34,6 +34,8 @@ tags:
     description: Dashboard data
   - name: ai
     description: AI assistant operations
+  - name: storage
+    description: Object storage upload and serving endpoints
 paths:
   /healthz:
     get:
@@ -883,6 +885,72 @@ paths:
         "204":
           description: Deleted
 
+  /operations/{id}/receipts:
+    get:
+      operationId: listOperationReceipts
+      tags: [operations]
+      summary: List expense receipts for an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of receipts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OperationReceipt"
+    post:
+      operationId: createOperationReceipt
+      tags: [operations]
+      summary: Add an expense receipt to an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationReceiptInput"
+      responses:
+        "201":
+          description: Created receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationReceipt"
+
+  # ─── STORAGE ──────────────────────────────────────────────────────────────
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      summary: Request a presigned GCS URL for direct file upload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadUrlRequest"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadUrlResponse"
+        "401":
+          description: Unauthorized
+        "400":
+          description: Missing required fields
+
   # ─── NOTIFICATIONS ───────────────────────────────────────────────────────
   /notifications:
     get:
@@ -1696,32 +1764,52 @@ components:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
         tourId: { type: ["number", "null"] }
-        customerId: { type: number }
+        customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
         status: { type: string }
         assignedTo: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         completionRate: { type: number }
+        guideName: { type: ["string", "null"] }
+        guidePhone: { type: ["string", "null"] }
+        driverName: { type: ["string", "null"] }
+        driverPhone: { type: ["string", "null"] }
+        vehiclePlate: { type: ["string", "null"] }
+        emergencyContact1Name: { type: ["string", "null"] }
+        emergencyContact1Phone: { type: ["string", "null"] }
+        emergencyContact2Name: { type: ["string", "null"] }
+        emergencyContact2Phone: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, customerId, status, completionRate, createdAt, updatedAt]
+      required: [id, status, completionRate, createdAt, updatedAt]
     OperationDetail:
       type: object
       properties:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
         tourId: { type: ["number", "null"] }
-        customerId: { type: number }
+        customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
+        endDate: { type: ["string", "null"] }
         status: { type: string }
         assignedTo: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         completionRate: { type: number }
+        guideName: { type: ["string", "null"] }
+        guidePhone: { type: ["string", "null"] }
+        driverName: { type: ["string", "null"] }
+        driverPhone: { type: ["string", "null"] }
+        vehiclePlate: { type: ["string", "null"] }
+        emergencyContact1Name: { type: ["string", "null"] }
+        emergencyContact1Phone: { type: ["string", "null"] }
+        emergencyContact2Name: { type: ["string", "null"] }
+        emergencyContact2Phone: { type: ["string", "null"] }
         tasks: { type: array, items: { $ref: "#/components/schemas/OperationTask" } }
         customer: { $ref: "#/components/schemas/Customer" }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
-      required: [id, customerId, status, completionRate, tasks, customer, createdAt, updatedAt]
+      required: [id, status, completionRate, tasks, customer, createdAt, updatedAt]
     OperationInput:
       type: object
       properties:
@@ -1729,17 +1817,37 @@ components:
         tourId: { type: number }
         customerId: { type: number }
         startDate: { type: string }
+        endDate: { type: string }
         status: { type: string }
         assignedTo: { type: string }
         notes: { type: string }
+        guideName: { type: string }
+        guidePhone: { type: string }
+        driverName: { type: string }
+        driverPhone: { type: string }
+        vehiclePlate: { type: string }
+        emergencyContact1Name: { type: string }
+        emergencyContact1Phone: { type: string }
+        emergencyContact2Name: { type: string }
+        emergencyContact2Phone: { type: string }
       required: [customerId]
     OperationUpdate:
       type: object
       properties:
         startDate: { type: string }
+        endDate: { type: string }
         status: { type: string }
         assignedTo: { type: string }
         notes: { type: string }
+        guideName: { type: string }
+        guidePhone: { type: string }
+        driverName: { type: string }
+        driverPhone: { type: string }
+        vehiclePlate: { type: string }
+        emergencyContact1Name: { type: string }
+        emergencyContact1Phone: { type: string }
+        emergencyContact2Name: { type: string }
+        emergencyContact2Phone: { type: string }
     OperationTask:
       type: object
       properties:
@@ -1774,6 +1882,54 @@ components:
         assignedTo: { type: string }
         notes: { type: string }
         completedAt: { type: string }
+
+    # ── Operation Receipts ───────────────────────────────────────────────
+    OperationReceipt:
+      type: object
+      properties:
+        id: { type: number }
+        operationId: { type: number }
+        amount: { type: number }
+        currency: { type: string }
+        supplierName: { type: ["string", "null"] }
+        receiptDate: { type: ["string", "null"] }
+        guideNote: { type: ["string", "null"] }
+        photoObjectPath: { type: ["string", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, operationId, amount, currency, createdAt, updatedAt]
+    OperationReceiptInput:
+      type: object
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+        supplierName: { type: string }
+        receiptDate: { type: string }
+        guideNote: { type: string }
+        photoObjectPath: { type: string }
+      required: [amount]
+
+    # ── Object Storage ───────────────────────────────────────────────────
+    UploadUrlRequest:
+      type: object
+      properties:
+        name: { type: string }
+        size: { type: number }
+        contentType: { type: string }
+      required: [name, size, contentType]
+    UploadUrlResponse:
+      type: object
+      properties:
+        uploadURL: { type: string }
+        objectPath: { type: string }
+        metadata:
+          type: object
+          properties:
+            name: { type: string }
+            size: { type: number }
+            contentType: { type: string }
+          required: [name, size, contentType]
+      required: [uploadURL, objectPath, metadata]
 
     # ── Notifications ────────────────────────────────────────────────────
     Notification:

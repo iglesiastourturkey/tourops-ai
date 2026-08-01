@@ -1161,12 +1161,22 @@ export const ConvertQuotationToOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
-  "customerId": zod.number(),
+  "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
   "status": zod.string(),
   "assignedTo": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1184,12 +1194,22 @@ export const ListOperationsResponseItem = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
-  "customerId": zod.number(),
+  "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
   "status": zod.string(),
   "assignedTo": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1204,21 +1224,41 @@ export const CreateOperationBody = zod.object({
   "tourId": zod.number().optional(),
   "customerId": zod.number(),
   "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
   "status": zod.string().optional(),
   "assignedTo": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "guideName": zod.string().optional(),
+  "guidePhone": zod.string().optional(),
+  "driverName": zod.string().optional(),
+  "driverPhone": zod.string().optional(),
+  "vehiclePlate": zod.string().optional(),
+  "emergencyContact1Name": zod.string().optional(),
+  "emergencyContact1Phone": zod.string().optional(),
+  "emergencyContact2Name": zod.string().optional(),
+  "emergencyContact2Phone": zod.string().optional()
 })
 
 export const CreateOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
-  "customerId": zod.number(),
+  "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
   "status": zod.string(),
   "assignedTo": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1235,12 +1275,22 @@ export const GetOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
-  "customerId": zod.number(),
+  "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
   "status": zod.string(),
   "assignedTo": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
   "tasks": zod.array(zod.object({
   "id": zod.number(),
   "operationId": zod.number(),
@@ -1285,21 +1335,41 @@ export const UpdateOperationParams = zod.object({
 
 export const UpdateOperationBody = zod.object({
   "startDate": zod.string().optional(),
+  "endDate": zod.string().optional(),
   "status": zod.string().optional(),
   "assignedTo": zod.string().optional(),
-  "notes": zod.string().optional()
+  "notes": zod.string().optional(),
+  "guideName": zod.string().optional(),
+  "guidePhone": zod.string().optional(),
+  "driverName": zod.string().optional(),
+  "driverPhone": zod.string().optional(),
+  "vehiclePlate": zod.string().optional(),
+  "emergencyContact1Name": zod.string().optional(),
+  "emergencyContact1Phone": zod.string().optional(),
+  "emergencyContact2Name": zod.string().optional(),
+  "emergencyContact2Phone": zod.string().optional()
 })
 
 export const UpdateOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
-  "customerId": zod.number(),
+  "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
   "status": zod.string(),
   "assignedTo": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
 })
@@ -1401,6 +1471,78 @@ export const DeleteOperationTaskParams = zod.object({
 })
 
 export const DeleteOperationTaskResponse = zod.void()
+
+
+/**
+ * @summary List expense receipts for an operation
+ */
+export const ListOperationReceiptsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOperationReceiptsResponseItem = zod.object({
+  "id": zod.number(),
+  "operationId": zod.number(),
+  "amount": zod.number(),
+  "currency": zod.string(),
+  "supplierName": zod.string().nullish(),
+  "receiptDate": zod.string().nullish(),
+  "guideNote": zod.string().nullish(),
+  "photoObjectPath": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListOperationReceiptsResponse = zod.array(ListOperationReceiptsResponseItem)
+
+
+/**
+ * @summary Add an expense receipt to an operation
+ */
+export const CreateOperationReceiptParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateOperationReceiptBody = zod.object({
+  "amount": zod.number(),
+  "currency": zod.string().optional(),
+  "supplierName": zod.string().optional(),
+  "receiptDate": zod.string().optional(),
+  "guideNote": zod.string().optional(),
+  "photoObjectPath": zod.string().optional()
+})
+
+export const CreateOperationReceiptResponse = zod.object({
+  "id": zod.number(),
+  "operationId": zod.number(),
+  "amount": zod.number(),
+  "currency": zod.string(),
+  "supplierName": zod.string().nullish(),
+  "receiptDate": zod.string().nullish(),
+  "guideNote": zod.string().nullish(),
+  "photoObjectPath": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Request a presigned GCS URL for direct file upload
+ */
+export const RequestUploadUrlBody = zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+
+export const RequestUploadUrlResponse = zod.object({
+  "uploadURL": zod.string(),
+  "objectPath": zod.string(),
+  "metadata": zod.object({
+  "name": zod.string(),
+  "size": zod.number(),
+  "contentType": zod.string()
+})
+})
 
 
 /**

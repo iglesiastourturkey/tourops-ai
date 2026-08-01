@@ -8,7 +8,17 @@
 
 export interface OperationUpdate {
   startDate?: string;
+  endDate?: string;
   status?: string;
   assignedTo?: string;
   notes?: string;
+  guideName?: string;
+  guidePhone?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehiclePlate?: string;
+  emergencyContact1Name?: string;
+  emergencyContact1Phone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
 }

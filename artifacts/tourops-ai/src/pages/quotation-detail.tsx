@@ -11,12 +11,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import {
   useGetQuotation, useUpdateQuotationStatus, useDuplicateQuotation,
   useConvertQuotationToOperation, useGenerateEmail,
+  useGetCustomer, useGetTour, useListTourDays, useGetAgencySettings,
 } from '@workspace/api-client-react';
-import { getGetQuotationQueryKey } from '@workspace/api-client-react';
+import {
+  getGetQuotationQueryKey,
+  getGetCustomerQueryKey,
+  getGetTourQueryKey,
+  getListTourDaysQueryKey,
+} from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Copy, GitBranch, Mail } from 'lucide-react';
+import { ArrowLeft, Copy, GitBranch, Mail, FileDown } from 'lucide-react';
 import { QUOTATION_STATUS_LABELS, QUOTATION_STATUS_COLORS, formatCurrency, formatDate } from '@/lib/labels';
+import { generateQuotationPdf } from '@/lib/pdf-export';
 
 const STATUS_OPTIONS = ['sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised'];
 const EMAIL_TYPES = [
@@ -35,16 +42,49 @@ export default function QuotationDetailPage() {
   const [emailType, setEmailType] = useState('quotation');
   const [emailContext, setEmailContext] = useState('');
   const [generatedEmail, setGeneratedEmail] = useState<{ subject: string; body: string } | null>(null);
+  const [isPdfLoading, setIsPdfLoading] = useState(false);
 
-  const { data: quotation, isLoading } = useGetQuotation(id, { query: { enabled: !!id, queryKey: getGetQuotationQueryKey(id) } });
-  const statusMutation = useUpdateQuotationStatus();
+  const { data: quotation, isLoading } = useGetQuotation(id, {
+    query: { enabled: !!id, queryKey: getGetQuotationQueryKey(id) },
+  });
+
+  const customerId = quotation?.customerId ?? null;
+  const tourId = quotation?.tourId ?? null;
+
+  const { data: customer } = useGetCustomer(customerId!, {
+    query: {
+      enabled: !!customerId,
+      queryKey: getGetCustomerQueryKey(customerId!),
+    },
+  });
+
+  const { data: tour } = useGetTour(tourId!, {
+    query: {
+      enabled: !!tourId,
+      queryKey: getGetTourQueryKey(tourId!),
+    },
+  });
+
+  const { data: tourDays } = useListTourDays(tourId!, {
+    query: {
+      enabled: !!tourId,
+      queryKey: getListTourDaysQueryKey(tourId!),
+    },
+  });
+
+  const { data: agencySettings } = useGetAgencySettings();
+
+  const statusMutation  = useUpdateQuotationStatus();
   const duplicateMutation = useDuplicateQuotation();
-  const convertMutation = useConvertQuotationToOperation();
-  const emailMutation = useGenerateEmail();
+  const convertMutation   = useConvertQuotationToOperation();
+  const emailMutation     = useGenerateEmail();
 
   function handleStatusChange(status: string) {
     statusMutation.mutate({ id, data: { status } }, {
-      onSuccess: () => { toast({ title: 'Durum güncellendi' }); qc.invalidateQueries({ queryKey: getGetQuotationQueryKey(id) }); },
+      onSuccess: () => {
+        toast({ title: 'Durum güncellendi' });
+        qc.invalidateQueries({ queryKey: getGetQuotationQueryKey(id) });
+      },
       onError: () => toast({ title: 'Hata', variant: 'destructive' }),
     });
   }
@@ -65,10 +105,37 @@ export default function QuotationDetailPage() {
   }
 
   function handleGenerateEmail() {
-    emailMutation.mutate({ data: { templateType: emailType, context: emailContext || `Teklif No: ${quotation?.number}, Fiyat: ${quotation?.finalPrice} ${quotation?.currency}` } }, {
+    emailMutation.mutate({
+      data: {
+        templateType: emailType,
+        context: emailContext || `Teklif No: ${quotation?.number}, Fiyat: ${quotation?.finalPrice} ${quotation?.currency}`,
+      },
+    }, {
       onSuccess: (result) => { setGeneratedEmail(result as unknown as { subject: string; body: string }); },
       onError: () => toast({ title: 'E-posta oluşturulamadı', variant: 'destructive' }),
     });
+  }
+
+  async function handleDownloadPdf() {
+    if (!quotation) return;
+    setIsPdfLoading(true);
+    try {
+      await generateQuotationPdf(
+        quotation,
+        customer ?? null,
+        tour ?? null,
+        tourDays ?? [],
+        agencySettings ?? null,
+      );
+    } catch {
+      toast({
+        title: 'PDF oluşturulamadı',
+        description: 'PDF oluşturulurken bir hata oluştu. Lütfen tekrar deneyin.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsPdfLoading(false);
+    }
   }
 
   if (isLoading) return <AppShell title="Teklif Detayı"><Skeleton className="h-96 rounded-xl" /></AppShell>;
@@ -77,17 +144,40 @@ export default function QuotationDetailPage() {
   return (
     <AppShell title={quotation.number}>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <Link href="/quotations"><Button variant="ghost" size="sm" className="gap-1.5" data-testid="button-back-quotations"><ArrowLeft className="w-4 h-4" />Teklifler</Button></Link>
+        <Link href="/quotations">
+          <Button variant="ghost" size="sm" className="gap-1.5" data-testid="button-back-quotations">
+            <ArrowLeft className="w-4 h-4" />Teklifler
+          </Button>
+        </Link>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={quotation.status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-44 h-8 text-xs" data-testid="select-quotation-status"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-44 h-8 text-xs" data-testid="select-quotation-status">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{QUOTATION_STATUS_LABELS[s]}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button size="sm" variant="outline" onClick={() => setEmailDialogOpen(true)} className="gap-1.5 h-8" data-testid="button-generate-email"><Mail className="w-3.5 h-3.5" />E-posta Oluştur</Button>
-          <Button size="sm" variant="outline" onClick={handleDuplicate} disabled={duplicateMutation.isPending} className="gap-1.5 h-8" data-testid="button-duplicate-quotation"><Copy className="w-3.5 h-3.5" />Kopyala</Button>
-          <Button size="sm" onClick={handleConvert} disabled={convertMutation.isPending} className="gap-1.5 h-8" data-testid="button-convert-to-operation"><GitBranch className="w-3.5 h-3.5" />Operasyona Dönüştür</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleDownloadPdf}
+            disabled={isPdfLoading}
+            className="gap-1.5 h-8"
+            data-testid="button-download-pdf"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            {isPdfLoading ? 'Hazırlanıyor...' : 'PDF İndir'}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setEmailDialogOpen(true)} className="gap-1.5 h-8" data-testid="button-generate-email">
+            <Mail className="w-3.5 h-3.5" />E-posta Oluştur
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleDuplicate} disabled={duplicateMutation.isPending} className="gap-1.5 h-8" data-testid="button-duplicate-quotation">
+            <Copy className="w-3.5 h-3.5" />Kopyala
+          </Button>
+          <Button size="sm" onClick={handleConvert} disabled={convertMutation.isPending} className="gap-1.5 h-8" data-testid="button-convert-to-operation">
+            <GitBranch className="w-3.5 h-3.5" />Operasyona Dönüştür
+          </Button>
         </div>
       </div>
 
@@ -141,7 +231,7 @@ export default function QuotationDetailPage() {
       </div>
 
       {/* Email Dialog */}
-      <Dialog open={emailDialogOpen} onOpenChange={v => { setEmailDialogOpen(v); if (!v) { setGeneratedEmail(null); } }}>
+      <Dialog open={emailDialogOpen} onOpenChange={v => { setEmailDialogOpen(v); if (!v) setGeneratedEmail(null); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader><DialogTitle>E-posta Oluştur</DialogTitle></DialogHeader>
           {!generatedEmail ? (

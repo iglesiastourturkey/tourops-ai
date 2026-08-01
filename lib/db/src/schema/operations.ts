@@ -16,6 +16,17 @@ export const operationsTable = pgTable("operations", {
   completionRate: real("completion_rate").notNull().default(0),
   assignedTo: text("assigned_to"),
   notes: text("notes"),
+  // Guide & driver assignment
+  guideName: text("guide_name"),
+  guidePhone: text("guide_phone"),
+  driverName: text("driver_name"),
+  driverPhone: text("driver_phone"),
+  vehiclePlate: text("vehicle_plate"),
+  // Emergency contacts
+  emergencyContact1Name: text("emergency_contact1_name"),
+  emergencyContact1Phone: text("emergency_contact1_phone"),
+  emergencyContact2Name: text("emergency_contact2_name"),
+  emergencyContact2Phone: text("emergency_contact2_phone"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -35,9 +46,25 @@ export const operationTasksTable = pgTable("operation_tasks", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+export const operationReceiptsTable = pgTable("operation_receipts", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").notNull().references(() => operationsTable.id, { onDelete: "cascade" }),
+  amount: real("amount").notNull(),
+  currency: text("currency").notNull().default("TRY"),
+  supplierName: text("supplier_name"),
+  receiptDate: text("receipt_date"),
+  guideNote: text("guide_note"),
+  photoObjectPath: text("photo_object_path"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 export const insertOperationSchema = createInsertSchema(operationsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationTaskSchema = createInsertSchema(operationTasksTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOperationReceiptSchema = createInsertSchema(operationReceiptsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOperation = z.infer<typeof insertOperationSchema>;
 export type InsertOperationTask = z.infer<typeof insertOperationTaskSchema>;
+export type InsertOperationReceipt = z.infer<typeof insertOperationReceiptSchema>;
 export type Operation = typeof operationsTable.$inferSelect;
 export type OperationTask = typeof operationTasksTable.$inferSelect;
+export type OperationReceipt = typeof operationReceiptsTable.$inferSelect;

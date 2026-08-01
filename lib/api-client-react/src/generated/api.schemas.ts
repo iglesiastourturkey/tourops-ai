@@ -529,15 +529,36 @@ export interface Operation {
   quotationId?: number | null;
   /** @nullable */
   tourId?: number | null;
-  customerId: number;
+  /** @nullable */
+  customerId?: number | null;
   /** @nullable */
   startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
   status: string;
   /** @nullable */
   assignedTo?: string | null;
   /** @nullable */
   notes?: string | null;
   completionRate: number;
+  /** @nullable */
+  guideName?: string | null;
+  /** @nullable */
+  guidePhone?: string | null;
+  /** @nullable */
+  driverName?: string | null;
+  /** @nullable */
+  driverPhone?: string | null;
+  /** @nullable */
+  vehiclePlate?: string | null;
+  /** @nullable */
+  emergencyContact1Name?: string | null;
+  /** @nullable */
+  emergencyContact1Phone?: string | null;
+  /** @nullable */
+  emergencyContact2Name?: string | null;
+  /** @nullable */
+  emergencyContact2Phone?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -565,15 +586,36 @@ export interface OperationDetail {
   quotationId?: number | null;
   /** @nullable */
   tourId?: number | null;
-  customerId: number;
+  /** @nullable */
+  customerId?: number | null;
   /** @nullable */
   startDate?: string | null;
+  /** @nullable */
+  endDate?: string | null;
   status: string;
   /** @nullable */
   assignedTo?: string | null;
   /** @nullable */
   notes?: string | null;
   completionRate: number;
+  /** @nullable */
+  guideName?: string | null;
+  /** @nullable */
+  guidePhone?: string | null;
+  /** @nullable */
+  driverName?: string | null;
+  /** @nullable */
+  driverPhone?: string | null;
+  /** @nullable */
+  vehiclePlate?: string | null;
+  /** @nullable */
+  emergencyContact1Name?: string | null;
+  /** @nullable */
+  emergencyContact1Phone?: string | null;
+  /** @nullable */
+  emergencyContact2Name?: string | null;
+  /** @nullable */
+  emergencyContact2Phone?: string | null;
   tasks: OperationTask[];
   customer: Customer;
   createdAt: string;
@@ -585,16 +627,36 @@ export interface OperationInput {
   tourId?: number;
   customerId: number;
   startDate?: string;
+  endDate?: string;
   status?: string;
   assignedTo?: string;
   notes?: string;
+  guideName?: string;
+  guidePhone?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehiclePlate?: string;
+  emergencyContact1Name?: string;
+  emergencyContact1Phone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
 }
 
 export interface OperationUpdate {
   startDate?: string;
+  endDate?: string;
   status?: string;
   assignedTo?: string;
   notes?: string;
+  guideName?: string;
+  guidePhone?: string;
+  driverName?: string;
+  driverPhone?: string;
+  vehiclePlate?: string;
+  emergencyContact1Name?: string;
+  emergencyContact1Phone?: string;
+  emergencyContact2Name?: string;
+  emergencyContact2Phone?: string;
 }
 
 export interface OperationTaskInput {
@@ -615,6 +677,50 @@ export interface OperationTaskUpdate {
   assignedTo?: string;
   notes?: string;
   completedAt?: string;
+}
+
+export interface OperationReceipt {
+  id: number;
+  operationId: number;
+  amount: number;
+  currency: string;
+  /** @nullable */
+  supplierName?: string | null;
+  /** @nullable */
+  receiptDate?: string | null;
+  /** @nullable */
+  guideNote?: string | null;
+  /** @nullable */
+  photoObjectPath?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperationReceiptInput {
+  amount: number;
+  currency?: string;
+  supplierName?: string;
+  receiptDate?: string;
+  guideNote?: string;
+  photoObjectPath?: string;
+}
+
+export interface UploadUrlRequest {
+  name: string;
+  size: number;
+  contentType: string;
+}
+
+export type UploadUrlResponseMetadata = {
+  name: string;
+  size: number;
+  contentType: string;
+};
+
+export interface UploadUrlResponse {
+  uploadURL: string;
+  objectPath: string;
+  metadata: UploadUrlResponseMetadata;
 }
 
 export interface Notification {

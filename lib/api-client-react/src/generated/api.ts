@@ -51,6 +51,8 @@ import type {
   Operation,
   OperationDetail,
   OperationInput,
+  OperationReceipt,
+  OperationReceiptInput,
   OperationTask,
   OperationTaskInput,
   OperationTaskUpdate,
@@ -78,7 +80,9 @@ import type {
   TourDayUpdate,
   TourDetail,
   TourInput,
-  TourUpdate
+  TourUpdate,
+  UploadUrlRequest,
+  UploadUrlResponse
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -3391,6 +3395,226 @@ export const useDeleteOperationTask = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteOperationTaskMutationOptions(options));
+    }
+
+export const getListOperationReceiptsUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}/receipts`
+}
+
+/**
+ * @summary List expense receipts for an operation
+ */
+export const listOperationReceipts = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<OperationReceipt[]> => {
+
+  return customFetch<OperationReceipt[]>(getListOperationReceiptsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOperationReceiptsQueryKey = (id: number,) => {
+    return [
+    `/api/operations/${id}/receipts`
+    ] as const;
+    }
+
+
+export const getListOperationReceiptsQueryOptions = <TData = Awaited<ReturnType<typeof listOperationReceipts>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationReceipts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOperationReceiptsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOperationReceipts>>> = ({ signal }) => listOperationReceipts(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOperationReceipts>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOperationReceiptsQueryResult = NonNullable<Awaited<ReturnType<typeof listOperationReceipts>>>
+export type ListOperationReceiptsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List expense receipts for an operation
+ */
+
+export function useListOperationReceipts<TData = Awaited<ReturnType<typeof listOperationReceipts>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationReceipts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOperationReceiptsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOperationReceiptUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}/receipts`
+}
+
+/**
+ * @summary Add an expense receipt to an operation
+ */
+export const createOperationReceipt = async (id: number,
+    operationReceiptInput: OperationReceiptInput, options?: Parameters<typeof customFetch>[1]): Promise<OperationReceipt> => {
+
+  return customFetch<OperationReceipt>(getCreateOperationReceiptUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operationReceiptInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOperationReceiptMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOperationReceipt>>, TError,{id: number;data: BodyType<OperationReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOperationReceipt>>, TError,{id: number;data: BodyType<OperationReceiptInput>}, TContext> => {
+
+const mutationKey = ['createOperationReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOperationReceipt>>, {id: number;data: BodyType<OperationReceiptInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createOperationReceipt(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOperationReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof createOperationReceipt>>>
+    export type CreateOperationReceiptMutationBody = BodyType<OperationReceiptInput>
+    export type CreateOperationReceiptMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Add an expense receipt to an operation
+ */
+export const useCreateOperationReceipt = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOperationReceipt>>, TError,{id: number;data: BodyType<OperationReceiptInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOperationReceipt>>,
+        TError,
+        {id: number;data: BodyType<OperationReceiptInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOperationReceiptMutationOptions(options));
+    }
+
+export const getRequestUploadUrlUrl = () => {
+
+
+
+
+  return `/api/storage/uploads/request-url`
+}
+
+/**
+ * @summary Request a presigned GCS URL for direct file upload
+ */
+export const requestUploadUrl = async (uploadUrlRequest: UploadUrlRequest, options?: Parameters<typeof customFetch>[1]): Promise<UploadUrlResponse> => {
+
+  return customFetch<UploadUrlResponse>(getRequestUploadUrlUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(uploadUrlRequest)
+  }
+);}
+
+
+
+
+
+export const getRequestUploadUrlMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext> => {
+
+const mutationKey = ['requestUploadUrl'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof requestUploadUrl>>, {data: BodyType<UploadUrlRequest>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  requestUploadUrl(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RequestUploadUrlMutationResult = NonNullable<Awaited<ReturnType<typeof requestUploadUrl>>>
+    export type RequestUploadUrlMutationBody = BodyType<UploadUrlRequest>
+    export type RequestUploadUrlMutationError = ErrorType<void>
+
+    /**
+ * @summary Request a presigned GCS URL for direct file upload
+ */
+export const useRequestUploadUrl = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof requestUploadUrl>>, TError,{data: BodyType<UploadUrlRequest>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof requestUploadUrl>>,
+        TError,
+        {data: BodyType<UploadUrlRequest>},
+        TContext
+      > => {
+      return useMutation(getRequestUploadUrlMutationOptions(options));
     }
 
 export const getListNotificationsUrl = (params?: ListNotificationsParams,) => {

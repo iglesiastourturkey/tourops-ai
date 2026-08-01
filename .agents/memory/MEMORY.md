@@ -1,0 +1,4 @@
+- [Object Storage setup](object-storage.md) — provisioned; Clerk auth adapts template's isAuthenticated → getAuth(req).userId
+- [PDF exports use agency settings](pdf-agency-settings.md) — both quotation and operation PDFs read from DB via agencySettings param, never hardcode agency info
+- [Customer schema is single name field](customer-schema.md) — Customer.name is one field; no firstName/lastName
+- [DB schema: operations extended](operations-schema.md) — guide/driver/emergency fields + operation_receipts table added; all nullable
