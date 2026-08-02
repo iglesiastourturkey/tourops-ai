@@ -40,7 +40,7 @@ router.get("/agency-settings", requireAnyRole("admin", "operations"), async (req
   try {
     const [row] = await db.select().from(agencySettingsTable).limit(1);
     if (row) { res.json(row); return; }
-    const [created] = await db.insert(agencySettingsTable).values({ name: "TourOps Acentesi" }).returning();
+    const [created] = await db.insert(agencySettingsTable).values({ name: "TourPilot Acentesi" }).returning();
     res.json(created);
   } catch { res.status(500).json({ error: "Failed to get agency settings" }); }
 });

@@ -90,7 +90,7 @@ export async function generateOperationPdf(
   const roboto  = robotoModule.default   ?? robotoModule;
   pdfMake.addFontContainer(roboto);
 
-  const agencyName    = agencySettings?.name    ?? 'TourOps Acentesi';
+  const agencyName    = agencySettings?.name    ?? 'TourPilot Acentesi';
   const agencyPhone   = agencySettings?.phone   ?? '';
   const agencyEmail   = agencySettings?.email   ?? '';
   const agencyAddress = agencySettings?.address ?? '';

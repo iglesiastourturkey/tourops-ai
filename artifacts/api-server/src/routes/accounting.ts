@@ -1314,8 +1314,8 @@ router.get("/ai-summary", async (req, res) => {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "HTTP-Referer": "https://tourops.replit.app",
-            "X-Title": "TourOps AI",
+            "HTTP-Referer": "https://tourpilot.com.tr",
+            "X-Title": "TourPilot",
           },
           body: JSON.stringify({
             model: ACCOUNTING_AI_MODEL,

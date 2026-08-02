@@ -1,0 +1,354 @@
+Implement only Sprint 5: TourPilot Brand Cleanup and Professional Landing Page.
+
+Goal:
+Replace all remaining “TourOps AI” branding with “TourPilot” and create a polished, trustworthy landing page for the current product. The site is not actively selling subscriptions yet, so avoid pricing, “Buy Now”, “Start Free Trial”, or exaggerated marketing claims.
+
+1. Brand identity
+
+Product name:
+TourPilot
+
+Positioning:
+AI-powered tourism operations platform
+
+Brand personality:
+- professional
+- modern
+- reliable
+- operational
+- easy to use
+- designed for travel agencies and tour operators
+
+Color direction:
+- navy as the primary brand color
+- orange as the accent color
+- white and soft gray backgrounds
+- maintain sufficient contrast and accessibility
+
+Suggested palette:
+- Navy: #0B1F3A
+- Orange: #F97316
+- Soft background: #F7F9FC
+- Text: #162033
+
+Do not use excessive gradients, glassmorphism, neon effects or generic AI visuals.
+
+2. Logo system
+
+Create a clean temporary vector logo inside the codebase.
+
+Concept:
+- compass / route line
+- stylized letter “P”
+- small destination point
+- simple enough to work at favicon and sidebar sizes
+
+Create:
+- full horizontal logo: icon + TourPilot
+- compact icon-only mark
+- dark-background variant
+- light-background variant
+- favicon/app icon
+
+Use inline SVG or project-owned SVG assets.
+Do not use external copyrighted logos.
+Do not show broken image placeholders.
+
+3. Global brand cleanup
+
+Search the entire project for:
+- TourOps AI
+- TourOps
+- old product titles
+- broken logo references
+- inconsistent brand text
+
+Replace them with TourPilot where appropriate.
+
+Update:
+- browser page title
+- meta title
+- meta description
+- favicon
+- landing page
+- authenticated AppShell
+- login-related headers where controlled by the app
+- loading and error screens
+- PDF product branding only if it still contains old TourOps text
+
+Do not replace “Iglesias Tour Turkey” where it represents configurable agency data rather than the product brand.
+
+4. Landing page structure
+
+Create or rebuild the public landing page at `/`.
+
+Unauthenticated users see the landing page.
+Authenticated users may use a clear “Kontrol Paneline Git” action.
+
+Required sections:
+
+A. Header
+- TourPilot logo
+- product links:
+  - Özellikler
+  - Nasıl Çalışır?
+  - Güvenlik
+- primary action:
+  - Giriş Yap
+- authenticated state:
+  - Kontrol Paneline Git
+- responsive mobile menu
+
+B. Hero
+Headline:
+“Tur operasyonlarınızı tek merkezden yönetin.”
+
+Supporting copy:
+“TourPilot; müşteri, teklif, tur, operasyon, saha belgeleri ve finansal süreçleri modern ve yapay zekâ destekli bir platformda bir araya getirir.”
+
+Actions:
+- primary: “Giriş Yap”
+- secondary: “Özellikleri İncele”
+
+Do not show:
+- Hemen Al
+- Ücretsiz Dene
+- Pricing
+- Fake customer counts
+- Unsupported performance claims
+
+Hero visual:
+Create a polished product-preview composition based on the current dashboard design.
+It may be a responsive HTML/CSS mockup using real-looking but clearly demo-safe UI values.
+Do not use remote stock images.
+
+C. Product value section
+
+Show 4 core value cards:
+
+- Operasyon Kontrolü
+  “Turlar, görevler, rehberler ve saha süreçleri tek akışta.”
+
+- Belge ve Makbuz Yönetimi
+  “Mobil belge yükleme, OCR destekli veri çıkarma ve muhasebe inceleme akışı.”
+
+- Finansal Görünürlük
+  “Gelir, gider, alacak, borç ve operasyon kârlılığını takip edin.”
+
+- Rol Bazlı Çalışma
+  “Yönetici, operasyon, muhasebe ve rehber ekipleri yalnızca ihtiyaç duydukları alanları görür.”
+
+D. Feature workflow section
+
+Show a clear flow:
+
+Müşteri Talebi
+→ Teklif
+→ Tur Planı
+→ Operasyon
+→ Rehber ve Saha
+→ Makbuz/Fatura
+→ Muhasebe ve Raporlama
+
+Use a responsive visual timeline.
+
+E. Key modules section
+
+Include:
+- Rol Bazlı Dashboard
+- Müşteri ve Tedarikçi Yönetimi
+- Tur ve Teklif Yönetimi
+- Operasyon ve Görev Takibi
+- Rehber / Şoför Atama
+- Mobil Makbuz Yükleme
+- OCR Destekli Belge Okuma
+- Muhasebe Belge İnceleme Merkezi
+- PDF, Excel ve ZIP Dışa Aktarma
+- AI Muhasebe Özeti
+
+Only describe features that currently exist.
+For unfinished items, use “Geliştirme aşamasında” visibly or omit them.
+
+F. Role-based experience
+
+Create four compact role cards:
+
+- Yönetici
+- Operasyon
+- Muhasebe
+- Rehber
+
+Explain the relevant view for each role in one or two sentences.
+
+G. Security and control
+
+Explain in simple language:
+- secure Clerk authentication
+- role-based permissions
+- protected API access
+- private document storage
+- audit-friendly review states
+- no automatic financial approval by AI
+
+Avoid absolute claims such as “100% secure”.
+
+H. Current status section
+
+State clearly:
+
+“TourPilot şu anda aktif geliştirme ve pilot kullanım aşamasındadır.”
+
+Include:
+- core operational modules available
+- accounting and AI workflows being refined
+- designed initially around real travel-agency workflows
+
+Do not present the product as generally available for purchase.
+
+I. Final CTA
+
+Use:
+“TourPilot’a Giriş Yap”
+
+Supporting text:
+“Yetkili hesabınızla operasyon paneline erişin.”
+
+No sales CTA.
+
+J. Footer
+
+Include:
+- TourPilot logo
+- tourpilot.com.tr
+- product status: “Aktif geliştirme”
+- copyright
+- links/placeholders only for pages that exist
+- no fake social profiles
+
+5. Landing page UI/UX
+
+Requirements:
+- high-quality responsive layout
+- desktop, tablet and mobile
+- no horizontal overflow
+- accessible color contrast
+- semantic headings
+- visible keyboard focus
+- reduced-motion support
+- subtle animations only
+- consistent typography and spacing
+- fast loading
+- no oversized animation libraries
+- no carousel unless genuinely useful
+
+Use existing Tailwind/shadcn setup.
+Do not add another design system.
+
+6. Authenticated application polish
+
+Update the shared application shell:
+
+- correct TourPilot logo
+- consistent product name
+- clean sidebar header
+- compact role badge
+- clearer active navigation state
+- mobile sidebar branding
+- remove broken logo images
+- preserve all current navigation and RBAC logic
+
+Do not redesign the business pages in this sprint.
+
+7. SEO and metadata
+
+Update:
+- title: “TourPilot | Turizm Operasyon Yönetim Platformu”
+- Turkish meta description
+- Open Graph title and description
+- theme color
+- favicon and apple-touch icon if supported
+- canonical domain:
+  https://tourpilot.com.tr
+
+Do not add fabricated structured data, ratings, reviews or pricing.
+
+8. Performance
+
+- avoid loading authenticated dashboard code unnecessarily on the landing page where practical
+- optimize SVG assets
+- preserve lazy-loaded PDF/Excel libraries
+- do not import accounting or AI-heavy libraries into the landing bundle
+- inspect build chunk output
+- avoid new large dependencies unless essential
+
+9. Content language
+
+Landing page language:
+Turkish
+
+Tone:
+- clear
+- credible
+- professional
+- non-technical
+- not overly promotional
+
+Keep product/technical names such as OCR, PDF, Excel and AI where users understand them, but explain their purpose plainly.
+
+10. Scope restrictions
+
+Do not modify:
+- Clerk authentication behavior
+- RBAC logic
+- profile synchronization
+- accounting calculations
+- AI accounting endpoint
+- OCR/OpenRouter logic
+- database schema
+- export logic
+- business APIs
+- existing record data
+
+Do not add:
+- pricing page
+- payment system
+- subscription logic
+- public registration workflow changes
+- fake testimonials
+- fake company logos
+- analytics/tracking tools
+- chat widget
+
+11. Verification
+
+Test:
+- unauthenticated landing page
+- sign-in action
+- authenticated “Kontrol Paneline Git”
+- super_admin dashboard navigation
+- guide dashboard navigation
+- mobile header/menu
+- all section anchors
+- logo on light/dark backgrounds
+- favicon/title
+- no remaining “TourOps AI” user-facing branding
+- no broken images
+- no horizontal overflow
+- keyboard navigation
+- reduced-motion behavior
+
+Run:
+- full TypeScript check
+- production build
+
+12. Final report
+
+Report only:
+- branding replacements
+- logo assets created
+- landing sections
+- authenticated shell changes
+- metadata/SEO changes
+- mobile/accessibility improvements
+- bundle/build result
+- any remaining old-brand references and why they remain

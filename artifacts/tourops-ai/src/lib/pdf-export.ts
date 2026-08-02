@@ -81,7 +81,7 @@ export async function generateQuotationPdf(
 
   pdfMake.addFontContainer(roboto);
 
-  const agencyName    = agencySettings?.name    ?? 'TourOps Acentesi';
+  const agencyName    = agencySettings?.name    ?? 'TourPilot Acentesi';
   const agencyWebsite = agencySettings?.website ?? '';
   const agencyEmail   = agencySettings?.email   ?? '';
   const agencyPhone   = agencySettings?.phone   ?? '';

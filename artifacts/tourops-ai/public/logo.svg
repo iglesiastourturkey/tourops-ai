@@ -1,6 +1,14 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40" fill="none">
-  <circle cx="20" cy="20" r="18" fill="#0d7377"/>
-  <path d="M20 9 L30 27 L10 27 Z" fill="white" opacity="0.92"/>
-  <circle cx="20" cy="20" r="3.5" fill="white"/>
-  <path d="M20 4 L20 7 M20 33 L20 36 M4 20 L7 20 M33 20 L36 20" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+  <!-- Navy rounded-square background -->
+  <rect width="40" height="40" rx="9" fill="#0B1F3A"/>
+  <!-- Subtle compass ring -->
+  <circle cx="20" cy="20" r="13" stroke="#F97316" stroke-width="1" fill="none" opacity="0.35"/>
+  <!-- Route line: origin (bottom-left) → destination (top-right) -->
+  <path d="M11.5 28.5 L20 20 L28.5 11.5" stroke="#F97316" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Destination pin -->
+  <circle cx="28.5" cy="11.5" r="3.2" fill="#F97316"/>
+  <!-- Inner destination dot -->
+  <circle cx="28.5" cy="11.5" r="1.4" fill="white"/>
+  <!-- Origin dot -->
+  <circle cx="11.5" cy="28.5" r="2" fill="white" opacity="0.6"/>
 </svg>

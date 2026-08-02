@@ -18,8 +18,8 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${key}`,
-      "HTTP-Referer": "https://tourops.replit.app",
-      "X-Title": "TourOps AI",
+      "HTTP-Referer": "https://tourpilot.com.tr",
+      "X-Title": "TourPilot",
     },
     body: JSON.stringify({
       model: AI_MODEL,
@@ -116,8 +116,8 @@ router.post("/generate-email", requireAnyRole("admin", "operations"), async (req
 
     if (!process.env.OPENROUTER_API_KEY) {
       res.json({
-        subject: "TourOps - Tur Teklifiniz Hazır",
-        body: `Sayın Müşterimiz,\n\nTur teklifiniz hazırlanmıştır. Detaylar için lütfen bizimle iletişime geçiniz.\n\nSaygılarımızla,\nTourOps Acentesi`,
+        subject: "TourPilot - Tur Teklifiniz Hazır",
+        body: `Sayın Müşterimiz,\n\nTur teklifiniz hazırlanmıştır. Detaylar için lütfen bizimle iletişime geçiniz.\n\nSaygılarımızla,\nTourPilot Acentesi`,
       });
       return;
     }
@@ -147,7 +147,7 @@ router.post("/assist", requireAnyRole("admin", "operations"), async (req, res) =
       return;
     }
 
-    const systemPrompt = `Sen TourOps seyahat acentesi yönetim sisteminin yapay zeka asistanısın. 
+    const systemPrompt = `Sen TourPilot seyahat acentesi yönetim sisteminin yapay zeka asistanısın. 
 Türkçe cevap ver. Kısa ve öz ol. Seyahat, tur operasyonu ve acente yönetimi konularında uzmansın.${context ? `\n\nBağlam: ${context}` : ""}`;
 
     const result = await callOpenRouter(systemPrompt, prompt);
@@ -285,8 +285,8 @@ router.post("/ocr-receipt", requireAnyRole("admin", "operations", "guide"), asyn
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "https://tourops.replit.app",
-        "X-Title": "TourOps AI",
+        "HTTP-Referer": "https://tourpilot.com.tr",
+        "X-Title": "TourPilot",
       },
       body: JSON.stringify({
         model: AI_MODEL,

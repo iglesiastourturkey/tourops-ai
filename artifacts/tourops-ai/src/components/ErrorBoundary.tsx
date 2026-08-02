@@ -21,7 +21,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    console.error('[TourOps] Uncaught render error:', error, info.componentStack);
+    console.error('[TourPilot] Uncaught render error:', error, info.componentStack);
   }
 
   render() {
