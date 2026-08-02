@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Link } from 'wouter';
 import { useAuth } from '@clerk/react';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,10 @@ import {
   BarChart3, MapPin, Zap, Clock, ChevronRight, Lock,
   Smartphone, Star, ArrowRight,
 } from 'lucide-react';
+
+const ProductWalkthroughLazy = lazy(() =>
+  import('@/components/ProductWalkthrough').then(m => ({ default: m.ProductWalkthrough }))
+);
 
 const BASE = import.meta.env.BASE_URL ?? '/';
 const LOGO_SRC = BASE.endsWith('/') ? `${BASE}logo.svg` : `${BASE}/logo.svg`;
@@ -57,15 +61,6 @@ const VALUE_CARDS = [
   },
 ];
 
-const WORKFLOW_STEPS = [
-  { label: 'Müşteri Talebi', icon: Users },
-  { label: 'Teklif', icon: FileText },
-  { label: 'Tur Planı', icon: MapPin },
-  { label: 'Operasyon', icon: Zap },
-  { label: 'Rehber & Saha', icon: Star },
-  { label: 'Makbuz / Fatura', icon: CheckCircle2 },
-  { label: 'Muhasebe & Raporlama', icon: BarChart3 },
-];
 
 const KEY_MODULES = [
   { label: 'Rol Bazlı Kontrol Paneli', available: true },
@@ -348,49 +343,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── D. Workflow timeline ────────────────────────────────────────────── */}
+      {/* ── D. Interactive product walkthrough ─────────────────────────────── */}
       <section id="nasil-calisir" className="py-20 px-4 bg-[#F7F9FC]" aria-label="Nasıl Çalışır?">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-14">
-            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B1F3A] mb-3">Uçtan uca iş akışı</h2>
+          <div className="text-center mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-[#0B1F3A] mb-3">
+              TourPilot Nasıl Çalışır?
+            </h2>
             <p className="text-[#162033]/60 max-w-xl mx-auto">
-              Müşteri talebinden muhasebe kapanışına kadar her adım TourPilot'ta izlenebilir.
+              Müşteri talebinden muhasebe kapanışına kadar 8 adımlık iş akışını interaktif olarak keşfedin.
             </p>
           </div>
-
-          {/* Desktop: horizontal */}
-          <div className="hidden md:flex items-start gap-0">
-            {WORKFLOW_STEPS.map(({ label, icon: Icon }, i) => (
-              <div key={label} className="flex items-center flex-1 min-w-0">
-                <div className="flex flex-col items-center text-center flex-1 min-w-0 px-1">
-                  <div className="w-12 h-12 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center mb-3 shrink-0">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  <p className="text-xs font-semibold text-[#0B1F3A] leading-tight">{label}</p>
-                </div>
-                {i < WORKFLOW_STEPS.length - 1 && (
-                  <ChevronRight className="w-5 h-5 text-[#F97316] shrink-0 mx-1 -mt-6" />
-                )}
+          <Suspense fallback={
+            <div className="flex items-center justify-center h-64 rounded-2xl border border-gray-100 bg-white">
+              <div className="flex flex-col items-center gap-3 text-gray-400">
+                <div className="w-8 h-8 border-2 border-gray-200 border-t-[#F97316] rounded-full animate-spin" />
+                <span className="text-sm">Yükleniyor…</span>
               </div>
-            ))}
-          </div>
-
-          {/* Mobile: vertical */}
-          <div className="md:hidden space-y-0">
-            {WORKFLOW_STEPS.map(({ label, icon: Icon }, i) => (
-              <div key={label} className="flex items-start gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="w-10 h-10 rounded-full bg-[#0B1F3A] text-white flex items-center justify-center shrink-0">
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  {i < WORKFLOW_STEPS.length - 1 && (
-                    <div className="w-0.5 h-8 bg-[#F97316]/30 my-1" />
-                  )}
-                </div>
-                <p className="text-sm font-semibold text-[#0B1F3A] pt-2.5">{label}</p>
-              </div>
-            ))}
-          </div>
+            </div>
+          }>
+            <ProductWalkthroughLazy />
+          </Suspense>
         </div>
       </section>
 

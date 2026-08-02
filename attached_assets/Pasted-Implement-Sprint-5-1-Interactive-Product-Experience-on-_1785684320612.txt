@@ -1,0 +1,276 @@
+Implement Sprint 5.1: Interactive Product Experience on the TourPilot Landing Page.
+
+Goal:
+Replace static screenshots with an interactive product walkthrough that demonstrates the complete TourPilot workflow.
+
+The simulation is NOT connected to the real database.
+
+Use realistic demo data.
+
+Do not require authentication.
+
+------------------------------------
+
+SECTION
+
+How TourPilot Works
+
+------------------------------------
+
+Create an animated 8-step workflow.
+
+Step 1
+
+Customer Request
+
+Animation:
+
+New customer inquiry arrives.
+
+Show:
+
+Customer
+
+Cruise
+
+Passengers
+
+Date
+
+Destination
+
+Button
+
+Next
+
+------------------------------------
+
+Step 2
+
+Quotation
+
+AI helps prepare quotation.
+
+Show:
+
+Tour
+
+Price
+
+Vehicle
+
+Guide
+
+Validity
+
+Accepted badge.
+
+------------------------------------
+
+Step 3
+
+Operation Planning
+
+Operation is created.
+
+Assign
+
+Guide
+
+Driver
+
+Vehicle
+
+Timeline appears.
+
+------------------------------------
+
+Step 4
+
+Field Operations
+
+Guide receives today's schedule.
+
+Show mobile interface.
+
+Checklist.
+
+Passengers.
+
+Navigation.
+
+Emergency contact.
+
+Task completion.
+
+Receipt upload.
+
+------------------------------------
+
+Step 5
+
+Receipt Upload
+
+Guide uploads receipt.
+
+Image preview.
+
+OCR animation.
+
+Detected:
+
+Restaurant
+
+TRY 2,450
+
+VAT
+
+Date
+
+Review pending.
+
+------------------------------------
+
+Step 6
+
+Accounting
+
+Accountant opens document review.
+
+Compare image vs OCR.
+
+Approve.
+
+Create accounting transaction.
+
+Export available.
+
+------------------------------------
+
+Step 7
+
+AI Assistant
+
+Animated AI panel.
+
+Show examples like:
+
+3 pending documents
+
+1 overdue payment
+
+Fuel expenses increased
+
+2 duplicate candidates
+
+Cash flow healthy
+
+------------------------------------
+
+Step 8
+
+Management Dashboard
+
+Animated KPI cards.
+
+Revenue.
+
+Expenses.
+
+Operations.
+
+Guides.
+
+Notifications.
+
+Charts.
+
+------------------------------------
+
+Navigation
+
+Previous
+
+Next
+
+Auto-play every 5 seconds.
+
+Pause on hover.
+
+Progress indicator.
+
+Users may jump to any step.
+
+------------------------------------
+
+Animations
+
+Use Framer Motion.
+
+Soft transitions only.
+
+No heavy effects.
+
+------------------------------------
+
+Responsive
+
+Desktop:
+
+Side-by-side.
+
+Mobile:
+
+Card carousel.
+
+------------------------------------
+
+Accessibility
+
+Keyboard navigation.
+
+ARIA labels.
+
+Reduced motion.
+
+------------------------------------
+
+Performance
+
+Lazy load the simulator.
+
+No large images.
+
+No videos.
+
+No external APIs.
+
+------------------------------------
+
+Do not modify:
+
+Authentication
+
+RBAC
+
+Dashboard
+
+Accounting
+
+Database
+
+Backend
+
+------------------------------------
+
+Report:
+
+Files changed
+
+Components added
+
+Animation strategy
+
+Bundle impact
+
+Remaining improvements
