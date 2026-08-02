@@ -1,0 +1,107 @@
+Implement only Sprint 6.1: PWA, location sharing and notification foundation.
+
+Goal:
+Extend the existing field operations and guide mobile workflows with installable PWA support, explicit user-triggered location sharing, basic offline resilience and browser notification support.
+
+Do not implement continuous background tracking, Firebase Cloud Messaging, APNs, full offline synchronization or native mobile apps.
+
+1. PWA
+- Add web app manifest
+- Add app name TourPilot
+- Add short name TourPilot
+- Use existing TourPilot logo/icons
+- Add theme/background colors
+- Enable installability
+- Add service worker
+- Cache only static shell assets and safe GET responses
+- Never cache authenticated financial data or document blobs
+- Add offline fallback screen
+- Show install prompt where supported
+
+2. Offline foundation
+- Add network status indicator
+- Show “Çevrimdışı” when offline
+- Keep unsent field notes, task updates, incidents and receipt drafts in a retry queue
+- Use IndexedDB for pending actions
+- Retry automatically when connection returns
+- Show pending queue count
+- Never silently discard user input
+- Prevent duplicate submissions with idempotency keys
+
+3. Location sharing
+- Add “Konumumu Paylaş” button to field operation detail and guide operation detail
+- Use browser Geolocation API only after explicit user action
+- Store:
+  operationId
+  latitude
+  longitude
+  accuracy
+  capturedAt
+  profileId
+- Show last shared location and timestamp
+- Add Google Maps and Waze navigation links
+- Do not collect location in background
+- Do not request location permission on page load
+- Do not track users after operation completion
+
+4. Notifications
+- Add browser Notification API support
+- Ask permission only after a clear user action
+- Show notifications for:
+  guide assignment
+  operation starting soon
+  delayed operation
+  critical incident
+  overdue task
+- Keep existing in-app notifications
+- If browser notifications are unavailable or denied, continue using in-app notifications
+- Do not add Firebase or third-party push providers
+
+5. Privacy
+- Add clear Turkish consent text before location sharing
+- Show when and why location is collected
+- Allow user to stop sharing
+- Do not expose coordinates to unauthorized roles
+- Only field_operations, operations, admin, super_admin and the assigned guide may view operation location
+
+6. Backend
+Add only required endpoints:
+- POST /api/field/operations/:id/location
+- GET /api/field/operations/:id/location
+- optional pending action sync endpoint if needed
+
+7. Scope restrictions
+Do not modify:
+- accounting
+- AI
+- OCR
+- exports
+- landing page
+- Clerk
+- RBAC roles
+- profile sync
+- existing business logic
+
+8. Verification
+Test:
+- installable PWA
+- offline shell loads
+- queued note/task/incident syncs after reconnect
+- duplicate retry prevention
+- location permission denied
+- location shared successfully
+- unauthorized location access denied
+- browser notification allowed/denied
+- mobile viewport
+- production build
+
+Run full TypeScript check and production build.
+
+Report:
+- PWA files
+- cache strategy
+- IndexedDB queue design
+- location endpoints
+- notification behavior
+- privacy controls
+- remaining limitations

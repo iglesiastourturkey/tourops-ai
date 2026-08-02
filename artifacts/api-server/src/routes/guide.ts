@@ -1,12 +1,23 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { operationsTable, toursTable, customersTable } from "@workspace/db/schema";
+import {
+  operationsTable,
+  toursTable,
+  customersTable,
+  operationLocationsTable,
+  profilesTable,
+} from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { requireAuth, getProfile, requireAnyRole } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth, getProfile);
+
+/** Narrows an Express route param (string | string[]) to a plain string. */
+function paramStr(v: string | string[]): string {
+  return Array.isArray(v) ? (v[0] ?? "") : v;
+}
 
 /**
  * GET /guide/my-operations
@@ -140,6 +151,109 @@ router.get(
       return res.status(500).json({ error: "Operasyon yüklenemedi" });
     }
   }
+);
+
+// ── Location sharing ──────────────────────────────────────────────────────────
+
+/**
+ * POST /guide/operations/:id/location
+ * Guide shares their one-shot GPS position for the given operation.
+ * The guide must be the assigned guide for the operation.
+ */
+router.post(
+  "/operations/:id/location",
+  requireAnyRole("guide", "admin", "super_admin"),
+  async (req, res) => {
+    const opId = parseInt(paramStr(req.params.id), 10);
+    if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });
+
+    const { latitude, longitude, accuracy } = req.body ?? {};
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
+      return res.status(400).json({ error: "latitude ve longitude zorunlu sayısal değerler" });
+    }
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      return res.status(400).json({ error: "Koordinat değerleri geçersiz aralıkta" });
+    }
+
+    const { userId } = getAuth(req);
+    const profile = res.locals.profile;
+    const role = profile?.role;
+
+    const [op] = await db
+      .select({ id: operationsTable.id, assignedGuideUserId: operationsTable.assignedGuideUserId })
+      .from(operationsTable)
+      .where(eq(operationsTable.id, opId))
+      .limit(1);
+    if (!op) return res.status(404).json({ error: "Operasyon bulunamadı" });
+
+    // Guides may only share location for their own operation
+    if (role === "guide" && op.assignedGuideUserId !== userId) {
+      return res.status(403).json({ error: "Bu operasyon için konum paylaşamazsınız" });
+    }
+
+    const [saved] = await db
+      .insert(operationLocationsTable)
+      .values({
+        operationId: opId,
+        profileId: profile?.id ?? null,
+        latitude,
+        longitude,
+        accuracy: typeof accuracy === "number" ? accuracy : null,
+        capturedAt: new Date(),
+      })
+      .returning();
+
+    return res.status(201).json(saved);
+  },
+);
+
+/**
+ * GET /guide/operations/:id/location
+ * Returns the latest shared location for the operation.
+ * Only the assigned guide and staff roles may view it.
+ */
+router.get(
+  "/operations/:id/location",
+  requireAnyRole("guide", "admin", "super_admin"),
+  async (req, res) => {
+    const opId = parseInt(paramStr(req.params.id), 10);
+    if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });
+
+    const { userId } = getAuth(req);
+    const profile = res.locals.profile;
+    const role = profile?.role;
+
+    const [op] = await db
+      .select({ assignedGuideUserId: operationsTable.assignedGuideUserId })
+      .from(operationsTable)
+      .where(eq(operationsTable.id, opId))
+      .limit(1);
+    if (!op) return res.status(404).json({ error: "Operasyon bulunamadı" });
+
+    // Guides may only view location for their own operation
+    if (role === "guide" && op.assignedGuideUserId !== userId) {
+      return res.status(403).json({ error: "Yetkisiz erişim" });
+    }
+
+    const [row] = await db
+      .select({
+        id: operationLocationsTable.id,
+        profileId: operationLocationsTable.profileId,
+        latitude: operationLocationsTable.latitude,
+        longitude: operationLocationsTable.longitude,
+        accuracy: operationLocationsTable.accuracy,
+        capturedAt: operationLocationsTable.capturedAt,
+        profileName: profilesTable.name,
+      })
+      .from(operationLocationsTable)
+      .leftJoin(profilesTable, eq(operationLocationsTable.profileId, profilesTable.id))
+      .where(eq(operationLocationsTable.operationId, opId))
+      .orderBy(desc(operationLocationsTable.capturedAt))
+      .limit(1);
+
+    if (!row) return res.status(404).json({ error: "Konum verisi bulunamadı" });
+    return res.json(row);
+  },
 );
 
 export default router;

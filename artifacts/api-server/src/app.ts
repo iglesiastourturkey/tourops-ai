@@ -1,3 +1,5 @@
+import path from "path";
+import { existsSync } from "fs";
 import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
@@ -51,5 +53,23 @@ app.use(
 );
 
 app.use("/api", router);
+
+// ── Production static file serving ─────────────────────────────────────────
+// When the Vite build output exists (i.e. in production, or after a local
+// `pnpm build`), Express serves the React SPA directly.  In development the
+// Vite dev server handles "/" via Replit's path-based routing, so this block
+// is a no-op (the dist directory does not exist during normal `pnpm dev`).
+const clientDist = path.resolve(process.cwd(), "artifacts/tourops-ai/dist/public");
+if (existsSync(clientDist)) {
+  // Serve hashed JS/CSS assets with long-lived cache headers.
+  app.use(express.static(clientDist, { maxAge: "1y", immutable: true }));
+
+  // SPA fallback — any GET that did not match /api/* or a static asset
+  // returns the React shell so client-side routing can take over.
+  // Express 5 (path-to-regexp v8) requires a named wildcard parameter.
+  app.get("/{*splat}", (_req, res) => {
+    res.sendFile(path.join(clientDist, "index.html"));
+  });
+}
 
 export default app;

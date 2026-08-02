@@ -31,7 +31,7 @@ import {
 const BASE = import.meta.env.BASE_URL ?? '/';
 const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
 
-const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'operations', 'guide', 'accounting'];
+const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations'];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

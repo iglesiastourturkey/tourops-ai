@@ -1,0 +1,481 @@
+Implement only Sprint 6: Field Operations Center and Mobile Workflow for TourPilot.
+
+Goal:
+Create a mobile-first field operations workspace for users who coordinate multiple tours, guides, drivers and vehicles during the day.
+
+Important:
+- Keep the existing guide role and /guide workspace unchanged.
+- Add a new role:
+  field_operations
+- Turkish label:
+  Saha Operasyon
+
+The guide role sees only their own assigned operations.
+The field_operations role coordinates multiple authorized daily operations.
+
+1. Database and role model
+
+Add field_operations to the valid role list.
+
+Update:
+- backend role validation
+- frontend role types
+- Turkish role labels
+- user management role dropdown
+- invitation role dropdown
+- route guards
+- sidebar navigation
+- dashboard redirect logic
+
+Existing roles must continue working:
+- super_admin
+- admin
+- operations
+- accounting
+- guide
+
+Do not migrate existing users automatically.
+
+2. Access permissions
+
+field_operations may:
+
+- view today’s and upcoming field operations
+- view operation essentials
+- assign or change guide
+- assign or change driver and vehicle details
+- update operation status
+- manage operation tasks
+- add field notes
+- add photos and operational documents
+- view receipt/document completeness
+- add receipts
+- report emergencies or incidents
+- download operation PDF
+- call guide, driver and emergency contacts
+
+field_operations may not:
+
+- access company-wide accounting dashboard
+- approve or reject accounting documents
+- view company-wide profit/revenue KPIs
+- manage users
+- change global settings
+- delete approved financial records
+- access unrelated customer financial details
+
+All permissions must be enforced by backend APIs.
+
+3. Routes and navigation
+
+Add:
+
+/field
+- Saha Operasyon Merkezi
+
+/field/operations/:id
+- mobile-first field operation detail
+
+/field/incidents
+- field incident list
+
+/field/incidents/:id
+- incident detail
+
+Add sidebar item:
+
+Saha Operasyon
+
+Visible to:
+- field_operations
+- operations
+- admin
+- super_admin
+
+Guide users must still go to /guide.
+
+Role-aware home redirect:
+
+- guide → /guide
+- field_operations → /field
+- operations/admin/super_admin/accounting → their existing dashboard
+
+Prevent stale-role redirect loops.
+
+4. Field dashboard
+
+Create a mobile-first dashboard with real data.
+
+Sections:
+
+- Şu Anda Devam Edenler
+- Bugünkü Operasyonlar
+- Yaklaşan Operasyonlar
+- Atanmamış Rehberler
+- Atanmamış Şoför/Araç
+- Geciken Görevler
+- Eksik Belgeler
+- Açık Acil Durumlar
+
+KPI cards:
+
+- Bugünkü Operasyon
+- Devam Eden
+- Başlamayı Bekleyen
+- Rehber Eksik
+- Araç Eksik
+- Geciken Görev
+- Belge Eksik
+- Açık Olay
+
+Use real data only.
+
+5. Operation cards
+
+Each operation card should show:
+
+- operation number
+- tour name
+- customer/group name when authorized
+- start time
+- meeting point
+- passenger count
+- guide
+- driver
+- vehicle plate
+- task completion percentage
+- receipt/document completeness
+- operation status
+- risk badge
+
+Quick actions:
+
+- Detay
+- Rehber Ata
+- Şoför/Araç Ata
+- Operasyonu Başlat
+- Operasyonu Tamamla
+- Görevleri Gör
+- Makbuz Ekle
+- Not Ekle
+- Acil Durum Bildir
+- Ara
+- Operasyon PDF
+
+Only show actions permitted for the current role and operation state.
+
+6. Operation lifecycle
+
+Support these operational statuses:
+
+- planned
+- ready
+- started
+- in_progress
+- delayed
+- completed
+- cancelled
+
+Use Turkish labels:
+
+- Planlandı
+- Hazır
+- Başladı
+- Devam Ediyor
+- Gecikti
+- Tamamlandı
+- İptal Edildi
+
+Add confirmation dialogs for:
+
+- Operasyonu Başlat
+- Operasyonu Tamamla
+- Operasyonu İptal Et
+
+Record:
+- status change timestamp
+- actor profile
+- optional note
+
+Do not overwrite historical status changes.
+
+Create an operation_status_history table only if no equivalent audit history exists.
+
+7. Guide, driver and vehicle assignment
+
+Allow field_operations to assign:
+
+Guide:
+- only active guide users
+- show phone and current-day workload
+
+Driver:
+- name
+- phone
+
+Vehicle:
+- plate
+- type
+- capacity
+
+Warn when:
+
+- guide is already assigned to an overlapping operation
+- vehicle capacity is lower than passenger count
+- the same vehicle is assigned to overlapping operations
+- driver or guide is missing near start time
+
+Return Turkish HTTP 409 warnings for assignment conflicts.
+
+Do not build a full fleet-management module.
+
+8. Tasks
+
+Field users can:
+
+- view all operation tasks
+- add a task
+- assign task to guide or field operations
+- mark task:
+  pending
+  in_progress
+  completed
+  blocked
+- set due time
+- add completion note
+
+Show:
+- overdue
+- blocked
+- completed percentage
+
+Guide users may only update tasks allowed by the existing guide permissions.
+
+9. Field notes and media
+
+Add operation field notes:
+
+- note text
+- category:
+  general
+  customer
+  guide
+  driver
+  supplier
+  delay
+  incident
+- author
+- timestamp
+
+Allow optional photo attachment using the existing storage service.
+
+Do not store binary files in PostgreSQL.
+
+Display notes as a timeline.
+
+10. Incident and emergency workflow
+
+Create field_incidents table:
+
+- id
+- operationId
+- type:
+  medical
+  vehicle
+  delay
+  missing_person
+  customer_complaint
+  supplier
+  document
+  other
+- severity:
+  low
+  medium
+  high
+  critical
+- title
+- description
+- status:
+  open
+  investigating
+  resolved
+  closed
+- reportedByProfileId
+- assignedToProfileId nullable
+- occurredAt
+- resolvedAt nullable
+- resolutionNote nullable
+- createdAt
+- updatedAt
+
+Features:
+
+- report incident
+- attach photo
+- assign responsible user
+- update status
+- add resolution note
+- call emergency contact
+- notify operations/admin users
+
+Critical incidents must appear prominently on:
+- field dashboard
+- operations dashboard
+- notifications
+
+Do not implement automatic emergency-service calling.
+
+11. Mobile UI
+
+The field workspace must be optimized for phones.
+
+Required:
+
+- sticky top summary
+- bottom navigation:
+  Bugün
+  Operasyonlar
+  Olaylar
+  Bildirimler
+- large touch targets
+- card-based lists
+- sticky action bar on operation detail
+- no horizontal overflow
+- camera-friendly upload buttons
+- tap-to-call phone links
+- map/navigation links when a valid address exists
+- skeleton loading
+- Turkish empty/error states
+- retry buttons
+- success/error toasts
+
+Do not rely only on hover tooltips on mobile.
+
+12. Offline-ready preparation
+
+Do not implement full offline synchronization yet.
+
+Prepare only:
+
+- a reusable pending-action queue interface
+- network status indicator
+- clearly show “Çevrimdışı” when offline
+- prevent silent data loss
+- keep submitted form data in memory while a request is retryable
+
+Do not add a service worker or IndexedDB sync in this sprint unless one already exists.
+
+13. Notifications
+
+Generate notifications for:
+
+- operation started
+- operation delayed
+- operation completed
+- guide assignment changed
+- driver/vehicle assignment changed
+- overdue task
+- missing document
+- new incident
+- critical incident
+- incident resolved
+
+Only notify relevant roles/users.
+
+14. Backend endpoints
+
+Add only the endpoints required for:
+
+- field dashboard aggregates
+- field-authorized operation list/detail
+- assignment updates
+- status lifecycle updates
+- tasks
+- notes/media
+- incidents
+- incident status updates
+
+Keep routes modular, for example:
+
+- /api/field/dashboard
+- /api/field/operations
+- /api/field/operations/:id
+- /api/field/operations/:id/status
+- /api/field/operations/:id/assignments
+- /api/field/operations/:id/notes
+- /api/field/incidents
+- /api/field/incidents/:id
+
+Do not expose unrestricted operation/customer records.
+
+15. Scope restrictions
+
+Do not modify:
+
+- guide workspace except shared bug fixes
+- accounting approvals
+- AI accounting assistant
+- OCR/OpenRouter logic
+- exports
+- landing-page walkthrough
+- Clerk authentication implementation
+- profile synchronization
+- quotation/business logic
+- unrelated modules
+
+Do not implement:
+
+- real-time GPS tracking
+- background location
+- push notifications
+- WhatsApp integration
+- QR check-in
+- full offline sync
+- native mobile app
+- full vehicle/fleet inventory
+
+16. Verification
+
+Test:
+
+- super_admin access
+- admin access
+- operations access
+- field_operations access
+- guide denial from field routes
+- field_operations denial from accounting/admin pages
+- role-aware redirect
+- assignment conflict
+- low vehicle capacity warning
+- status start/complete flow
+- overdue task
+- field note with photo
+- incident creation
+- critical incident visibility
+- incident resolution
+- mobile viewport
+- offline network indicator
+- unauthorized API denial
+
+Run:
+
+- database migration
+- OpenAPI codegen if used
+- full TypeScript check
+- production build
+
+17. Final report
+
+Report only:
+
+- database changes
+- role and RBAC changes
+- new pages and endpoints
+- field dashboard data sources
+- assignment/conflict logic
+- operation lifecycle
+- incident workflow
+- mobile improvements
+- offline-ready preparation
+- TypeScript/build results
+- remaining limitations

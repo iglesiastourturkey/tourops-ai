@@ -9,6 +9,9 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ProfileProvider, useProfile, type UserRole } from '@/contexts/ProfileContext';
+import { OfflineQueueProvider } from '@/contexts/OfflineQueueContext';
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
+import { useNotificationSync } from '@/hooks/useNotificationSync';
 import LandingPage from '@/pages/landing';
 import Dashboard from '@/pages/dashboard';
 import CustomersPage from '@/pages/customers';
@@ -25,6 +28,10 @@ import OperationsPage from '@/pages/operations';
 import OperationDetailPage from '@/pages/operation-detail';
 import GuideDashboardPage from '@/pages/guide-dashboard';
 import GuideOperationDetailPage from '@/pages/guide-operation-detail';
+import FieldDashboardPage from '@/pages/field-dashboard';
+import FieldOperationDetailPage from '@/pages/field-operation-detail';
+import FieldIncidentsPage from '@/pages/field-incidents';
+import FieldIncidentDetailPage from '@/pages/field-incident-detail';
 import NotificationsPage from '@/pages/notifications';
 import SettingsPage from '@/pages/settings';
 import NewRequestPage from '@/pages/new-request';
@@ -149,9 +156,13 @@ function HomeRedirect() {
 
   let signedInContent: React.ReactNode = null;
   if (!isLoading) {
-    signedInContent = role === 'guide'
-      ? <Redirect to="/guide" />
-      : <Redirect to="/dashboard" />;
+    if (role === 'guide') {
+      signedInContent = <Redirect to="/guide" />;
+    } else if (role === 'field_operations') {
+      signedInContent = <Redirect to="/field" />;
+    } else {
+      signedInContent = <Redirect to="/dashboard" />;
+    }
   }
 
   return (
@@ -183,6 +194,11 @@ function SignUpPage() {
   );
 }
 
+function AppServices() {
+  useNotificationSync();
+  return null;
+}
+
 function Router() {
   return (
     <Switch>
@@ -205,6 +221,11 @@ function Router() {
       <Route path="/quotations" component={() => <ProtectedRoleRoute component={QuotationsPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/guide/:id" component={() => <ProtectedRoleRoute component={GuideOperationDetailPage} roles={['guide', 'admin', 'super_admin']} />} />
       <Route path="/guide" component={() => <ProtectedRoleRoute component={GuideDashboardPage} roles={['guide', 'admin', 'super_admin']} />} />
+      <Route path="/field/incidents/:id" component={() => <ProtectedRoleRoute component={FieldIncidentDetailPage} roles={['field_operations', 'operations', 'admin']} />} />
+      <Route path="/field/incidents" component={() => <ProtectedRoleRoute component={FieldIncidentsPage} roles={['field_operations', 'operations', 'admin']} />} />
+      <Route path="/field/operations/:id" component={() => <ProtectedRoleRoute component={FieldOperationDetailPage} roles={['field_operations', 'operations', 'admin']} />} />
+      <Route path="/field/operations" component={() => <Redirect to="/field" />} />
+      <Route path="/field" component={() => <ProtectedRoleRoute component={FieldDashboardPage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
@@ -227,14 +248,18 @@ export default function App() {
     <ClerkProvider publishableKey={clerkPubKey!} proxyUrl={clerkProxyUrl} appearance={clerkAppearance}>
       <AuthGate>
         <QueryClientProvider client={queryClient}>
-          <ProfileProvider>
-            <TooltipProvider>
-              <WouterRouter base={basePath}>
-                <Router />
-              </WouterRouter>
-              <Toaster />
-            </TooltipProvider>
-          </ProfileProvider>
+          <OfflineQueueProvider>
+            <ProfileProvider>
+              <TooltipProvider>
+                <WouterRouter base={basePath}>
+                  <Router />
+                </WouterRouter>
+                <AppServices />
+                <Toaster />
+                <PwaInstallPrompt />
+              </TooltipProvider>
+            </ProfileProvider>
+          </OfflineQueueProvider>
         </QueryClientProvider>
       </AuthGate>
     </ClerkProvider>

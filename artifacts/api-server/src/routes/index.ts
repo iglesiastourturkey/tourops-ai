@@ -15,6 +15,7 @@ import usersRouter from "./users";
 import accountingRouter from "./accounting";
 import accountingExportRouter from "./accounting-export";
 import guideRouter from "./guide";
+import fieldRouter from "./field";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use("/", usersRouter);
 router.use("/accounting/export", accountingExportRouter);
 router.use("/accounting", accountingRouter);
 router.use("/guide", guideRouter);
+router.use("/field", fieldRouter);
 
 export default router;

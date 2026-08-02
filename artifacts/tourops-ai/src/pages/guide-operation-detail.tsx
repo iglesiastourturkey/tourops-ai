@@ -17,6 +17,7 @@ import {
   ArrowLeft, Car, Phone, AlertTriangle, MapPin, Calendar,
   Loader2, CheckCircle2, Circle,
 } from 'lucide-react';
+import { LocationShare } from '@/components/LocationShare';
 import {
   OPERATION_STATUS_LABELS,
   OPERATION_STATUS_COLORS,
@@ -210,6 +211,9 @@ export default function GuideOperationDetailPage() {
           </div>
         )}
 
+        {/* Location sharing */}
+        <LocationShare operationId={operationId} context="guide" />
+
         {/* Tasks */}
         <div className="bg-card border rounded-xl p-4 shadow-sm space-y-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Görevler</h2>
@@ -245,9 +249,6 @@ export default function GuideOperationDetailPage() {
                       <p className={`text-sm font-medium ${isDone ? 'line-through text-muted-foreground' : ''}`}>
                         {task.title}
                       </p>
-                      {task.description && (
-                        <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{task.description}</p>
-                      )}
                     </div>
                     <span className={`text-xs px-1.5 py-0.5 rounded shrink-0
                       ${isDone ? 'bg-green-100 text-green-700' : 'bg-muted text-muted-foreground'}`}>

@@ -5,6 +5,25 @@ import { profilesTable } from "@workspace/db/schema";
 import { eq, and, like } from "drizzle-orm";
 import type { UserRole } from "@workspace/db/schema";
 
+// ── Express locals augmentation ───────────────────────────────────────────────
+// Makes res.locals.profile properly typed across all route handlers.
+declare global {
+  namespace Express {
+    interface Locals {
+      // Non-optional: every guarded route runs requireRole/getProfile first,
+      // guaranteeing this is always set before the handler body executes.
+      profile: {
+        id: number;
+        clerkUserId: string;
+        name: string | null;
+        email: string | null;
+        role: string;
+        isActive: boolean;
+      };
+    }
+  }
+}
+
 /** Roles that must never be auto-downgraded to "guide" by profile sync. */
 const PROTECTED_ROLES: UserRole[] = ["super_admin", "admin"];
 

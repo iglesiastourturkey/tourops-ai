@@ -86,16 +86,75 @@ export const QUOTATION_STATUS_COLORS: Record<string, string> = {
 
 export const OPERATION_STATUS_LABELS: Record<string, string> = {
   active: 'Aktif',
+  planned: 'Planlandı',
+  ready: 'Hazır',
+  started: 'Başladı',
+  in_progress: 'Devam Ediyor',
+  delayed: 'Gecikti',
   completed: 'Tamamlandı',
-  cancelled: 'İptal',
+  cancelled: 'İptal Edildi',
   archived: 'Arşivlendi',
 };
 
 export const OPERATION_STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
+  planned: 'bg-gray-100 text-gray-600',
+  ready: 'bg-blue-100 text-blue-700',
+  started: 'bg-teal-100 text-teal-700',
+  in_progress: 'bg-emerald-100 text-emerald-700',
+  delayed: 'bg-orange-100 text-orange-700',
   completed: 'bg-blue-100 text-blue-700',
   cancelled: 'bg-red-100 text-red-700',
   archived: 'bg-orange-100 text-orange-700',
+};
+
+export const INCIDENT_TYPE_LABELS: Record<string, string> = {
+  medical: 'Tıbbi',
+  vehicle: 'Araç',
+  delay: 'Gecikme',
+  missing_person: 'Kayıp Kişi',
+  customer_complaint: 'Müşteri Şikayeti',
+  supplier: 'Tedarikçi',
+  document: 'Belge',
+  other: 'Diğer',
+};
+
+export const INCIDENT_SEVERITY_LABELS: Record<string, string> = {
+  low: 'Düşük',
+  medium: 'Orta',
+  high: 'Yüksek',
+  critical: 'Kritik',
+};
+
+export const INCIDENT_SEVERITY_COLORS: Record<string, string> = {
+  low: 'bg-gray-100 text-gray-600',
+  medium: 'bg-yellow-100 text-yellow-700',
+  high: 'bg-orange-100 text-orange-700',
+  critical: 'bg-red-100 text-red-700',
+};
+
+export const INCIDENT_STATUS_LABELS: Record<string, string> = {
+  open: 'Açık',
+  investigating: 'İnceleniyor',
+  resolved: 'Çözüldü',
+  closed: 'Kapatıldı',
+};
+
+export const INCIDENT_STATUS_COLORS: Record<string, string> = {
+  open: 'bg-red-100 text-red-700',
+  investigating: 'bg-orange-100 text-orange-700',
+  resolved: 'bg-emerald-100 text-emerald-700',
+  closed: 'bg-gray-100 text-gray-500',
+};
+
+export const FIELD_NOTE_CATEGORY_LABELS: Record<string, string> = {
+  general: 'Genel',
+  customer: 'Müşteri',
+  guide: 'Rehber',
+  driver: 'Şoför',
+  supplier: 'Tedarikçi',
+  delay: 'Gecikme',
+  incident: 'Olay',
 };
 
 export const PRIORITY_LABELS: Record<string, string> = {

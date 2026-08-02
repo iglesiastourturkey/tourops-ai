@@ -199,6 +199,24 @@ export class ObjectStorageService {
     return `/objects/${entityId}`;
   }
 
+  /**
+   * Upload a Buffer directly to private object storage.
+   *
+   * @param key  Relative path within PRIVATE_OBJECT_DIR (e.g. "field-notes/op-1/photo.jpg")
+   * @param buffer  Raw file data
+   * @param contentType  MIME type (e.g. "image/jpeg")
+   * @returns  Canonical objectPath (`/objects/<key>`) suitable for storing in the DB
+   */
+  async uploadFile(key: string, buffer: Buffer, contentType: string): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const fullPath = `${privateObjectDir}/${key}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const bucket = objectStorageClient.bucket(bucketName);
+    const file = bucket.file(objectName);
+    await file.save(buffer, { contentType, resumable: false });
+    return `/objects/${key}`;
+  }
+
   async trySetObjectEntityAclPolicy(
     rawPath: string,
     aclPolicy: ObjectAclPolicy,

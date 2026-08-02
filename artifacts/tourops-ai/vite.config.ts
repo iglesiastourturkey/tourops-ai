@@ -2,6 +2,7 @@ import path from 'path';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
 
 // PORT and BASE_PATH are injected by Replit at runtime.
 // Outside Replit (local dev, CI, Vercel builds) we fall back to safe defaults
@@ -29,7 +30,70 @@ export default defineConfig(async () => {
 
   return {
     base: basePath,
-    plugins: [react(), tailwindcss(), ...replitPlugins],
+    plugins: [
+      react(),
+      tailwindcss(),
+      VitePWA({
+        registerType: 'autoUpdate',
+        includeAssets: ['favicon.svg', 'logo.svg', 'robots.txt'],
+        manifest: {
+          name: 'TourPilot',
+          short_name: 'TourPilot',
+          description: 'Tur operasyonları yönetim platformu',
+          theme_color: '#0B1F3A',
+          background_color: '#0B1F3A',
+          display: 'standalone',
+          start_url: '/',
+          orientation: 'any',
+          icons: [
+            { src: 'favicon.svg', sizes: 'any', type: 'image/svg+xml' },
+            {
+              src: 'logo.svg',
+              sizes: 'any',
+              type: 'image/svg+xml',
+              purpose: 'any maskable',
+            },
+          ],
+        },
+        workbox: {
+          // Precache all Vite build outputs
+          globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+          // Navigation fallback → serve cached SPA shell when offline
+          navigateFallback: 'index.html',
+          // Never intercept /api/* navigations with the SW
+          navigateFallbackDenylist: [/^\/api\//],
+          runtimeCaching: [
+            // Field & guide read endpoints — NetworkFirst with 5-min stale window
+            {
+              urlPattern: /\/api\/(field|guide)\/.+/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'field-guide-api',
+                expiration: { maxEntries: 80, maxAgeSeconds: 300 },
+                networkTimeoutSeconds: 6,
+                // Only cache GET responses — mutations go through the offline queue
+                matchOptions: { ignoreMethod: false },
+              },
+            },
+            // Notifications & dashboard — NetworkFirst, 2-min stale
+            {
+              urlPattern: /\/api\/(notifications|dashboard)\b/i,
+              handler: 'NetworkFirst',
+              options: {
+                cacheName: 'app-api',
+                expiration: { maxEntries: 30, maxAgeSeconds: 120 },
+                networkTimeoutSeconds: 6,
+              },
+            },
+            // Explicitly exclude accounting / storage / AI / documents
+            // (no entry = NetworkOnly by default for unmatched routes)
+          ],
+        },
+        // Disable the SW entirely in dev to avoid cache interference
+        devOptions: { enabled: false },
+      }),
+      ...replitPlugins,
+    ],
     resolve: {
       alias: {
         '@': path.resolve(import.meta.dirname, 'src'),

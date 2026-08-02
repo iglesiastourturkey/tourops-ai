@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { UserButton } from '@clerk/react';
 import { useListNotifications } from '@workspace/api-client-react';
+import { OfflineIndicator } from '@/components/OfflineIndicator';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
-  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen, Compass
+  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen, Compass, HardHat
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,7 @@ const navItems: NavItem[] = [
   { icon: MapPin, label: 'Turlar', href: '/tours', roles: ['admin', 'operations', 'guide', 'accounting'] },
   { icon: FileText, label: 'Teklifler', href: '/quotations', roles: ['admin', 'operations', 'accounting'] },
   { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting'] },
+  { icon: HardHat, label: 'Saha Operasyon', href: '/field', roles: ['field_operations', 'operations', 'admin', 'super_admin'] },
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
   { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
   { icon: BookOpen, label: 'Muhasebe', href: '/accounting', roles: ['super_admin', 'admin', 'accounting'] },
@@ -161,6 +163,7 @@ export function AppShell({ children, title }: AppShellProps) {
           </Button>
           {title && <h1 className="text-base font-semibold text-foreground flex-1">{title}</h1>}
           {!title && <div className="flex-1" />}
+          <OfflineIndicator />
           <Link href="/notifications" data-testid="link-notifications-header">
             <Button variant="ghost" size="icon" className="relative">
               <Bell className="w-5 h-5" />

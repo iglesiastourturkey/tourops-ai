@@ -8,8 +8,13 @@
 - [OCR receipt feature](ocr-receipt.md) — POST /api/ai/ocr-receipt; Zod-validated; per-user in-memory rate limit; image sent as base64 JSON; frontend ocr-service.ts utility
 - [Auth: Bearer token via AuthGate](auth-bearer-token.md) — Clerk cookies unreliable in Replit proxy; AuthGate blocks QueryClientProvider until Clerk isLoaded, then setAuthTokenGetter wires getToken() for all generated hooks
 - [RBAC implementation](rbac-implementation.md) — 4-role RBAC (admin/operations/guide/accounting); Express 5 params type gotcha; guide ownership check pattern
+- [Express Locals typing](express-locals-typing.md) — profile stored on res.locals (not req); augment Express.Locals in auth.ts; use non-optional profile: to avoid TS18048 in guarded routes
+- [Notifications table userId](notifications-userid.md) — notificationsTable.userId is Clerk ID (text), not profile ID; createNotification must look up clerkUserId from profile ID before inserting
+- [ObjectStorageService.uploadFile](object-storage-upload.md) — uploadFile(key, buffer, contentType) added; key is relative to PRIVATE_OBJECT_DIR; returns /objects/<key> canonical path; uses parseObjectPath internally
 - [Clerk v4 future API](clerk-v4-future-api.md) — useSignIn() returns { signIn, errors, fetchStatus }; no isLoaded; methods return { error } not throw; reset-password uses signIn.resetPasswordEmailCode namespace
 - [User invite flow](user-invite-flow.md) — POST /api/users/invite calls clerkClient.invitations.createInvitation + pre-creates pending-<email> profile stub; getOrCreateProfile claims stub on first sign-in by email lookup
 - [Super admin role](super-admin-role.md) — super_admin is universal-pass: requireRole() passes for super_admin on any check; RoleRoute skips restriction for super_admin; user mgmt restricted to super_admin only
 - [Accounting module](accounting-module.md) — full accounting module: DB tables, review columns, 6+ frontend pages, PDF/Excel/ZIP exports, document review center with file proxy, AI accounting assistant; AppShell named export not default
 - [AI accounting assistant](ai-accounting-assistant.md) — GET /api/accounting/ai-summary; admin/accounting/super_admin only; 10-min in-memory cache keyed by role:from:to; model fallback AI_ACCOUNTING_MODEL→AI_MODEL→gpt-4o-mini; Zod-validated response; deterministic fallback when AI unavailable
+- [Field Operations Center](field-operations-center.md) — Sprint 6 complete; field_operations 6th role; mobile FieldShell + 4 pages; multer added to api-server; DB tables pushed
+- [PWA and offline foundation](pwa-offline.md) — Sprint 6.1: vite-plugin-pwa (generateSW), IndexedDB offline queue, location sharing, browser notifications; operationLocationsTable added to DB

@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 import { quotationsTable } from "./quotations";
 import { toursTable } from "./tours";
 import { customersTable } from "./customers";
+import { profilesTable } from "./profiles";
 
 export const operationsTable = pgTable("operations", {
   id: serial("id").primaryKey(),
@@ -73,6 +74,61 @@ export const operationReceiptsTable = pgTable("operation_receipts", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ── New Sprint-6 tables ───────────────────────────────────────────────────────
+
+export const operationStatusHistoryTable = pgTable("operation_status_history", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").notNull().references(() => operationsTable.id, { onDelete: "cascade" }),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  actorProfileId: integer("actor_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  note: text("note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const fieldIncidentsTable = pgTable("field_incidents", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").references(() => operationsTable.id, { onDelete: "set null" }),
+  type: text("type").notNull().default("other"),
+  severity: text("severity").notNull().default("medium"),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("open"),
+  reportedByProfileId: integer("reported_by_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  assignedToProfileId: integer("assigned_to_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  photoObjectPath: text("photo_object_path"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  resolutionNote: text("resolution_note"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export const operationFieldNotesTable = pgTable("operation_field_notes", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").notNull().references(() => operationsTable.id, { onDelete: "cascade" }),
+  noteText: text("note_text").notNull(),
+  category: text("category").notNull().default("general"),
+  authorProfileId: integer("author_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  photoObjectPath: text("photo_object_path"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+// ── Sprint 6.1: location sharing ─────────────────────────────────────────────
+
+export const operationLocationsTable = pgTable("operation_locations", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").notNull().references(() => operationsTable.id, { onDelete: "cascade" }),
+  profileId: integer("profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  accuracy: real("accuracy"),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OperationLocation = typeof operationLocationsTable.$inferSelect;
+
 export const insertOperationSchema = createInsertSchema(operationsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationTaskSchema = createInsertSchema(operationTasksTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationReceiptSchema = createInsertSchema(operationReceiptsTable).omit({ id: true, createdAt: true, updatedAt: true });
@@ -82,3 +138,6 @@ export type InsertOperationReceipt = z.infer<typeof insertOperationReceiptSchema
 export type Operation = typeof operationsTable.$inferSelect;
 export type OperationTask = typeof operationTasksTable.$inferSelect;
 export type OperationReceipt = typeof operationReceiptsTable.$inferSelect;
+export type OperationStatusHistory = typeof operationStatusHistoryTable.$inferSelect;
+export type FieldIncident = typeof fieldIncidentsTable.$inferSelect;
+export type OperationFieldNote = typeof operationFieldNotesTable.$inferSelect;
