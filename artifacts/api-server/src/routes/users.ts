@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
@@ -348,6 +349,39 @@ router.post(
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
       res.status(500).json({ error: `Şifre sıfırlama bağlantısı oluşturulamadı: ${msg}` });
+    }
+  },
+);
+
+// ── POST /api/users/:clerkUserId/temp-password ───────────────────────────────
+// Generates a unique strong temporary password, sets it in Clerk, marks the
+// user as requiring a password change on next login, and returns the password
+// exactly ONCE.  The password is NEVER stored in the database.
+router.post(
+  "/users/:clerkUserId/temp-password",
+  requireAuth,
+  requirePermission("users", "manage"),
+  async (req, res) => {
+    try {
+      const clerkUserId = req.params.clerkUserId as string;
+
+      // 16-character password: uppercase, lowercase, digits, symbols.
+      // Uses crypto.randomBytes for cryptographic randomness.
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#$%!";
+      const bytes = randomBytes(16);
+      const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join("");
+
+      // Set password and force-change flag in a single Clerk API call
+      await clerkClient.users.updateUser(clerkUserId, {
+        password: tempPassword,
+        publicMetadata: { mustChangePassword: true },
+      });
+
+      // Return ONCE — never logged or persisted anywhere
+      res.json({ tempPassword });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
+      res.status(500).json({ error: `Geçici şifre oluşturulamadı: ${msg}` });
     }
   },
 );

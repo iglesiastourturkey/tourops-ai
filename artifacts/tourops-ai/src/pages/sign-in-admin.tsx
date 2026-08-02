@@ -119,7 +119,9 @@ export default function SignInAdminPage() {
       const profile = await res.json();
 
       if (['admin', 'super_admin'].includes(profile?.role)) {
-        navigate('/dashboard');
+        // Redirect to forced password change if the user has a temporary password
+        const mustChangePw = !!(profile?.mustChangePassword);
+        navigate(mustChangePw ? '/change-password' : '/dashboard');
       } else {
         // Valid session but wrong role — sign out and show denied screen
         await clerk.signOut().catch(() => {});

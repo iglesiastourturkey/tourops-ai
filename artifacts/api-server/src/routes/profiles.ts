@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { profilesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
@@ -15,9 +15,34 @@ router.get("/me", requireAuth, requireActive(), async (req, res) => {
     const email = (sessionClaims?.email as string) ?? "";
     const name = (sessionClaims?.name as string) ?? undefined;
     const profile = await getOrCreateProfile(userId!, email, name);
-    res.json(profile);
+
+    // Include mustChangePassword from Clerk's publicMetadata so the frontend
+    // can enforce a forced-change flow on first login after a temp password.
+    let mustChangePassword = false;
+    try {
+      const cu = await clerkClient.users.getUser(userId!);
+      mustChangePassword = (cu.publicMetadata?.mustChangePassword as boolean) ?? false;
+    } catch {
+      // Non-fatal — proceed without the flag if Clerk is momentarily unreachable
+    }
+
+    res.json({ ...profile, mustChangePassword });
   } catch (err) {
     res.status(500).json({ error: "Failed to get profile" });
+  }
+});
+
+// POST /api/profiles/me/clear-password-change
+// Called by the user themselves after successfully changing their temp password.
+router.post("/me/clear-password-change", requireAuth, requireActive(), async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    await clerkClient.users.updateUser(userId!, {
+      publicMetadata: { mustChangePassword: false },
+    });
+    res.json({ ok: true });
+  } catch {
+    res.status(500).json({ error: "Şifre değişikliği durumu güncellenemedi" });
   }
 });
 

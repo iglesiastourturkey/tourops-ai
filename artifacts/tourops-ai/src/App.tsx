@@ -56,6 +56,7 @@ const AccountingDocumentDetailPage = lazy(() => import('@/pages/accounting-docum
 const UsersPage                    = lazy(() => import('@/pages/users'));
 const RolesPage                    = lazy(() => import('@/pages/roles'));
 const SystemControlPage            = lazy(() => import('@/pages/system-control'));
+const ChangePasswordPage           = lazy(() => import('@/pages/change-password'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -102,10 +103,28 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * Redirects to /change-password when the user has a temporary password that
+ * needs to be changed before they can access the application.
+ * Must live inside ProfileProvider and WouterRouter.
+ */
+function MustChangePasswordGuard({ children }: { children: React.ReactNode }) {
+  const { mustChangePassword, isLoading } = useProfile();
+  const [location] = useLocation();
+
+  // Allow: still loading, already on the change-password page, flag not set
+  if (isLoading || !mustChangePassword || location === '/change-password') {
+    return <>{children}</>;
+  }
+  return <Redirect to="/change-password" />;
+}
+
 function ProtectedRoute({ component: Comp }: { component: React.ComponentType }) {
   return (
     <>
-      <Show when="signed-in"><Comp /></Show>
+      <Show when="signed-in">
+        <MustChangePasswordGuard><Comp /></MustChangePasswordGuard>
+      </Show>
       <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
@@ -135,7 +154,11 @@ function RoleRoute({ component: Comp, roles }: { component: React.ComponentType;
 function ProtectedRoleRoute({ component: Comp, roles }: { component: React.ComponentType; roles: UserRole[] }) {
   return (
     <>
-      <Show when="signed-in"><RoleRoute component={Comp} roles={roles} /></Show>
+      <Show when="signed-in">
+        <MustChangePasswordGuard>
+          <RoleRoute component={Comp} roles={roles} />
+        </MustChangePasswordGuard>
+      </Show>
       <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
@@ -253,6 +276,12 @@ function Router() {
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/forbidden" component={ForbiddenPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
+      <Route path="/change-password" component={() => (
+        <>
+          <Show when="signed-in"><ChangePasswordPage /></Show>
+          <Show when="signed-out"><Redirect to="/" /></Show>
+        </>
+      )} />
       <Route path="/dashboard" component={() => <ProtectedRoleRoute component={Dashboard} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/requests/new" component={() => <ProtectedRoleRoute component={NewRequestPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/customers" component={() => <ProtectedRoleRoute component={CustomersPage} roles={['admin', 'operations', 'accounting']} />} />

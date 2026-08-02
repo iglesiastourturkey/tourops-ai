@@ -19,6 +19,8 @@ export interface ProfileContextValue {
   isError:           boolean;
   /** Trigger a fresh profile fetch (e.g. after a transient error). */
   refetchProfile:    () => void;
+  /** True when the user signed in with a temporary password and must change it. */
+  mustChangePassword: boolean;
   /** Flat set of "module.action" strings this user may perform */
   permissionSet:     Set<string>;
   /** true for super_admin — has every possible permission */
@@ -33,6 +35,7 @@ const ProfileContext = createContext<ProfileContextValue>({
   isLoading:         true,
   isError:           false,
   refetchProfile:    () => {},
+  mustChangePassword: false,
   permissionSet:     new Set(),
   allPermissions:    false,
   permissionsLoaded: false,
@@ -88,16 +91,22 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
 
   // Stabilise the context value object so consumers only re-render when a
   // field they depend on actually changes, not on every ProfileProvider render.
+  // mustChangePassword comes from Clerk's publicMetadata, included in the /me response.
+  // Cast needed because the generated Profile type predates this field.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const mustChangePassword = ((profile as any)?.mustChangePassword as boolean) ?? false;
+
   const value = useMemo<ProfileContextValue>(() => ({
     role:              (profile?.role as UserRole) ?? null,
     isActive:          profile?.isActive ?? true,
     isLoading,
     isError,
     refetchProfile,
+    mustChangePassword,
     permissionSet,
     allPermissions,
     permissionsLoaded,
-  }), [profile?.role, profile?.isActive, isLoading, isError, refetchProfile, permissionSet, allPermissions, permissionsLoaded]);
+  }), [profile?.role, profile?.isActive, isLoading, isError, refetchProfile, mustChangePassword, permissionSet, allPermissions, permissionsLoaded]);
 
   return (
     <ProfileContext.Provider value={value}>

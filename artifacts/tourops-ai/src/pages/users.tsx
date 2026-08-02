@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { customFetch } from '@workspace/api-client-react';
 import {
-  UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign,
+  UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign, Lock,
 } from 'lucide-react';
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -107,6 +107,9 @@ export default function UsersPage() {
   const [resetLinkTitle, setResetLinkTitle] = useState('Şifre Bağlantısı');
   const [resetLinkDesc,  setResetLinkDesc]  = useState('');
 
+  // ── Temporary password dialog (shown exactly once) ────────────────────────
+  const [tempPassword,   setTempPassword]   = useState<string | null>(null);
+
   // ── Username assignment dialog ────────────────────────────────────────────
   const [usernameUser, setUsernameUser] = useState<EnrichedUser | null>(null);
   const [newUsername,  setNewUsername]  = useState('');
@@ -175,6 +178,14 @@ export default function UsersPage() {
       customFetch<{ ok: boolean; revokedCount: number }>(`${API_BASE}/users/${clerkUserId}/revoke-sessions`, { method: 'POST' }),
     onSuccess: (data) =>
       toast({ title: 'Oturumlar sonlandırıldı', description: `${data.revokedCount} aktif oturum kapatıldı.` }),
+    onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
+  });
+
+  // ── Temporary password generation ───────────────────────────────────────
+  const tempPasswordMutation = useMutation({
+    mutationFn: (clerkUserId: string) =>
+      customFetch<{ tempPassword: string }>(`${API_BASE}/users/${clerkUserId}/temp-password`, { method: 'POST' }),
+    onSuccess: (data) => setTempPassword(data.tempPassword),
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
@@ -282,6 +293,40 @@ export default function UsersPage() {
           </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetLink(null)}>Kapat</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Temporary password dialog (shown exactly once) ────────── */}
+      <Dialog open={!!tempPassword} onOpenChange={() => setTempPassword(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Geçici Şifre Oluşturuldu</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2.5 text-xs text-orange-800 leading-relaxed">
+              ⚠️ Bu şifreyi güvenli bir kanal üzerinden kullanıcıya iletin.
+              <strong> Şifre bir daha gösterilmeyecektir.</strong> Kullanıcı ilk girişinde
+              yeni bir şifre belirlemek zorunda kalacaktır.
+            </div>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={tempPassword ?? ''}
+                className="font-mono tracking-widest text-sm"
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(tempPassword ?? '');
+                  toast({ title: 'Kopyalandı' });
+                }}
+              >
+                Kopyala
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setTempPassword(null)}>Anladım, Kapat</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -488,6 +533,17 @@ export default function UsersPage() {
                                       {user.passwordEnabled
                                         ? 'Şifre Sıfırlama Bağlantısı'
                                         : 'Şifre Kurulum Bağlantısı'}
+                                    </DropdownMenuItem>
+                                  )}
+
+                                  {/* Generate temporary password (sets mustChangePassword flag) */}
+                                  {!isSelf && (
+                                    <DropdownMenuItem
+                                      onClick={() => tempPasswordMutation.mutate(user.clerkUserId)}
+                                      disabled={tempPasswordMutation.isPending}
+                                    >
+                                      <Lock className="w-4 h-4 mr-2" />
+                                      Geçici Şifre Oluştur
                                     </DropdownMenuItem>
                                   )}
 
