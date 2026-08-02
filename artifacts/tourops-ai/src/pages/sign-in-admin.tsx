@@ -81,13 +81,17 @@ export default function SignInAdminPage() {
   // ── Role check ────────────────────────────────────────────────────────────
   async function doRoleCheck() {
     try {
-      // Use hook-sourced getToken() — more reliable than clerk.session?.getToken()
-      // because clerk.session may still be null milliseconds after setActive().
-      // Retry once with a short delay if the JWT hasn't propagated yet.
-      let token = await getToken();
+      // getToken() can hang indefinitely after Google OAuth because Clerk may
+      // need to make a network round-trip to verify the freshly-activated
+      // session.  Race against a hard timeout so the spinner can never freeze.
+      const nullAfter = (ms: number) =>
+        new Promise<null>(resolve => setTimeout(() => resolve(null), ms));
+
+      let token = await Promise.race([getToken(), nullAfter(5_000)]);
       if (!token) {
+        // Brief wait then one retry in case the JWT wasn't ready on first call
         await new Promise<void>(r => setTimeout(r, 800));
-        token = await getToken();
+        token = await Promise.race([getToken(), nullAfter(3_000)]);
       }
 
       if (!token) {
@@ -97,9 +101,20 @@ export default function SignInAdminPage() {
         return;
       }
 
-      const res = await fetch(`${API_BASE}/profiles/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      // Abort the profile fetch after 15 s so a slow/unresponsive API can't
+      // keep the spinner alive forever.
+      const controller = new AbortController();
+      const fetchTimer = setTimeout(() => controller.abort(), 15_000);
+
+      let res: Response;
+      try {
+        res = await fetch(`${API_BASE}/profiles/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(fetchTimer);
+      }
 
       if (res.status === 403) {
         // Deactivated account
@@ -128,7 +143,13 @@ export default function SignInAdminPage() {
         isOAuthReturn.current = false;
         setMode('denied');
       }
-    } catch {
+    } catch (err: unknown) {
+      if ((err as Error)?.name === 'AbortError') {
+        // API took >15 s — show error without signing out
+        setMode('form');
+        setFormError('Sunucu yanıt vermedi. Lütfen tekrar deneyin.');
+        return;
+      }
       // Unexpected network failure — show form error without signing out
       setMode('form');
       setFormError('Kimlik doğrulama sırasında bir hata oluştu. Lütfen tekrar deneyin.');

@@ -18,12 +18,19 @@ router.get("/me", requireAuth, requireActive(), async (req, res) => {
 
     // Include mustChangePassword from Clerk's publicMetadata so the frontend
     // can enforce a forced-change flow on first login after a temp password.
+    // IMPORTANT: race against a 1 500 ms timeout so this call can NEVER block
+    // the response.  If Clerk's API is slow or unreachable we fall through with
+    // mustChangePassword = false — non-fatal, the user just won't be redirected
+    // to /change-password this time, which is safe for all normal accounts.
     let mustChangePassword = false;
     try {
-      const cu = await clerkClient.users.getUser(userId!);
-      mustChangePassword = (cu.publicMetadata?.mustChangePassword as boolean) ?? false;
+      const cu = await Promise.race([
+        clerkClient.users.getUser(userId!),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 1_500)),
+      ]);
+      mustChangePassword = (cu?.publicMetadata?.mustChangePassword as boolean) ?? false;
     } catch {
-      // Non-fatal — proceed without the flag if Clerk is momentarily unreachable
+      // Non-fatal — proceed without the flag
     }
 
     res.json({ ...profile, mustChangePassword });
