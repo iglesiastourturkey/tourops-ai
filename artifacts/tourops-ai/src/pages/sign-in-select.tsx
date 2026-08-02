@@ -9,6 +9,7 @@
  */
 import { Link } from 'wouter';
 import { Users, Shield, ArrowRight, ChevronLeft } from 'lucide-react';
+import { APP_VERSION } from '@/lib/version';
 
 const base    = import.meta.env.BASE_URL ?? '/';
 const LOGO    = base.endsWith('/') ? `${base}logo.svg` : `${base}/logo.svg`;
@@ -96,6 +97,11 @@ export default function SignInSelectPage() {
               Ana sayfaya dön
             </Link>
           </div>
+
+          {/* Version */}
+          <p className="mt-6 text-center text-[10px] font-mono text-[#162033]/25" aria-label={`Sürüm ${APP_VERSION}`}>
+            v{APP_VERSION}
+          </p>
         </div>
       </main>
     </div>

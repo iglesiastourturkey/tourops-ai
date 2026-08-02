@@ -16,6 +16,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSignIn, useAuth, useClerk } from '@clerk/react';
 import { Link, useLocation } from 'wouter';
+import { APP_VERSION } from '@/lib/version';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,7 +210,7 @@ export default function SignInAdminPage() {
 
   // ── Sign-in form ──────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background gap-4 p-4 pb-safe">
 
       {/* Back link */}
       <div className="w-full max-w-md">
@@ -329,6 +330,11 @@ export default function SignInAdminPage() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Version */}
+      <p className="text-[10px] font-mono text-muted-foreground/30" aria-label={`Sürüm ${APP_VERSION}`}>
+        v{APP_VERSION}
+      </p>
     </div>
   );
 }

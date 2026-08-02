@@ -2,6 +2,8 @@
 
 **Travel agency operations management — from customer inquiry to accounting close.**
 
+> **Version 1.0.0** — Production release
+
 TourPilot is a full-stack web application built for Turkish travel agencies. It consolidates the end-to-end operation lifecycle — CRM, tour planning, guide management, document handling, accounting, and AI-assisted review — into a single, role-aware platform. Every module reflects a real agency workflow, and every role sees only the data relevant to their job.
 
 <p align="center">

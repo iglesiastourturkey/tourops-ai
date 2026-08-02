@@ -7,6 +7,7 @@ import {
   BarChart3, MapPin, Zap, Clock, ChevronRight, Lock,
   Smartphone, Star, ArrowRight,
 } from 'lucide-react';
+import { APP_VERSION } from '@/lib/version';
 
 const ProductWalkthroughLazy = lazy(() =>
   import('@/components/ProductWalkthrough').then(m => ({ default: m.ProductWalkthrough }))
@@ -225,11 +226,11 @@ export default function LandingPage() {
               TourPilot; müşteri, teklif, tur, operasyon, saha belgeleri ve finansal
               süreçleri modern ve yapay zekâ destekli bir platformda bir araya getirir.
             </p>
-            <div className="flex flex-col sm:flex-row items-center lg:items-start gap-3 justify-center lg:justify-start">
+            <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4 justify-center lg:justify-start">
               <Link href="/sign-in">
                 <Button
                   size="lg"
-                  className="bg-[#F97316] hover:bg-[#ea6c0a] text-white font-semibold px-8 gap-2 motion-safe:transition-transform motion-safe:hover:scale-[1.02]"
+                  className="bg-[#F97316] hover:bg-[#ea6c0a] text-white font-semibold px-8 gap-2 h-11 motion-safe:transition-transform motion-safe:hover:scale-[1.02]"
                   data-testid="cta-sign-in"
                 >
                   Giriş Yap <ArrowRight className="w-4 h-4" />
@@ -239,7 +240,7 @@ export default function LandingPage() {
                 <Button
                   size="lg"
                   variant="outline"
-                  className="border-white/25 text-white hover:bg-white/10 font-semibold px-8"
+                  className="border-white/25 text-white hover:bg-white/10 font-semibold px-8 h-11"
                 >
                   Özellikleri İncele
                 </Button>
@@ -249,8 +250,9 @@ export default function LandingPage() {
 
           {/* Right: product preview mockup */}
           <div className="relative w-full lg:w-auto lg:flex-shrink-0 lg:w-[460px] xl:w-[500px]" aria-hidden="true">
-            <div className="absolute -inset-6 rounded-2xl opacity-20 blur-2xl"
-              style={{ background: 'radial-gradient(ellipse, #F97316 0%, transparent 70%)' }} />
+            {/* Floating glow — brightened for more visual depth */}
+            <div className="absolute -inset-8 rounded-3xl opacity-[0.35] blur-3xl pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse at 50% 60%, #F97316 0%, #0d7377 50%, transparent 75%)' }} />
             <div className="relative rounded-xl overflow-hidden border border-white/10 shadow-2xl">
               {/* Browser chrome */}
               <div className="bg-[#111f35] px-4 py-2.5 flex items-center gap-3">
@@ -501,21 +503,28 @@ export default function LandingPage() {
       </section>
 
       {/* ── J. Footer ──────────────────────────────────────────────────────── */}
-      <footer className="bg-[#060d1a] text-white py-12 px-4" aria-label="Alt bilgi">
+      <footer className="bg-[#060d1a] text-white py-14 px-4" aria-label="Alt bilgi">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8">
-            <div className="space-y-2">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-10">
+
+            {/* Brand block */}
+            <div className="space-y-3">
               <TourPilotLogo dark />
-              <p className="text-white/40 text-sm flex items-center gap-1.5">
-                <Smartphone className="w-3.5 h-3.5" />
-                tourpilot.com.tr
+              <p className="text-white/50 text-sm leading-snug max-w-xs">
+                AI Destekli Tur Operasyon Yönetim Platformu
               </p>
-              <p className="text-white/30 text-xs inline-flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Aktif geliştirme
-              </p>
+              <div className="flex items-center gap-2.5">
+                <span className="text-white/25 text-xs">tourpilot.com.tr</span>
+                <span
+                  className="text-[10px] font-mono text-white/30 bg-white/5 border border-white/10 rounded px-1.5 py-0.5"
+                  aria-label={`Sürüm ${APP_VERSION}`}
+                >
+                  v{APP_VERSION}
+                </span>
+              </div>
             </div>
 
+            {/* Nav */}
             <nav className="flex flex-col sm:flex-row gap-4 sm:gap-8" aria-label="Alt navigasyon">
               {NAV_LINKS.map(({ href, label }) => (
                 <a
@@ -532,12 +541,13 @@ export default function LandingPage() {
             </nav>
           </div>
 
+          {/* Bottom strip */}
           <div className="mt-10 pt-6 border-t border-white/8 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-white/30 text-xs">
               &copy; {new Date().getFullYear()} TourPilot. Tüm hakları saklıdır.
             </p>
             <p className="text-white/20 text-xs">
-              Turizm operasyon yazılımı — Türkiye
+              Turizm operasyon yazılımı &mdash; Türkiye
             </p>
           </div>
         </div>

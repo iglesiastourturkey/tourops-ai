@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useProfile, ROLE_LABELS } from '@/contexts/ProfileContext';
+import { APP_VERSION } from '@/lib/version';
 
 type NavItem = {
   icon:       React.ComponentType<{ className?: string }>;
@@ -132,13 +133,21 @@ export function AppShell({ children, title }: AppShellProps) {
         })}
       </nav>
 
-      <div className="px-4 py-4 border-t border-sidebar-border flex items-center gap-2">
-        <UserButton appearance={{ elements: { avatarBox: 'w-8 h-8' } }} />
-        {role && (
-          <span className="text-xs text-sidebar-foreground/70 font-medium">
-            {ROLE_LABELS[role]}
-          </span>
-        )}
+      <div className="px-4 py-4 border-t border-sidebar-border space-y-2.5">
+        <div className="flex items-center gap-2">
+          <UserButton appearance={{ elements: { avatarBox: 'w-8 h-8' } }} />
+          {role && (
+            <span className="text-xs text-sidebar-foreground/70 font-medium truncate flex-1">
+              {ROLE_LABELS[role]}
+            </span>
+          )}
+        </div>
+        <p
+          className="text-[10px] font-mono text-sidebar-foreground/25 pl-0.5"
+          aria-label={`TourPilot sürüm ${APP_VERSION}`}
+        >
+          TourPilot v{APP_VERSION}
+        </p>
       </div>
     </div>
   );
@@ -184,7 +193,7 @@ export function AppShell({ children, title }: AppShellProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 pb-safe">
           {children}
         </main>
       </div>
