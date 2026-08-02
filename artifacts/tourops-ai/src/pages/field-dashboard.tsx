@@ -222,6 +222,7 @@ export default function FieldDashboardPage() {
     queryKey: ['field-dashboard'],
     queryFn: () => customFetch(`${API_BASE}/field/dashboard`),
     refetchInterval: 60_000,
+    refetchIntervalInBackground: false,
   });
 
   const kpis = data?.kpis;
@@ -235,7 +236,7 @@ export default function FieldDashboardPage() {
     || (kpis?.openIncident ?? 0) > 0;
 
   return (
-    <FieldShell title="Saha Operasyon Merkezi">
+    <FieldShell title="Operasyon Merkezi">
       {/* Refresh button */}
       <div className="flex items-center justify-between mb-4">
         <div className="text-xs text-gray-400">

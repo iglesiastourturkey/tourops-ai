@@ -1,5 +1,5 @@
 import { ClerkProvider, SignUp, Show, useAuth } from '@clerk/react';
-import { useEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useRef } from 'react';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -11,6 +11,8 @@ import { ProfileProvider, useProfile, type UserRole } from '@/contexts/ProfileCo
 import { OfflineQueueProvider } from '@/contexts/OfflineQueueContext';
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 import { useNotificationSync } from '@/hooks/useNotificationSync';
+
+// ── Eagerly loaded: needed on first paint for unauthenticated + core flows ─────
 import SignInSelectPage from '@/pages/sign-in-select';
 import SignInStaffPage from '@/pages/sign-in-staff';
 import SignInAdminPage from '@/pages/sign-in-admin';
@@ -29,33 +31,43 @@ import QuotationDetailPage from '@/pages/quotation-detail';
 import OperationsPage from '@/pages/operations';
 import OperationDetailPage from '@/pages/operation-detail';
 import GuideDashboardPage from '@/pages/guide-dashboard';
-import GuideOperationDetailPage from '@/pages/guide-operation-detail';
-import FieldDashboardPage from '@/pages/field-dashboard';
-import FieldOperationDetailPage from '@/pages/field-operation-detail';
-import FieldIncidentsPage from '@/pages/field-incidents';
-import FieldIncidentDetailPage from '@/pages/field-incident-detail';
 import NotificationsPage from '@/pages/notifications';
 import SettingsPage from '@/pages/settings';
 import NewRequestPage from '@/pages/new-request';
 import NotFound from '@/pages/not-found';
 import ForbiddenPage from '@/pages/forbidden';
-import UsersPage from '@/pages/users';
 import ForgotPasswordPage from '@/pages/forgot-password';
-import AccountingDashboardPage from '@/pages/accounting';
-import AccountingTransactionsPage from '@/pages/accounting-transactions';
-import AccountingDocumentsPage from '@/pages/accounting-documents';
-import AccountingReportsPage from '@/pages/accounting-reports';
-import AccountingOperationPage from '@/pages/accounting-operation';
-import AccountingSettingsPage from '@/pages/accounting-settings';
-import AccountingDocumentDetailPage from '@/pages/accounting-document-detail';
-import RolesPage from '@/pages/roles';
-import SystemControlPage from '@/pages/system-control';
+
+// ── Lazy loaded: heavy role-specific pages not needed on first paint ───────────
+const GuideOperationDetailPage     = lazy(() => import('@/pages/guide-operation-detail'));
+const FieldDashboardPage           = lazy(() => import('@/pages/field-dashboard'));
+const FieldOperationDetailPage     = lazy(() => import('@/pages/field-operation-detail'));
+const FieldIncidentsPage           = lazy(() => import('@/pages/field-incidents'));
+const FieldIncidentDetailPage      = lazy(() => import('@/pages/field-incident-detail'));
+const AccountingDashboardPage      = lazy(() => import('@/pages/accounting'));
+const AccountingTransactionsPage   = lazy(() => import('@/pages/accounting-transactions'));
+const AccountingDocumentsPage      = lazy(() => import('@/pages/accounting-documents'));
+const AccountingReportsPage        = lazy(() => import('@/pages/accounting-reports'));
+const AccountingOperationPage      = lazy(() => import('@/pages/accounting-operation'));
+const AccountingSettingsPage       = lazy(() => import('@/pages/accounting-settings'));
+const AccountingDocumentDetailPage = lazy(() => import('@/pages/accounting-document-detail'));
+const UsersPage                    = lazy(() => import('@/pages/users'));
+const RolesPage                    = lazy(() => import('@/pages/roles'));
+const SystemControlPage            = lazy(() => import('@/pages/system-control'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
+/** Minimal full-screen spinner shown while a lazy page chunk is loading. */
+function PageLoader() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 /**
  * Gates the entire QueryClientProvider (and therefore all React-Query hooks)
@@ -132,10 +144,10 @@ function ProtectedRoleRoute({ component: Comp, roles }: { component: React.Compo
  * Waits for the profile to load before redirecting so the correct
  * role is used (avoids forbidden-loop for guides).
  *
- *   guide                      → /operations
- *   admin / operations / accounting / super_admin → /dashboard
- *   profile still loading      → render nothing (Clerk Show handles
- *                                 the signed-out → landing page case)
+ *   guide             → /guide
+ *   field_operations  → /field
+ *   everyone else     → /dashboard
+ *   still loading     → render nothing (Clerk Show handles signed-out → landing)
  */
 function HomeRedirect() {
   const { role, isLoading } = useProfile();
@@ -229,7 +241,9 @@ export default function App() {
             <ProfileProvider>
               <TooltipProvider>
                 <WouterRouter base={basePath}>
-                  <Router />
+                  <Suspense fallback={<PageLoader />}>
+                    <Router />
+                  </Suspense>
                 </WouterRouter>
                 <AppServices />
                 <Toaster />

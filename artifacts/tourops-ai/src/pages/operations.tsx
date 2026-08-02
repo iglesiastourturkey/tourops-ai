@@ -51,7 +51,7 @@ export default function OperationsPage() {
   }
 
   return (
-    <AppShell title="Operasyonlar">
+    <AppShell title="Operasyon Planlama">
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         {!showArchived && (
           <Select value={statusFilter} onValueChange={setStatusFilter}>

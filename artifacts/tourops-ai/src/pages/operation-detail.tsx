@@ -472,7 +472,7 @@ export default function OperationDetailPage() {
     return (
       <AppShell title="Operasyon Bulunamadı">
         <div className="flex items-center gap-3 mb-4">
-          <Link href="/operations"><Button variant="ghost" size="sm" className="gap-1.5"><ArrowLeft className="w-4 h-4" />Operasyonlar</Button></Link>
+          <Link href="/operations"><Button variant="ghost" size="sm" className="gap-1.5"><ArrowLeft className="w-4 h-4" />Operasyon Planlama</Button></Link>
         </div>
         <Card><CardContent className="py-12 text-center text-muted-foreground text-sm">Operasyon bulunamadı.</CardContent></Card>
       </AppShell>
@@ -486,7 +486,7 @@ export default function OperationDetailPage() {
       <div className="flex items-center justify-between gap-3 mb-5">
         <Link href="/operations">
           <Button variant="ghost" size="sm" className="gap-1.5">
-            <ArrowLeft className="w-4 h-4" />Operasyonlar
+            <ArrowLeft className="w-4 h-4" />Operasyon Planlama
           </Button>
         </Link>
         <Button

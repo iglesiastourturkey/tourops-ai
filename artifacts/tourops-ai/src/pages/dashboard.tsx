@@ -631,7 +631,7 @@ function GuideDashboard({ name }: { name?: string | null }) {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Package className="w-4 h-4 text-primary" /> Operasyonlarım
+                <Package className="w-4 h-4 text-primary" /> Görevlerim
               </CardTitle>
             </CardHeader>
             <CardContent>

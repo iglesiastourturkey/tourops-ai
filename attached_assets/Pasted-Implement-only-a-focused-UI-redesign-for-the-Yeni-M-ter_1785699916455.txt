@@ -1,0 +1,170 @@
+Implement only a focused UI redesign for the “Yeni Müşteri Talebi” page.
+
+Goal:
+Make the page look complete, professional and easy to understand without changing the existing AI analysis logic, APIs, routes, permissions or database.
+
+1. Page structure
+
+Use a responsive two-column layout on desktop:
+
+Left column:
+- customer message input
+- source selector
+- example message shortcuts
+- AI analysis button
+
+Right column:
+- AI analysis preview / result panel
+
+On mobile:
+- stack the columns vertically
+- keep large touch targets
+- no horizontal overflow
+
+2. Header
+
+Keep the title:
+“Yeni Müşteri Talebi”
+
+Add a short subtitle:
+“WhatsApp, e-posta veya telefon görüşmesi notunu yapıştırın; TourPilot bilgileri otomatik olarak düzenlesin.”
+
+3. Message input card
+
+Keep the existing textarea and existing submit behavior.
+
+Add:
+- source selector:
+  - WhatsApp
+  - E-posta
+  - Telefon
+  - Web Formu
+  - Diğer
+- visible character count
+- clear button
+- paste-from-clipboard button where browser support exists
+- Turkish validation message when empty
+
+Do not add file upload or a new backend workflow in this task.
+
+4. Example messages
+
+Add 3 compact example-message buttons below the textarea:
+
+- Cruise yolcusu Efes turu
+- Havalimanı transferi
+- Özel grup Pamukkale turu
+
+Clicking an example should only fill the existing textarea.
+It must not submit automatically.
+
+Use realistic but fictional Turkish text.
+Do not use real customer names or personal data.
+
+5. AI analysis button
+
+Keep the existing action.
+
+Improve states:
+- idle: “AI ile Analiz Et”
+- loading: spinner + “Talep analiz ediliyor…”
+- disabled when textarea is empty
+- clear success/error feedback
+
+Do not display raw API errors.
+
+6. Right-side preview panel
+
+Before analysis:
+Show a professional empty state titled:
+“AI Analiz Önizlemesi”
+
+Explain that the system can identify:
+- tur türü
+- destinasyon
+- tarih
+- kişi sayısı
+- dil
+- transfer ihtiyacı
+- araç tercihi
+- özel istekler
+- eksik bilgiler
+
+After analysis:
+Render the existing analysis result in grouped cards.
+
+Suggested groups:
+- Müşteri ve Grup
+- Tur Bilgileri
+- Ulaşım
+- Rehber ve Dil
+- Özel İstekler
+- Eksik Bilgiler
+
+Do not invent values that are not returned by the existing API.
+Use “Belirtilmedi” for missing values.
+
+7. Result actions
+
+Keep only actions already supported by the application.
+
+For example, if existing flow supports them:
+- Talebi Kaydet
+- Teklif Oluştur
+- Düzenle
+
+Do not add non-functional CRM or operation buttons.
+
+8. Visual consistency
+
+Use existing TourPilot:
+- navy/orange palette
+- card radius
+- shadows
+- button components
+- Lucide icons
+
+Ensure:
+- consistent spacing
+- accessible contrast
+- visible focus states
+- minimum 44px mobile touch targets
+- skeleton/loading state
+- Turkish empty and error states
+
+9. Scope restrictions
+
+Do not modify:
+- backend
+- AI prompt or model
+- API response shape
+- database
+- route
+- permissions
+- accounting
+- field operations
+- PWA
+- landing page
+- navigation
+
+10. Verification
+
+Run:
+- frontend TypeScript check
+- production frontend build
+
+Test:
+- empty input
+- example message selection
+- loading state
+- successful analysis
+- API failure
+- mobile viewport
+- desktop viewport
+
+Report only:
+- modified files
+- layout changes
+- interaction improvements
+- TypeScript/build results
+- remaining limitations

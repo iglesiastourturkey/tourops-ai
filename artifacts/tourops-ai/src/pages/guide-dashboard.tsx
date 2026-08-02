@@ -218,7 +218,7 @@ export default function GuideDashboardPage() {
   const past = active.filter(op => classifyOperation(op) === 'past');
 
   return (
-    <AppShell title="Operasyonlarım">
+    <AppShell title="Görevlerim">
       <div className="max-w-md mx-auto space-y-6 pb-8">
 
         {/* Loading state */}
@@ -234,7 +234,7 @@ export default function GuideDashboardPage() {
         {isError && !isLoading && (
           <div className="flex flex-col items-center gap-3 py-12 text-center">
             <ClipboardList className="w-10 h-10 text-muted-foreground/50" />
-            <p className="text-muted-foreground text-sm">Operasyonlar yüklenemedi.</p>
+            <p className="text-muted-foreground text-sm">Görevler yüklenemedi.</p>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()}>
               <RefreshCw className="w-3.5 h-3.5" />Yeniden Dene
             </Button>

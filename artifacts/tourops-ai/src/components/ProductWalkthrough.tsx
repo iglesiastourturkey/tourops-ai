@@ -553,7 +553,7 @@ const STEPS: Step[] = [
   {
     id: 3,
     label: 'Operasyon',
-    title: 'Operasyon Planlaması',
+    title: 'Operasyon Planlama',
     subtitle: 'Rehber, şoför ve araç atandı.',
     icon: MapPin,
     accent: 'bg-[#0B1F3A]',
@@ -562,7 +562,7 @@ const STEPS: Step[] = [
   {
     id: 4,
     label: 'Saha',
-    title: 'Saha Operasyonları',
+    title: 'Operasyon Merkezi',
     subtitle: 'Rehber mobil uygulamadan takip ediyor.',
     icon: Smartphone,
     accent: 'bg-purple-500',

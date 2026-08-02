@@ -29,9 +29,21 @@ const { error } = await signIn.resetPasswordEmailCode.submitPassword({ password,
 const { error } = await signIn.finalize();
 ```
 
+## OAuth / Google sign-in
+`authenticateWithRedirect()` is GONE. Use `signIn.sso()` instead:
+```ts
+const { error } = await signIn.sso({
+  strategy:           'oauth_google',
+  redirectUrl:         '<sso-callback-url>',
+  redirectCallbackUrl: '<post-auth-destination>',   // was: redirectUrlComplete
+});
+if (error) throw new Error(clerkMsg(error));
+```
+Key rename: `redirectUrlComplete` → `redirectCallbackUrl`.
+
 ## Classic strategy strings are GONE
 `create({ strategy: 'reset_password_email_code' })` is invalid in v4. Use the namespaced methods instead.
 
-**Why:** Clerk shifted to a "future" namespace-based API in the React SDK; the old `attemptFirstFactor` / `resetPassword` API lives on `SignInResource` (classic) which is no longer what `useSignIn()` returns.
+**Why:** Clerk shifted to a "future" namespace-based API in the React SDK; the old `attemptFirstFactor` / `resetPassword` / `authenticateWithRedirect` API lives on `SignInResource` (classic) which is no longer what `useSignIn()` returns.
 
-**How to apply:** Any page using `useSignIn` must use the above pattern. Do not use `attemptFirstFactor`, `prepareFirstFactor`, `resetPassword`, or the `strategy` string in `create()`.
+**How to apply:** Any page using `useSignIn` must use the above pattern. Do not use `attemptFirstFactor`, `prepareFirstFactor`, `resetPassword`, `authenticateWithRedirect`, or the `strategy` string in `create()`.

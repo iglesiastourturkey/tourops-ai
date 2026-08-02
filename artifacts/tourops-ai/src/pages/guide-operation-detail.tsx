@@ -141,7 +141,7 @@ export default function GuideOperationDetailPage() {
         {/* Back button */}
         <Link href="/guide">
           <button className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors py-1">
-            <ArrowLeft className="w-4 h-4" />Operasyonlarıma Dön
+            <ArrowLeft className="w-4 h-4" />Görevlerime Dön
           </button>
         </Link>
 

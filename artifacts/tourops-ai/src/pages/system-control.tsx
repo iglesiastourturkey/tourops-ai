@@ -89,6 +89,7 @@ export default function SystemControlPage() {
     queryFn:  () => customFetch<SystemSettings>(`${API_BASE}/system/settings`),
     staleTime: 10_000,
     refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
   });
 
   const { data: auditData } = useQuery<{ logs: AuditRow[]; total: number }>({

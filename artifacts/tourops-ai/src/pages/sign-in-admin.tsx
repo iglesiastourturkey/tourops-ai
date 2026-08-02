@@ -148,11 +148,13 @@ export default function SignInAdminPage() {
     const origin = window.location.origin;
     // Use the staff sign-in's SSO callback path — Clerk's <SignIn routing="path">
     // component there automatically handles the OAuth handshake.
-    await signIn.authenticateWithRedirect({
-      strategy: 'oauth_google',
+    // v4 API: authenticateWithRedirect → sso(); redirectUrlComplete → redirectCallbackUrl
+    const { error } = await signIn.sso({
+      strategy:           'oauth_google',
       redirectUrl:         `${origin}${VITE_BASE}/sign-in/staff/sso-callback`,
-      redirectUrlComplete: `${origin}${VITE_BASE}/sign-in/admin`,
+      redirectCallbackUrl: `${origin}${VITE_BASE}/sign-in/admin`,
     });
+    if (error) throw new Error(clerkMsg(error));
   }
 
   const ready = !!signIn;

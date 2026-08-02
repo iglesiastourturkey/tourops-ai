@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/react';
 import { useGetMyProfile } from '@workspace/api-client-react';
 import { API_BASE } from '@/lib/clerk-appearance';
@@ -80,14 +80,16 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, profile?.role]);
 
-  const value: ProfileContextValue = {
+  // Stabilise the context value object so consumers only re-render when a
+  // field they depend on actually changes, not on every ProfileProvider render.
+  const value = useMemo<ProfileContextValue>(() => ({
     role:              (profile?.role as UserRole) ?? null,
     isActive:          profile?.isActive ?? true,
     isLoading,
     permissionSet,
     allPermissions,
     permissionsLoaded,
-  };
+  }), [profile?.role, profile?.isActive, isLoading, permissionSet, allPermissions, permissionsLoaded]);
 
   return (
     <ProfileContext.Provider value={value}>
@@ -106,5 +108,5 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   operations:       'Operasyon',
   guide:            'Rehber',
   accounting:       'Muhasebe',
-  field_operations: 'Saha Operasyon',
+  field_operations: 'Operasyon Merkezi',
 };

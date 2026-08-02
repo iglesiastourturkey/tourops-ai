@@ -25,14 +25,14 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Kontrol Paneli',     href: '/dashboard',          permission: ['dashboard',        'view']   },
-  { icon: Compass,         label: 'Operasyonlarım',     href: '/guide',              permission: ['guide_workspace',  'view']   },
+  { icon: Compass,         label: 'Görevlerim',         href: '/guide',              permission: ['guide_workspace',  'view']   },
   { icon: Sparkles,        label: 'Yeni Talep',         href: '/requests/new',       permission: ['operations',       'create'] },
   { icon: Users,           label: 'Müşteriler',         href: '/customers',          permission: ['customers',        'view']   },
   { icon: Building2,       label: 'Tedarikçiler',       href: '/suppliers',          permission: ['suppliers',        'view']   },
   { icon: MapPin,          label: 'Turlar',             href: '/tours',              permission: ['tours',            'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',         permission: ['quotations',       'view']   },
-  { icon: ClipboardList,   label: 'Operasyonlar',       href: '/operations',         permission: ['operations',       'view']   },
-  { icon: HardHat,         label: 'Saha Operasyon',     href: '/field',              permission: ['field_operations', 'view']   },
+  { icon: ClipboardList,   label: 'Operasyon Planlama', href: '/operations',         permission: ['operations',       'view']   },
+  { icon: HardHat,         label: 'Operasyon Merkezi',  href: '/field',              permission: ['field_operations', 'view']   },
   { icon: Bell,            label: 'Bildirimler',        href: '/notifications',      permission: ['notifications',    'view']   },
   { icon: Settings,        label: 'Ayarlar',            href: '/settings',           permission: ['settings',         'view']   },
   { icon: BookOpen,        label: 'Muhasebe',           href: '/accounting',         permission: ['accounting',       'view']   },

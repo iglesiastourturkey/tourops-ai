@@ -1,0 +1,169 @@
+Implement only a focused frontend performance optimization pass for TourPilot.
+
+Goal:
+Reduce the initial frontend bundle and unnecessary client-side work without changing UI, business behavior, APIs, permissions or existing workflows.
+
+This is a limited optimization task, not a refactor.
+
+1. Route-level lazy loading
+
+Convert heavy authenticated pages to React.lazy + Suspense where practical:
+
+- accounting pages
+- accounting document detail
+- reports
+- user management
+- role permission matrix
+- system control
+- field operations pages
+- guide operation detail
+
+Keep:
+- landing page
+- sign-in
+- app shell
+- profile/auth gate
+- small shared components
+
+in the initial bundle where appropriate.
+
+Do not break:
+- route guards
+- role-aware redirects
+- permission checks
+- profile loading
+- PWA routing
+
+2. Preserve heavy-library lazy loading
+
+Confirm that these remain outside the initial bundle:
+
+- PDF generation
+- Excel generation
+- ZIP generation
+- pdfmake / pdfkit
+- ExcelJS
+- archiver
+- large font bundles
+
+Do not import them into AppShell, dashboard or shared contexts.
+
+3. Bundle analysis
+
+Run a production build and inspect chunk output.
+
+Report:
+- initial JS size before
+- initial JS size after
+- largest initial chunks
+- largest lazy chunks
+- duplicated libraries
+- unexpectedly eager-loaded modules
+
+Make only safe improvements such as:
+- moving heavy page imports behind lazy routes
+- removing unused imports
+- replacing full-library imports with direct imports
+- preventing duplicate utility imports
+
+Do not remove functionality for a smaller bundle.
+
+4. Render optimization
+
+Review only high-frequency components:
+
+- AppShell
+- ProfileContext
+- dashboard
+- accounting dashboard
+- field dashboard
+- guide dashboard
+- notification polling
+
+Fix only clearly justified issues:
+
+- unstable context value objects
+- recreated large arrays or maps
+- duplicate query calls
+- unnecessary polling while pages are hidden
+- stale query keys across user changes
+- repeated expensive sorting/filtering
+
+Use useMemo, useCallback or React.memo only where measurable or identity-sensitive.
+Do not apply memoization blindly.
+
+5. Query behavior
+
+Check React Query usage for:
+
+- duplicate requests
+- refetch loops
+- overly aggressive polling
+- fetching hidden role-specific sections
+- stale profile or permission data after account switching
+- full-size document/image requests in list views
+
+Preserve current business data and authorization behavior.
+
+6. PWA safety
+
+Do not change the current service-worker behavior except to verify that:
+
+- accounting APIs are not cached
+- AI APIs are not cached
+- storage/document blobs are not cached
+- authenticated financial data is not precached
+- offline queue behavior is unchanged
+
+7. Scope restrictions
+
+Do not modify:
+
+- visual design
+- button styles
+- labels or terminology
+- database schema
+- backend API behavior
+- Clerk authentication
+- RBAC or permissions
+- accounting calculations
+- OCR/OpenRouter logic
+- exports
+- PWA queue logic
+- routes or URLs
+- business workflows
+- demo data
+
+Do not add new dependencies unless strictly required for bundle inspection.
+
+8. Verification
+
+Run:
+
+- frontend TypeScript check
+- API TypeScript check
+- production frontend build
+- production API build
+- production smoke test
+
+Confirm:
+
+- lazy routes load correctly
+- all six roles still redirect correctly
+- account switching does not reuse stale profile data
+- PDF, Excel and ZIP still work
+- PWA remains installable
+- no sensitive API response is cached
+
+9. Final report
+
+Report only:
+
+- modified files
+- routes changed to lazy loading
+- initial bundle before and after
+- largest remaining chunks
+- query/render optimizations
+- PWA cache verification
+- TypeScript/build/smoke-test results
+- remaining performance limitations
