@@ -32,6 +32,41 @@ const navItems: NavItem[] = [
   { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['super_admin'] },
 ];
 
+// Base-path-safe logo: resolves against Vite's BASE_URL at build time so it
+// works in Replit preview (/tourops-ai/), custom domains (/), and prod builds.
+const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
+
+function AppLogo() {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    // Inline fallback: compact TourPilot compass mark, no external request needed
+    return (
+      <svg
+        width="36" height="36" viewBox="0 0 40 40" fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        aria-hidden="true"
+        className="flex-shrink-0"
+      >
+        <rect width="40" height="40" rx="10" fill="#0B1F3A" />
+        <circle cx="20" cy="20" r="11" stroke="#F97316" strokeWidth="2" fill="none" opacity="0.35" />
+        <line x1="11" y1="29" x2="29" y2="11" stroke="#F97316" strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="29" cy="11" r="3" fill="#F97316" />
+        <circle cx="11" cy="29" r="2" fill="white" opacity="0.7" />
+      </svg>
+    );
+  }
+  return (
+    <img
+      src={LOGO_SRC}
+      alt="TourPilot"
+      width={36}
+      height={36}
+      className="flex-shrink-0"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 interface AppShellProps {
   children: React.ReactNode;
   title?: string;
@@ -55,7 +90,7 @@ export function AppShell({ children, title }: AppShellProps) {
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-3 px-5 py-5 border-b border-sidebar-border">
-        <img src="/tourops-ai/logo.svg" alt="TourPilot" className="w-8 h-8 flex-shrink-0" />
+        <AppLogo />
         <div>
           <div className="text-white font-bold text-base leading-tight">TourPilot</div>
           <div className="text-sidebar-foreground/60 text-xs">Tur Yönetim Sistemi</div>

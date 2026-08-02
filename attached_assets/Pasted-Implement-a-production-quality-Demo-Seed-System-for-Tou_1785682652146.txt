@@ -1,0 +1,359 @@
+Implement a production-quality Demo Seed System for TourPilot.
+
+Goal:
+Populate the application with realistic tourism data for demos, screenshots, README, presentations and beta testing.
+
+IMPORTANT
+
+This is demo data only.
+
+Never modify existing migrations.
+
+Never overwrite existing production records.
+
+Create a separate seed script.
+
+--------------------------------------------------
+
+Create:
+
+seed-demo.ts
+
+that can be executed with
+
+pnpm seed:demo
+
+--------------------------------------------------
+
+Generate realistic Turkish travel agency data.
+
+Customers
+
+Create 25 customers.
+
+Include:
+
+Name
+
+Surname
+
+Phone
+
+Email
+
+Nationality
+
+Language
+
+VIP flag
+
+Notes
+
+Examples:
+
+John Miller
+Sarah Wilson
+Hans Becker
+Maria Rossi
+Ahmet Kaya
+Ayşe Demir
+
+--------------------------------------------------
+
+Suppliers
+
+Create at least:
+
+Hotels
+
+Restaurants
+
+Transfer companies
+
+Museums
+
+Boat operators
+
+Local guides
+
+Each supplier should include:
+
+Contact
+
+Phone
+
+Email
+
+Address
+
+Category
+
+--------------------------------------------------
+
+Tours
+
+Create 12 tours.
+
+Examples:
+
+Ephesus Full Day
+
+Pamukkale
+
+Şirince Village
+
+Bodrum Blue Cruise
+
+Private Izmir City Tour
+
+Pergamon
+
+Kuşadası Shopping Tour
+
+Each tour includes:
+
+price
+
+duration
+
+capacity
+
+meeting point
+
+--------------------------------------------------
+
+Quotations
+
+Generate 20 quotations.
+
+Statuses:
+
+Draft
+
+Sent
+
+Accepted
+
+Rejected
+
+Expired
+
+--------------------------------------------------
+
+Operations
+
+Generate 15 operations.
+
+Mix:
+
+completed
+
+today
+
+upcoming
+
+cancelled
+
+Assign guides.
+
+Assign drivers.
+
+Assign vehicles.
+
+--------------------------------------------------
+
+Tasks
+
+Generate:
+
+Completed
+
+Pending
+
+Late
+
+--------------------------------------------------
+
+Receipts
+
+Generate 40 receipts.
+
+Mix:
+
+Restaurant
+
+Fuel
+
+Parking
+
+Museum
+
+Hotel
+
+Boat
+
+Taxi
+
+Some should have
+
+photo
+
+some should not
+
+some approved
+
+some pending
+
+some rejected
+
+--------------------------------------------------
+
+Accounting
+
+Generate:
+
+Income
+
+Expense
+
+TRY
+
+EUR
+
+USD
+
+Paid
+
+Pending
+
+Partially Paid
+
+Approved
+
+Rejected
+
+--------------------------------------------------
+
+Documents
+
+Generate:
+
+Invoices
+
+Expense forms
+
+Receipts
+
+Missing info
+
+Approved
+
+Pending review
+
+--------------------------------------------------
+
+Notifications
+
+Generate:
+
+New quotation
+
+Upcoming operation
+
+Missing receipt
+
+Document approved
+
+Payment reminder
+
+--------------------------------------------------
+
+Charts
+
+Generate realistic dates during the last six months so all dashboard charts become meaningful.
+
+--------------------------------------------------
+
+AI Summary
+
+Generate enough accounting data so the AI Accounting Assistant produces:
+
+warnings
+
+recommendations
+
+expense trends
+
+VAT summary
+
+cash flow
+
+--------------------------------------------------
+
+Settings
+
+Populate:
+
+Agency
+
+Currency
+
+VAT
+
+Logo placeholder
+
+Email templates
+
+--------------------------------------------------
+
+Rules
+
+Use realistic Turkish tourism terminology.
+
+No lorem ipsum.
+
+No random gibberish.
+
+No fake UUID strings in visible fields.
+
+No duplicate customers.
+
+No duplicate suppliers.
+
+Everything should look like a real agency.
+
+--------------------------------------------------
+
+Add
+
+pnpm seed:demo
+
+to package.json.
+
+Create
+
+pnpm seed:demo:reset
+
+that clears only demo records.
+
+Mark all demo rows with
+
+is_demo = true
+
+or another safe mechanism.
+
+Never delete real data.
+
+--------------------------------------------------
+
+At the end report:
+
+Created records by table
+
+Seed execution time
+
+Modified files
+
+Example login accounts
+
+Example dashboard statistics
