@@ -31,6 +31,7 @@ async function getEnrichedUsers() {
     lastSignInAt: number | null;
     imageUrl: string;
     username: string | null;
+    passwordEnabled: boolean;
   }> = [];
 
   try {
@@ -66,6 +67,7 @@ async function getEnrichedUsers() {
       lastSignInAt: cu?.lastSignInAt ?? null,
       imageUrl: cu?.imageUrl ?? null,
       username: cu?.username ?? null,
+      passwordEnabled: cu?.passwordEnabled ?? false,
     };
   });
 }

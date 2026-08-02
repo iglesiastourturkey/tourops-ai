@@ -46,6 +46,8 @@ interface EnrichedUser {
   lastSignInAt: number | null;
   imageUrl: string | null;
   username: string | null;
+  /** True when the Clerk account has a password set; false for Google-only or newly invited users. */
+  passwordEnabled: boolean;
 }
 
 interface Invitation {
@@ -100,8 +102,10 @@ export default function UsersPage() {
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<UserRole>('guide');
 
-  // ── Password reset link dialog ───────────────────────────────────────────
-  const [resetLink, setResetLink] = useState<string | null>(null);
+  // ── Password link dialog (setup or reset) ────────────────────────────────
+  const [resetLink,      setResetLink]      = useState<string | null>(null);
+  const [resetLinkTitle, setResetLinkTitle] = useState('Şifre Bağlantısı');
+  const [resetLinkDesc,  setResetLinkDesc]  = useState('');
 
   // ── Username assignment dialog ────────────────────────────────────────────
   const [usernameUser, setUsernameUser] = useState<EnrichedUser | null>(null);
@@ -174,13 +178,30 @@ export default function UsersPage() {
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
-  // ── Password reset link ──────────────────────────────────────────────────
+  // ── Password link (setup or reset) ──────────────────────────────────────
   const passwordResetMutation = useMutation({
     mutationFn: (clerkUserId: string) =>
       customFetch<{ url: string; token: string }>(`${API_BASE}/users/${clerkUserId}/password-reset`, { method: 'POST' }),
     onSuccess: (data) => setResetLink(data.url || `https://app.url/sign-in?__clerk_ticket=${data.token}`),
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
+
+  /** Generates a 24-hour sign-in link and labels the dialog correctly based on whether
+   *  the user already has a password (reset) or needs to create one (setup). */
+  function handlePasswordLink(user: EnrichedUser) {
+    if (user.passwordEnabled) {
+      setResetLinkTitle('Şifre Sıfırlama Bağlantısı');
+      setResetLinkDesc(
+        'Kullanıcının mevcut şifresini sıfırlamasını sağlar. Bağlantıyı doğrudan kullanıcıya iletin — 24 saat geçerlidir ve tek kullanımlıktır.',
+      );
+    } else {
+      setResetLinkTitle('Şifre Kurulum Bağlantısı');
+      setResetLinkDesc(
+        'Bu kullanıcı henüz bir şifre oluşturmamış (Google ile veya davet bağlantısıyla girmiş olabilir). Bağlantıyı göndererek ilk şifresini belirlemesini sağlayın. 24 saat geçerlidir.',
+      );
+    }
+    passwordResetMutation.mutate(user.clerkUserId);
+  }
 
   // ── Invitation actions ───────────────────────────────────────────────────
   const revokeInvite = useMutation({
@@ -244,21 +265,21 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Password reset link dialog ──────────────────────────── */}
+      {/* ── Password link dialog (setup or reset) ──────────────── */}
       <Dialog open={!!resetLink} onOpenChange={() => setResetLink(null)}>
         <DialogContent className="sm:max-w-lg">
-          <DialogHeader><DialogTitle>Şifre Sıfırlama Bağlantısı</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Aşağıdaki bağlantıyı kullanıcıya gönderin. Bu bağlantı 24 saat geçerlidir ve
-            kullanıcının oturum açmasına izin verir.
-          </p>
+          <DialogHeader><DialogTitle>{resetLinkTitle}</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">{resetLinkDesc}</p>
           <div className="flex gap-2 mt-2">
-            <Input readOnly value={resetLink ?? ''} className="text-xs" />
+            <Input readOnly value={resetLink ?? ''} className="text-xs font-mono" />
             <Button variant="outline" size="sm" onClick={() => {
               navigator.clipboard.writeText(resetLink ?? '');
               toast({ title: 'Kopyalandı' });
             }}>Kopyala</Button>
           </div>
+          <p className="text-xs text-muted-foreground/70">
+            Şifre Clerk tarafından yönetilir ve veritabanında saklanmaz.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setResetLink(null)}>Kapat</Button>
           </DialogFooter>
@@ -457,11 +478,16 @@ export default function UsersPage() {
                                     </DropdownMenuItem>
                                   )}
 
-                                  {/* Password reset link */}
+                                  {/* Password setup / reset link — label adapts to whether user has a password */}
                                   {!isSelf && (
-                                    <DropdownMenuItem onClick={() => passwordResetMutation.mutate(user.clerkUserId)}>
+                                    <DropdownMenuItem
+                                      onClick={() => handlePasswordLink(user)}
+                                      disabled={passwordResetMutation.isPending}
+                                    >
                                       <KeyRound className="w-4 h-4 mr-2" />
-                                      Şifre Sıfırlama Bağlantısı
+                                      {user.passwordEnabled
+                                        ? 'Şifre Sıfırlama Bağlantısı'
+                                        : 'Şifre Kurulum Bağlantısı'}
                                     </DropdownMenuItem>
                                   )}
 
