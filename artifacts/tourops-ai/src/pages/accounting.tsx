@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/labels';
 import {
   TrendingUp, TrendingDown, DollarSign, Clock, AlertTriangle,
-  FileText, BarChart3, ArrowRight, RefreshCw
+  FileText, BarChart3, ArrowRight, RefreshCw, AlertCircle, Receipt
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -22,10 +22,18 @@ interface DashboardStats {
   thisMonthIncome: number;
   thisMonthExpenses: number;
   grossProfit: number;
+  netCashFlow: number;
   pendingReviewCount: number;
   missingPhotoCount: number;
+  missingInfoCount: number;
   unpaidTransactions: number;
+  pendingReceivablesAmount: number;
+  pendingPayablesAmount: number;
+  overdueReceivablesCount: number;
+  overduePayablesCount: number;
+  vatApprovedTotal: number;
   upcomingDue: Array<{ id: number; dueDate: string; amount: number; currency: string; description?: string; type: string }>;
+  overdueItems: Array<{ id: number; dueDate: string; amount: number; currency: string; description?: string; type: string }>;
   categoryBreakdown: Record<string, number>;
   monthlyChart: Array<{ label: string; income: number; expenses: number }>;
 }
@@ -35,33 +43,35 @@ const CATEGORY_LABELS: Record<string, string> = {
   activity: 'Aktivite', entrance_ticket: 'Giriş Bileti', fuel: 'Yakıt', parking: 'Park',
   commission: 'Komisyon', office: 'Ofis', tax: 'Vergi', other: 'Diğer',
   customer_payment: 'Müşteri Ödemesi', quotation_payment: 'Teklif Ödemesi',
-  operation_income: 'Operasyon Geliri',
+  operation_income: 'Operasyon Geliri', supplier: 'Tedarikçi', driver: 'Sürücü',
+  customer_refund: 'Müşteri İadesi', advance_payment: 'Avans', refund_received: 'İade',
+  other_income: 'Diğer Gelir',
 };
 
-function KpiCard({ icon: Icon, label, value, variant = 'default', link }: {
+function KpiCard({ icon: Icon, label, value, variant = 'default', link, sub }: {
   icon: React.ElementType; label: string; value: string | number;
-  variant?: 'default' | 'success' | 'warning' | 'danger'; link?: string;
+  variant?: 'default' | 'success' | 'warning' | 'danger'; link?: string; sub?: string;
 }) {
   const colors = {
-    default: 'text-foreground',
-    success: 'text-emerald-600',
-    warning: 'text-amber-600',
-    danger: 'text-red-600',
+    default: 'text-foreground', success: 'text-emerald-600',
+    warning: 'text-amber-600', danger: 'text-red-600',
   };
-  return (
+  const content = (
     <Card className={link ? 'hover:shadow-md transition-shadow cursor-pointer' : ''}>
-      <CardContent className="flex items-center gap-4 pt-5 pb-4 px-5">
-        <div className="p-2.5 rounded-lg bg-[#1e3a5f]/10">
-          <Icon className="h-5 w-5 text-[#1e3a5f]" />
+      <CardContent className="flex items-center gap-3 pt-4 pb-3 px-4">
+        <div className="p-2 rounded-lg bg-[#1e3a5f]/10 shrink-0">
+          <Icon className="h-4 w-4 text-[#1e3a5f]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-muted-foreground truncate">{label}</p>
-          <p className={`text-xl font-bold ${colors[variant]}`}>{value}</p>
+          <p className="text-[11px] text-muted-foreground truncate">{label}</p>
+          <p className={`text-lg font-bold leading-tight ${colors[variant]}`}>{value}</p>
+          {sub && <p className="text-[10px] text-muted-foreground truncate">{sub}</p>}
         </div>
-        {link && <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+        {link && <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
       </CardContent>
     </Card>
   );
+  return link ? <Link href={link}>{content}</Link> : content;
 }
 
 export default function AccountingDashboardPage() {
@@ -81,11 +91,11 @@ export default function AccountingDashboardPage() {
             <p className="text-sm text-muted-foreground mt-0.5">Bu ay gelir-gider özeti ve bekleyen işlemler</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" onClick={() => refetch()} title="Verileri yenile" aria-label="Verileri yenile">
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Yenile
             </Button>
             <Link href="/accounting/reports">
-              <Button size="sm" className="bg-[#0d7377] hover:bg-[#0d7377]/90">
+              <Button size="sm" className="bg-[#0d7377] hover:bg-[#0a5e62] text-white font-medium" title="PDF, Excel veya ZIP olarak dışa aktar">
                 <BarChart3 className="h-3.5 w-3.5 mr-1.5" />Raporlar &amp; İhracat
               </Button>
             </Link>
@@ -100,27 +110,60 @@ export default function AccountingDashboardPage() {
           </div>
         )}
 
-        {/* KPI cards */}
+        {/* Row 1: Core financials */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {isLoading ? Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}><CardContent className="pt-5 pb-4 px-5"><Skeleton className="h-14 w-full" /></CardContent></Card>
+            <Card key={i}><CardContent className="pt-4 pb-3 px-4"><Skeleton className="h-14 w-full" /></CardContent></Card>
           )) : data && <>
-            <Link href="/accounting/transactions?type=income">
-              <KpiCard icon={TrendingUp} label="Bu ay gelir" value={formatCurrency(data.thisMonthIncome)} variant="success" link="/accounting/transactions?type=income" />
-            </Link>
-            <Link href="/accounting/transactions?type=expense">
-              <KpiCard icon={TrendingDown} label="Bu ay gider" value={formatCurrency(data.thisMonthExpenses)} variant="danger" link="/accounting/transactions?type=expense" />
-            </Link>
-            <KpiCard icon={DollarSign} label="Tahmini kar" value={formatCurrency(data.grossProfit)} variant={data.grossProfit >= 0 ? 'success' : 'danger'} />
-            <Link href="/accounting/documents">
-              <KpiCard icon={Clock} label="İnceleme bekliyor" value={data.pendingReviewCount} variant={data.pendingReviewCount > 0 ? 'warning' : 'default'} link="/accounting/documents" />
-            </Link>
-            <Link href="/accounting/documents?missingPhoto=true">
-              <KpiCard icon={AlertTriangle} label="Fotoğraf eksik" value={data.missingPhotoCount} variant={data.missingPhotoCount > 0 ? 'warning' : 'default'} link="/accounting/documents?missingPhoto=true" />
-            </Link>
-            <Link href="/accounting/transactions?paymentStatus=pending&type=income">
-              <KpiCard icon={FileText} label="Ödeme bekliyor" value={data.unpaidTransactions} variant={data.unpaidTransactions > 0 ? 'warning' : 'default'} link="/accounting/transactions" />
-            </Link>
+            <KpiCard icon={TrendingUp} label="Bu Ay Gelir" value={formatCurrency(data.thisMonthIncome)} variant="success" link="/accounting/transactions?type=income" />
+            <KpiCard icon={TrendingDown} label="Bu Ay Gider" value={formatCurrency(data.thisMonthExpenses)} variant="danger" link="/accounting/transactions?type=expense" />
+            <KpiCard icon={DollarSign} label="Net Nakit Akışı" value={formatCurrency(data.netCashFlow)} variant={data.netCashFlow >= 0 ? 'success' : 'danger'} />
+            <KpiCard icon={Clock} label="İnceleme Bekliyor" value={data.pendingReviewCount} variant={data.pendingReviewCount > 0 ? 'warning' : 'default'} link="/accounting/documents" />
+            <KpiCard icon={AlertTriangle} label="Fotoğraf Eksik" value={data.missingPhotoCount} variant={data.missingPhotoCount > 0 ? 'warning' : 'default'} link="/accounting/documents?missingPhoto=true" />
+            <KpiCard icon={AlertCircle} label="Eksik Bilgi" value={data.missingInfoCount} variant={data.missingInfoCount > 0 ? 'warning' : 'default'} link="/accounting/documents" />
+          </>}
+        </div>
+
+        {/* Row 2: Receivables / payables / VAT */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+          {isLoading ? Array.from({ length: 5 }).map((_, i) => (
+            <Card key={i}><CardContent className="pt-4 pb-3 px-4"><Skeleton className="h-14 w-full" /></CardContent></Card>
+          )) : data && <>
+            <KpiCard
+              icon={TrendingUp}
+              label="Tahsilat Bekleyen"
+              value={formatCurrency(data.pendingReceivablesAmount)}
+              variant="success"
+              link="/accounting/transactions?type=income&paymentStatus=pending"
+              sub={data.unpaidTransactions > 0 ? `${data.unpaidTransactions} işlem` : undefined}
+            />
+            <KpiCard
+              icon={TrendingDown}
+              label="Ödeme Bekleyen"
+              value={formatCurrency(data.pendingPayablesAmount)}
+              variant={data.pendingPayablesAmount > 0 ? 'warning' : 'default'}
+              link="/accounting/transactions?type=expense&paymentStatus=pending"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="Vadesi Geçen Alacak"
+              value={data.overdueReceivablesCount}
+              variant={data.overdueReceivablesCount > 0 ? 'danger' : 'default'}
+              link="/accounting/transactions?type=income&paymentStatus=pending"
+            />
+            <KpiCard
+              icon={AlertTriangle}
+              label="Vadesi Geçen Borç"
+              value={data.overduePayablesCount}
+              variant={data.overduePayablesCount > 0 ? 'danger' : 'default'}
+              link="/accounting/transactions?type=expense&paymentStatus=pending"
+            />
+            <KpiCard
+              icon={Receipt}
+              label="KDV Özeti (Onaylı)"
+              value={formatCurrency(data.vatApprovedTotal)}
+              variant="default"
+            />
           </>}
         </div>
 
@@ -163,24 +206,49 @@ export default function AccountingDashboardPage() {
                     .slice(0, 8)
                     .map(([cat, amt]) => (
                       <div key={cat} className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-muted-foreground truncate">
-                          {CATEGORY_LABELS[cat] ?? cat}
-                        </span>
-                        <span className="text-xs font-semibold text-[#1e3a5f] shrink-0">
-                          {formatCurrency(amt)}
-                        </span>
+                        <span className="text-xs text-muted-foreground truncate">{CATEGORY_LABELS[cat] ?? cat}</span>
+                        <span className="text-xs font-semibold text-[#1e3a5f] shrink-0">{formatCurrency(amt)}</span>
                       </div>
-                    ))
-                  }
+                    ))}
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
 
+        {/* Overdue section */}
+        {data && data.overdueItems && data.overdueItems.length > 0 && (
+          <Card className="border-red-200 bg-red-50/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-red-700 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />Vadesi Geçen İşlemler
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {data.overdueItems.map(item => (
+                  <div key={item.id} className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {item.type === 'income' ? '↑ ' : '↓ '}{item.description ?? `İşlem #${item.id}`}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${item.type === 'income' ? 'text-emerald-700' : 'text-red-700'}`}>
+                        {formatCurrency(item.amount, item.currency)}
+                      </span>
+                      <Badge variant="outline" className="border-red-300 text-red-700 text-[10px]">
+                        Vade: {new Date(item.dueDate).toLocaleDateString('tr-TR')}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Upcoming due payments */}
         {data && data.upcomingDue.length > 0 && (
-          <Card className="border-amber-200 bg-amber-50/50">
+          <Card className="border-amber-200 bg-amber-50/40">
             <CardHeader className="pb-2">
               <CardTitle className="text-base text-amber-700 flex items-center gap-2">
                 <Clock className="h-4 w-4" />Yaklaşan Vadeli Ödemeler
@@ -210,19 +278,24 @@ export default function AccountingDashboardPage() {
             { href: '/accounting/transactions', label: 'Tüm İşlemler', icon: DollarSign },
             { href: '/accounting/documents', label: 'Belgeler', icon: FileText },
             { href: '/accounting/reports', label: 'Raporlar', icon: BarChart3 },
-            { href: '/operations', label: 'Operasyonlar', icon: TrendingUp },
+            { href: '/accounting/settings', label: 'Muhasebe Ayarları', icon: AlertCircle },
           ].map(item => (
             <Link key={item.href} href={item.href}>
               <Card className="hover:shadow-md transition-shadow cursor-pointer">
                 <CardContent className="flex items-center gap-3 py-4 px-4">
-                  <item.icon className="h-4 w-4 text-[#0d7377]" />
+                  <item.icon className="h-4 w-4 text-[#0d7377] shrink-0" />
                   <span className="text-sm font-medium">{item.label}</span>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" aria-label="Detayları görüntüle" />
                 </CardContent>
               </Card>
             </Link>
           ))}
         </div>
+
+        {/* Disclaimer */}
+        <p className="text-[11px] text-muted-foreground border rounded-lg p-3 bg-muted/30">
+          ⚠ Bu ekran operasyonel finans takibi içindir; resmi muhasebe ve vergi beyannamesi yerine geçmez.
+        </p>
       </div>
     </AppShell>
   );

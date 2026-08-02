@@ -1,0 +1,218 @@
+Implement only Sprint 4.1: Accounting Document Review Center.
+
+Goal:
+Turn the existing accounting document queue into a practical review workflow. An accounting user must be able to open a receipt or document, compare the image with extracted data, correct fields, and approve, reject, mark missing information, or convert it into a transaction.
+
+Do not build a full document drive, AI accounting assistant, bulk upload, dark mode, legislation tracking or unrelated features in this task.
+
+Access:
+- super_admin
+- admin
+- accounting
+
+1. Document detail route
+
+Add:
+
+/accounting/documents/:type/:id
+
+Supported types:
+- receipt
+- document
+
+Clicking a row in the document queue must open this page.
+
+2. Document preview
+
+Show the stored receipt/invoice image or PDF prominently.
+
+Controls:
+- zoom in
+- zoom out
+- rotate
+- fullscreen
+- download
+- print
+
+Handle missing or inaccessible files with a Turkish warning.
+Do not expose private storage paths.
+
+3. Extracted and editable fields
+
+Display:
+
+- document type
+- supplier/customer
+- document number
+- date
+- time
+- amount
+- currency
+- net amount
+- VAT rate
+- VAT amount
+- gross amount
+- payment method
+- category
+- operation
+- tour
+- guide note
+- OCR status
+- review status
+
+Allow accounting users to edit relevant pending fields before approval.
+
+Clearly distinguish:
+- OCR-extracted values
+- manually corrected values
+- missing values
+
+Do not overwrite manual corrections when the page refreshes.
+
+4. Side-by-side verification
+
+Desktop:
+- left: document preview
+- center: extracted/editable fields
+- right: related operation and review information
+
+Mobile:
+- stacked sections
+- sticky action bar
+- no horizontal overflow
+
+5. Related operation information
+
+Show when available:
+
+- operation number
+- tour
+- customer
+- supplier
+- guide
+- driver
+- operation dates
+- uploader
+- upload date
+- guide note
+- expected cost for the matching category, when existing data permits
+
+Show a simple comparison:
+
+- expected cost
+- document amount
+- difference
+- percentage difference
+
+Do not invent expected values when no matching cost record exists.
+
+6. Review actions
+
+Provide clearly labelled actions:
+
+- Onayla
+- Reddet
+- Eksik Bilgi
+- Muhasebe İşlemine Dönüştür
+- Düzenlemeleri Kaydet
+- Belgeyi İndir
+- Yazdır
+
+Requirements:
+- confirmation dialog for approve/reject/missing information
+- rejection reason required
+- missing-information note required
+- success/error toast
+- loading and disabled states
+- prevent duplicate transaction creation with HTTP 409
+- approved records must not be silently edited or deleted
+
+7. Queue improvements
+
+On /accounting/documents:
+
+- entire row or “İncele” action opens detail page
+- show a small thumbnail
+- show linked transaction status
+- show OCR status
+- use Turkish labels
+- retain current filters and review actions
+- add tooltip and aria-label to icon-only controls
+
+8. Data integrity
+
+- Reuse operation_receipts and accounting_documents
+- Do not duplicate receipt records
+- Record reviewer profile and review timestamp
+- Preserve original OCR values where practical for audit history
+- Backend must enforce permissions
+
+Add only the minimum schema fields needed for corrected values or audit history.
+
+9. UI
+
+Use the existing TourPilot navy/teal design and current shadcn components.
+
+Required:
+- clear button contrast
+- skeleton loading
+- Turkish empty/error states
+- “Yeniden Dene”
+- accessible focus states
+- responsive layout
+
+Do not introduce another design system.
+
+10. Scope restrictions
+
+Do not implement:
+- AI tamper detection
+- automatic legal or VAT compliance decisions
+- AI Accounting Assistant
+- document folders/Drive interface
+- bulk upload
+- bulk approval
+- GPS
+- legislation feeds
+- accounting dashboard redesign
+- landing page
+
+Do not modify:
+- Clerk authentication
+- profile sync
+- RBAC definitions
+- OCR/OpenRouter extraction logic
+- existing PDF/Excel/ZIP exporters
+- unrelated operational modules
+
+11. Verification
+
+Test:
+- receipt with image
+- receipt without image
+- general accounting document
+- edit and save
+- approve
+- reject with reason
+- missing information
+- convert receipt to transaction
+- duplicate transaction prevention
+- desktop and mobile layouts
+- unauthorized role denial
+
+Run:
+- required migration
+- OpenAPI codegen if needed
+- full TypeScript check
+- production build
+
+12. Final report
+
+Report only:
+- database changes
+- new/changed endpoints
+- modified files
+- review workflow
+- mobile behavior
+- TypeScript/build results
+- remaining limitations

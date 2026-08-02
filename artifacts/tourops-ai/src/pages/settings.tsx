@@ -14,7 +14,7 @@ import { getGetAgencySettingsQueryKey, getListExchangeRatesQueryKey, getListEmai
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Plus, Trash2 } from 'lucide-react';
-import { useProfile } from '@/contexts/ProfileContext';
+import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const EMAIL_TYPES = ['quotation', 'follow_up', 'confirmation', 'cancellation', 'welcome', 'custom'];
@@ -237,7 +237,7 @@ export default function SettingsPage() {
               <CardContent className="space-y-3">
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Ad</label><p className="text-sm font-medium">{profile?.name ?? '-'}</p></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">E-posta</label><p className="text-sm font-medium">{profile?.email ?? '-'}</p></div>
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label><span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{profile?.role === 'admin' ? 'Yönetici' : 'Personel'}</span></div>
+                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label><span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{ROLE_LABELS[profile?.role as UserRole] ?? 'Personel'}</span></div>
               </CardContent>
             </Card>
           )}

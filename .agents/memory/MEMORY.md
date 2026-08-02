@@ -10,4 +10,4 @@
 - [Clerk v4 future API](clerk-v4-future-api.md) — useSignIn() returns { signIn, errors, fetchStatus }; no isLoaded; methods return { error } not throw; reset-password uses signIn.resetPasswordEmailCode namespace
 - [User invite flow](user-invite-flow.md) — POST /api/users/invite calls clerkClient.invitations.createInvitation + pre-creates pending-<email> profile stub; getOrCreateProfile claims stub on first sign-in by email lookup
 - [Super admin role](super-admin-role.md) — super_admin is universal-pass: requireRole() passes for super_admin on any check; RoleRoute skips restriction for super_admin; user mgmt restricted to super_admin only
-- [Accounting module](accounting-module.md) — full accounting module: 2 new DB tables, review columns on operation_receipts, 5 frontend pages, PDF/Excel/ZIP exports; AppShell named export not default
+- [Accounting module](accounting-module.md) — full accounting module: DB tables, review columns, 6+ frontend pages, PDF/Excel/ZIP exports, document review center with file proxy; AppShell named export not default

@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
   { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
   { icon: BookOpen, label: 'Muhasebe', href: '/accounting', roles: ['super_admin', 'admin', 'accounting'] },
+  { icon: Settings, label: 'Muhasebe Ayarları', href: '/accounting/settings', roles: ['super_admin', 'admin', 'accounting'] },
   { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['super_admin'] },
 ];
 

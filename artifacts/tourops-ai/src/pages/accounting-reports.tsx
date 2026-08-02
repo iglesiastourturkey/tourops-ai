@@ -12,7 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/labels';
-import { Download, FileSpreadsheet, Archive, FileText as FilePdf, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Filter } from 'lucide-react';
+import {
+  Download, FileSpreadsheet, Archive, FileText as FilePdf,
+  TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Filter
+} from 'lucide-react';
 import { useAuth } from '@clerk/react';
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -29,7 +32,18 @@ const PAYMENT_STATUS_LABELS: Record<string, string> = {
   pending: 'Bekliyor', paid: 'Ödendi', partially_paid: 'Kısmi Ödendi', cancelled: 'İptal',
 };
 const ACCT_STATUS_LABELS: Record<string, string> = {
-  pending_review: 'Bekliyor', approved: 'Onaylandı', rejected: 'Reddedildi', missing_information: 'Eksik',
+  pending_review: 'İnceleme Bekliyor', approved: 'Onaylandı',
+  rejected: 'Reddedildi', missing_information: 'Eksik Bilgi',
+};
+const CATEGORY_LABELS: Record<string, string> = {
+  customer_payment: 'Müşteri Ödemesi', advance_payment: 'Avans Ödemesi',
+  quotation_payment: 'Teklif Ödemesi', operation_income: 'Operasyon Geliri',
+  refund_received: 'İade Alındı', other_income: 'Diğer Gelir',
+  supplier: 'Tedarikçi', guide: 'Rehber', driver: 'Sürücü/Transfer',
+  hotel: 'Otel', restaurant: 'Restoran', entrance_ticket: 'Giriş Bileti',
+  fuel: 'Yakıt', parking: 'Park', commission: 'Komisyon', tax: 'Vergi',
+  office: 'Ofis Gideri', customer_refund: 'Müşteri İadesi', other: 'Diğer',
+  transportation: 'Ulaşım', activity: 'Aktivite',
 };
 
 interface Filters {
@@ -75,10 +89,13 @@ export default function AccountingReportsPage() {
     try {
       const token = await getToken();
       const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
+      const body: Record<string, unknown> = { filters: activeFilters };
+      if (selectedIds.size > 0) body.selectedIds = Array.from(selectedIds);
+
       const resp = await fetch(`${API_BASE}/accounting/export/${format}`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filters: activeFilters }),
+        body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const blob = await resp.blob();
@@ -89,7 +106,8 @@ export default function AccountingReportsPage() {
       a.download = `muhasebe-raporu-${Date.now()}.${ext}`;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast({ title: `${format.toUpperCase()} başarıyla indirildi` });
+      const countLabel = selectedIds.size > 0 ? ` (${selectedIds.size} kayıt)` : '';
+      toast({ title: `${format.toUpperCase()} başarıyla indirildi${countLabel}` });
     } catch {
       toast({ title: 'İndirme başarısız', description: 'Lütfen tekrar deneyin', variant: 'destructive' });
     } finally { setDownloading(null); }
@@ -100,6 +118,7 @@ export default function AccountingReportsPage() {
   const expenses = rows.filter(t => t.type === 'expense');
   const totalIncome = income.reduce((s, t) => s + (t.amountTry ?? (t.currency === 'TRY' ? t.amount : 0)), 0);
   const totalExpenses = expenses.reduce((s, t) => s + (t.amountTry ?? (t.currency === 'TRY' ? t.amount : 0)), 0);
+  const exportCount = selectedIds.size > 0 ? selectedIds.size : rows.length;
 
   return (
     <AppShell>
@@ -113,13 +132,12 @@ export default function AccountingReportsPage() {
             <Button variant="outline" size="sm" onClick={() => setShowFilters(v => !v)}>
               <Filter className="h-3.5 w-3.5 mr-1.5" />Filtreler
             </Button>
-            <Button variant="outline" size="sm" onClick={() => refetch()}>
+            <Button variant="outline" size="sm" onClick={() => refetch()} aria-label="Verileri yenile" title="Verileri yenile">
               <RefreshCw className="h-3.5 w-3.5 mr-1.5" />Yenile
             </Button>
           </div>
         </div>
 
-        {/* Filter panel */}
         {showFilters && (
           <Card>
             <CardContent className="pt-5 pb-4">
@@ -141,9 +159,10 @@ export default function AccountingReportsPage() {
                     <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="__all__">Tümü</SelectItem>
-                      <SelectItem value="pending_review">Bekliyor</SelectItem>
+                      <SelectItem value="pending_review">İnceleme Bekliyor</SelectItem>
                       <SelectItem value="approved">Onaylandı</SelectItem>
                       <SelectItem value="rejected">Reddedildi</SelectItem>
+                      <SelectItem value="missing_information">Eksik Bilgi</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -191,13 +210,12 @@ export default function AccountingReportsPage() {
           </Card>
         )}
 
-        {/* Summary + Export */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-5 pb-4 flex items-center gap-3">
               <TrendingUp className="h-5 w-5 text-emerald-600" />
               <div>
-                <p className="text-xs text-muted-foreground">Toplam Gelir</p>
+                <p className="text-xs text-muted-foreground">Toplam Gelir (TRY)</p>
                 <p className="text-lg font-bold text-emerald-600">{isLoading ? '…' : formatCurrency(totalIncome)}</p>
               </div>
             </CardContent>
@@ -206,26 +224,43 @@ export default function AccountingReportsPage() {
             <CardContent className="pt-5 pb-4 flex items-center gap-3">
               <TrendingDown className="h-5 w-5 text-red-600" />
               <div>
-                <p className="text-xs text-muted-foreground">Toplam Gider</p>
+                <p className="text-xs text-muted-foreground">Toplam Gider (TRY)</p>
                 <p className="text-lg font-bold text-red-600">{isLoading ? '…' : formatCurrency(totalExpenses)}</p>
               </div>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="pt-5 pb-4">
-              <p className="text-xs text-muted-foreground mb-2.5">Dışa Aktar ({rows.length} kayıt)</p>
+              <p className="text-xs text-muted-foreground mb-2.5">
+                Dışa Aktar
+                {selectedIds.size > 0 ? (
+                  <span className="ml-1 font-medium text-[#0d7377]">— {selectedIds.size} seçili kayıt</span>
+                ) : (
+                  <span className="ml-1">— {rows.length} kayıt</span>
+                )}
+              </p>
               <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!!downloading}
-                  onClick={() => downloadExport('pdf')}>
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
+                  disabled={!!downloading}
+                  onClick={() => downloadExport('pdf')}
+                  title="PDF, Excel veya ZIP olarak dışa aktar">
                   {downloading === 'pdf' ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <FilePdf className="h-3 w-3 mr-1" />}
                   PDF
                 </Button>
-                <Button size="sm" variant="outline" className="h-7 text-xs" disabled={!!downloading}
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium"
+                  disabled={!!downloading}
                   onClick={() => downloadExport('excel')}>
                   {downloading === 'excel' ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <FileSpreadsheet className="h-3 w-3 mr-1" />}
                   Excel
                 </Button>
-                <Button size="sm" className="h-7 text-xs bg-[#1e3a5f] hover:bg-[#1e3a5f]/90" disabled={!!downloading}
+                <Button
+                  size="sm"
+                  className="h-8 text-xs bg-[#1e3a5f] hover:bg-[#162d4a] text-white font-medium"
+                  disabled={!!downloading}
                   onClick={() => downloadExport('zip')}>
                   {downloading === 'zip' ? <RefreshCw className="h-3 w-3 mr-1 animate-spin" /> : <Archive className="h-3 w-3 mr-1" />}
                   ZIP
@@ -243,14 +278,13 @@ export default function AccountingReportsPage() {
           </div>
         )}
 
-        {/* Results table */}
         <Card>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-[#1e3a5f]/5 border-b">
                 <tr className="text-left text-xs text-muted-foreground">
                   <th className="px-3 py-3">
-                    <Checkbox checked={!!data && data.length > 0 && selectedIds.size === data.length} onCheckedChange={toggleAll} />
+                    <Checkbox checked={!!data && data.length > 0 && selectedIds.size === data.length} onCheckedChange={toggleAll} aria-label="Tümünü seç" />
                   </th>
                   <th className="px-4 py-3 font-medium">Tarih</th>
                   <th className="px-4 py-3 font-medium">Tür</th>
@@ -282,7 +316,7 @@ export default function AccountingReportsPage() {
                         <span className="text-xs">{tx.type === 'income' ? 'Gelir' : 'Gider'}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-xs">{tx.category}</td>
+                    <td className="px-4 py-3 text-xs">{CATEGORY_LABELS[tx.category] ?? tx.category}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground max-w-[180px] truncate">
                       {tx.description ?? tx.customerName ?? tx.supplierName ?? '—'}
                     </td>
@@ -311,13 +345,25 @@ export default function AccountingReportsPage() {
             <div className="border-t px-4 py-3 flex items-center gap-3 bg-[#0d7377]/5">
               <span className="text-sm text-muted-foreground">{selectedIds.size} satır seçildi</span>
               <div className="flex gap-2 ml-auto">
-                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>
-                  Seçimi Kaldır
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => downloadExport('pdf')} disabled={!!downloading}>
+                  <FilePdf className="h-3 w-3 mr-1" />PDF İndir
                 </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => downloadExport('excel')} disabled={!!downloading}>
+                  <FileSpreadsheet className="h-3 w-3 mr-1" />Excel İndir
+                </Button>
+                <Button size="sm" className="h-7 text-xs bg-[#1e3a5f] text-white hover:bg-[#162d4a]" onClick={() => downloadExport('zip')} disabled={!!downloading}>
+                  <Archive className="h-3 w-3 mr-1" />ZIP İndir
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setSelectedIds(new Set())}>Seçimi Kaldır</Button>
               </div>
             </div>
           )}
         </Card>
+
+        {/* Disclaimer */}
+        <p className="text-[11px] text-muted-foreground border rounded-lg p-3 bg-muted/30">
+          ⚠ Bu ekran operasyonel finans takibi içindir; resmi muhasebe ve vergi beyannamesi yerine geçmez.
+        </p>
       </div>
     </AppShell>
   );

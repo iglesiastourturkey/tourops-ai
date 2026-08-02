@@ -61,6 +61,8 @@ export const accountingDocumentsTable = pgTable("accounting_documents", {
   createdByProfileId: integer("created_by_profile_id").notNull().references(() => profilesTable.id, { onDelete: "restrict" }),
   reviewedByProfileId: integer("reviewed_by_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  // Manual correction audit (JSON: field overrides; original OCR values stay in main columns)
+  correctedFields: text("corrected_fields"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
@@ -76,3 +78,20 @@ export type AccountingTransaction = typeof accountingTransactionsTable.$inferSel
 export type AccountingDocument = typeof accountingDocumentsTable.$inferSelect;
 export type InsertAccountingTransaction = z.infer<typeof insertAccountingTransactionSchema>;
 export type InsertAccountingDocument = z.infer<typeof insertAccountingDocumentSchema>;
+
+// ── Accounting Settings ────────────────────────────────────────────────────────
+export const accountingSettingsTable = pgTable("accounting_settings", {
+  id: serial("id").primaryKey(),
+  defaultCurrency: text("default_currency").notNull().default("TRY"),
+  fiscalYearStartMonth: integer("fiscal_year_start_month").notNull().default(1),
+  defaultVatRate: real("default_vat_rate").notNull().default(20),
+  // JSON arrays stored as text
+  vatRates: text("vat_rates").notNull().default('["0","1","8","10","20"]'),
+  paymentMethods: text("payment_methods").notNull().default('["Nakit","Kredi Kartı","Havale/EFT","Çek","Döviz"]'),
+  documentNumberPrefix: text("document_number_prefix").notNull().default("TRP"),
+  accountantNotes: text("accountant_notes"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type AccountingSettings = typeof accountingSettingsTable.$inferSelect;

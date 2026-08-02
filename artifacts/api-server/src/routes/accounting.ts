@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import {
   accountingTransactionsTable,
   accountingDocumentsTable,
+  accountingSettingsTable,
   operationReceiptsTable,
   operationsTable,
   toursTable,
@@ -12,9 +13,11 @@ import {
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, inArray, isNull, not, desc, or, sql } from "drizzle-orm";
 import { requireAuth, getProfile, requireAnyRole } from "../lib/auth";
+import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 
 const router = Router();
 router.use(requireAuth, getProfile);
+const objectStorageService = new ObjectStorageService();
 
 // Role helpers
 const FULL_ACCESS = ["admin", "accounting"];
@@ -45,18 +48,14 @@ router.get("/dashboard", async (req, res) => {
     const today = todayStr();
     const nextWeek = new Date(Date.now() + 7 * 86_400_000).toISOString().split("T")[0];
 
-    const [txRows, receiptPending, missingPhoto, unpaidTx, upcomingDue] = await Promise.all([
+    const [txRows, receiptPending, missingPhoto, upcomingDue,
+           missingInfoReceipts, docPending, missingInfoDocs, overdueRows] = await Promise.all([
       db.select().from(accountingTransactionsTable)
         .where(not(inArray(accountingTransactionsTable.accountingStatus, ["rejected"]))),
       db.select({ id: operationReceiptsTable.id }).from(operationReceiptsTable)
         .where(eq(operationReceiptsTable.reviewStatus, "pending_review")),
       db.select({ id: operationReceiptsTable.id }).from(operationReceiptsTable)
         .where(isNull(operationReceiptsTable.photoObjectPath)),
-      db.select({ id: accountingTransactionsTable.id }).from(accountingTransactionsTable)
-        .where(and(
-          eq(accountingTransactionsTable.type, "income"),
-          eq(accountingTransactionsTable.paymentStatus, "pending"),
-        )),
       db.select({
         id: accountingTransactionsTable.id,
         dueDate: accountingTransactionsTable.dueDate,
@@ -70,20 +69,57 @@ router.get("/dashboard", async (req, res) => {
           lte(accountingTransactionsTable.dueDate, nextWeek),
           not(inArray(accountingTransactionsTable.paymentStatus, ["paid", "cancelled"])),
         )).orderBy(accountingTransactionsTable.dueDate).limit(5),
+      db.select({ id: operationReceiptsTable.id }).from(operationReceiptsTable)
+        .where(eq(operationReceiptsTable.reviewStatus, "missing_information")),
+      db.select({ id: accountingDocumentsTable.id }).from(accountingDocumentsTable)
+        .where(eq(accountingDocumentsTable.reviewStatus, "pending")),
+      db.select({ id: accountingDocumentsTable.id }).from(accountingDocumentsTable)
+        .where(eq(accountingDocumentsTable.reviewStatus, "missing_information")),
+      db.select({
+        id: accountingTransactionsTable.id,
+        type: accountingTransactionsTable.type,
+        dueDate: accountingTransactionsTable.dueDate,
+        amount: accountingTransactionsTable.amount,
+        currency: accountingTransactionsTable.currency,
+        amountTry: accountingTransactionsTable.amountTry,
+        description: accountingTransactionsTable.description,
+      }).from(accountingTransactionsTable)
+        .where(and(
+          lte(accountingTransactionsTable.dueDate, today),
+          not(inArray(accountingTransactionsTable.paymentStatus, ["paid", "cancelled"])),
+        )).orderBy(accountingTransactionsTable.dueDate).limit(20),
     ]);
 
-    // This month income / expenses (TRY)
-    const thisMonthIncome = txRows
-      .filter(t => t.type === "income" && t.transactionDate >= monthStart && t.currency === "TRY")
-      .reduce((s, t) => s + (t.amountTry ?? t.amount), 0);
-    const thisMonthExpenses = txRows
-      .filter(t => t.type === "expense" && t.transactionDate >= monthStart && t.currency === "TRY")
-      .reduce((s, t) => s + (t.amountTry ?? t.amount), 0);
+    // This month income / expenses (TRY equiv)
+    const thisMonthTx = txRows.filter(t => t.transactionDate >= monthStart);
+    const thisMonthIncome = thisMonthTx
+      .filter(t => t.type === "income")
+      .reduce((s, t) => s + (t.amountTry ?? (t.currency === "TRY" ? t.amount : 0)), 0);
+    const thisMonthExpenses = thisMonthTx
+      .filter(t => t.type === "expense")
+      .reduce((s, t) => s + (t.amountTry ?? (t.currency === "TRY" ? t.amount : 0)), 0);
+
+    // Pending receivables / payables (all-time unpaid, TRY equiv)
+    const pendingReceivablesAmount = txRows
+      .filter(t => t.type === "income" && !["paid", "cancelled"].includes(t.paymentStatus))
+      .reduce((s, t) => s + (t.amountTry ?? (t.currency === "TRY" ? t.amount : 0)), 0);
+    const pendingPayablesAmount = txRows
+      .filter(t => t.type === "expense" && !["paid", "cancelled"].includes(t.paymentStatus))
+      .reduce((s, t) => s + (t.amountTry ?? (t.currency === "TRY" ? t.amount : 0)), 0);
+
+    // Overdue counts
+    const overdueReceivablesCount = overdueRows.filter(t => t.type === "income").length;
+    const overduePayablesCount = overdueRows.filter(t => t.type === "expense").length;
+
+    // VAT total on approved transactions
+    const vatApprovedTotal = txRows
+      .filter(t => t.accountingStatus === "approved")
+      .reduce((s, t) => s + ((t as { taxAmount?: number }).taxAmount ?? 0), 0);
 
     // Expense category breakdown (this month)
     const categoryBreakdown: Record<string, number> = {};
-    txRows
-      .filter(t => t.type === "expense" && t.transactionDate >= monthStart)
+    thisMonthTx
+      .filter(t => t.type === "expense")
       .forEach(t => {
         categoryBreakdown[t.category] = (categoryBreakdown[t.category] || 0) + (t.amountTry ?? t.amount);
       });
@@ -107,18 +143,22 @@ router.get("/dashboard", async (req, res) => {
       };
     });
 
-    // Pending review documents (accounting_documents)
-    const docPending = await db.select({ id: accountingDocumentsTable.id }).from(accountingDocumentsTable)
-      .where(eq(accountingDocumentsTable.reviewStatus, "pending"));
-
     return res.json({
       thisMonthIncome,
       thisMonthExpenses,
       grossProfit: thisMonthIncome - thisMonthExpenses,
+      netCashFlow: thisMonthIncome - thisMonthExpenses,
       pendingReviewCount: receiptPending.length + docPending.length,
       missingPhotoCount: missingPhoto.length,
-      unpaidTransactions: unpaidTx.length,
+      missingInfoCount: missingInfoReceipts.length + missingInfoDocs.length,
+      unpaidTransactions: txRows.filter(t => t.type === "income" && t.paymentStatus === "pending").length,
+      pendingReceivablesAmount,
+      pendingPayablesAmount,
+      overdueReceivablesCount,
+      overduePayablesCount,
+      vatApprovedTotal,
       upcomingDue,
+      overdueItems: overdueRows.slice(0, 10),
       categoryBreakdown,
       monthlyChart,
     });
@@ -363,6 +403,8 @@ router.get("/documents", async (req, res) => {
         photoObjectPath: operationReceiptsTable.photoObjectPath,
         reviewStatus: operationReceiptsTable.reviewStatus,
         reviewNotes: operationReceiptsTable.reviewNotes,
+        ocrStatus: operationReceiptsTable.ocrStatus,
+        linkedTransactionId: sql<number | null>`(SELECT id FROM accounting_transactions WHERE receipt_id = ${operationReceiptsTable.id} LIMIT 1)`,
         createdAt: operationReceiptsTable.createdAt,
         tourName: toursTable.name,
         guideName: operationsTable.guideName,
@@ -383,6 +425,7 @@ router.get("/documents", async (req, res) => {
         originalFileName: accountingDocumentsTable.originalFileName,
         reviewStatus: accountingDocumentsTable.reviewStatus,
         notes: accountingDocumentsTable.notes,
+        ocrStatus: accountingDocumentsTable.ocrStatus,
         transactionId: accountingDocumentsTable.transactionId,
         createdAt: accountingDocumentsTable.createdAt,
       })
@@ -578,6 +621,381 @@ router.get("/operations/:id", async (req, res) => {
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Operasyon muhasebe dosyası yüklenemedi" });
+  }
+});
+
+// ── Mark transaction as missing info ────────────────────────────────────────────
+
+router.post("/transactions/:id/mark-missing", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+    const id = parseInt(req.params.id as string);
+    const [row] = await db.update(accountingTransactionsTable)
+      .set({ accountingStatus: "missing_information" })
+      .where(eq(accountingTransactionsTable.id, id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    return res.json(row);
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Güncelleme başarısız" }); }
+});
+
+// ── Mark transaction as paid ──────────────────────────────────────────────────
+
+router.post("/transactions/:id/mark-paid", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+    const id = parseInt(req.params.id as string);
+    const [row] = await db.update(accountingTransactionsTable)
+      .set({ paymentStatus: "paid", paidAt: new Date() })
+      .where(eq(accountingTransactionsTable.id, id))
+      .returning();
+    if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    return res.json(row);
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Güncelleme başarısız" }); }
+});
+
+// ── Settings ──────────────────────────────────────────────────────────────────
+
+router.get("/settings", async (req, res) => {
+  try {
+    const role = res.locals.profile?.role as string;
+    if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
+    const [settings] = await db.select().from(accountingSettingsTable).limit(1);
+    if (!settings) {
+      return res.json({
+        id: null, defaultCurrency: "TRY", fiscalYearStartMonth: 1,
+        defaultVatRate: 20, vatRates: '["0","1","8","10","20"]',
+        paymentMethods: '["Nakit","Kredi Kartı","Havale/EFT","Çek","Döviz"]',
+        documentNumberPrefix: "TRP", accountantNotes: null,
+      });
+    }
+    return res.json(settings);
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Ayarlar yüklenemedi" }); }
+});
+
+router.put("/settings", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+    const { id: _id, createdAt: _c, updatedAt: _u, ...body } = req.body;
+    const [existing] = await db.select({ id: accountingSettingsTable.id }).from(accountingSettingsTable).limit(1);
+    if (existing) {
+      const [row] = await db.update(accountingSettingsTable).set(body).where(eq(accountingSettingsTable.id, existing.id)).returning();
+      return res.json(row);
+    }
+    const [row] = await db.insert(accountingSettingsTable).values(body).returning();
+    return res.status(201).json(row);
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Ayarlar kaydedilemedi" }); }
+});
+
+// ── Receivables ───────────────────────────────────────────────────────────────
+
+router.get("/receivables", async (req, res) => {
+  try {
+    const role = res.locals.profile?.role as string;
+    if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
+    const today = todayStr();
+    const rows = await db.select({
+      id: accountingTransactionsTable.id,
+      category: accountingTransactionsTable.category,
+      amount: accountingTransactionsTable.amount,
+      currency: accountingTransactionsTable.currency,
+      amountTry: accountingTransactionsTable.amountTry,
+      paymentStatus: accountingTransactionsTable.paymentStatus,
+      transactionDate: accountingTransactionsTable.transactionDate,
+      dueDate: accountingTransactionsTable.dueDate,
+      description: accountingTransactionsTable.description,
+      documentNumber: accountingTransactionsTable.documentNumber,
+      operationId: accountingTransactionsTable.operationId,
+      customerName: customersTable.name,
+      tourName: toursTable.name,
+    })
+    .from(accountingTransactionsTable)
+    .leftJoin(customersTable, eq(accountingTransactionsTable.customerId, customersTable.id))
+    .leftJoin(toursTable, eq(accountingTransactionsTable.tourId, toursTable.id))
+    .where(and(
+      eq(accountingTransactionsTable.type, "income"),
+      not(inArray(accountingTransactionsTable.paymentStatus, ["paid", "cancelled"])),
+    ))
+    .orderBy(accountingTransactionsTable.dueDate)
+    .limit(200);
+    return res.json(rows.map(r => ({
+      ...r,
+      overdueDays: r.dueDate && r.dueDate < today
+        ? Math.floor((Date.now() - new Date(r.dueDate).getTime()) / 86400000) : 0,
+      isOverdue: r.dueDate ? r.dueDate < today : false,
+    })));
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Alacaklar yüklenemedi" }); }
+});
+
+// ── Payables ──────────────────────────────────────────────────────────────────
+
+router.get("/payables", async (req, res) => {
+  try {
+    const role = res.locals.profile?.role as string;
+    if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
+    const today = todayStr();
+    const rows = await db.select({
+      id: accountingTransactionsTable.id,
+      category: accountingTransactionsTable.category,
+      amount: accountingTransactionsTable.amount,
+      currency: accountingTransactionsTable.currency,
+      amountTry: accountingTransactionsTable.amountTry,
+      paymentStatus: accountingTransactionsTable.paymentStatus,
+      transactionDate: accountingTransactionsTable.transactionDate,
+      dueDate: accountingTransactionsTable.dueDate,
+      description: accountingTransactionsTable.description,
+      documentNumber: accountingTransactionsTable.documentNumber,
+      operationId: accountingTransactionsTable.operationId,
+      supplierName: suppliersTable.name,
+      tourName: toursTable.name,
+    })
+    .from(accountingTransactionsTable)
+    .leftJoin(suppliersTable, eq(accountingTransactionsTable.supplierId, suppliersTable.id))
+    .leftJoin(toursTable, eq(accountingTransactionsTable.tourId, toursTable.id))
+    .where(and(
+      eq(accountingTransactionsTable.type, "expense"),
+      not(inArray(accountingTransactionsTable.paymentStatus, ["paid", "cancelled"])),
+    ))
+    .orderBy(accountingTransactionsTable.dueDate)
+    .limit(200);
+    return res.json(rows.map(r => ({
+      ...r,
+      overdueDays: r.dueDate && r.dueDate < today
+        ? Math.floor((Date.now() - new Date(r.dueDate).getTime()) / 86400000) : 0,
+      isOverdue: r.dueDate ? r.dueDate < today : false,
+    })));
+  } catch (e) { console.error(e); return res.status(500).json({ error: "Borçlar yüklenemedi" }); }
+});
+
+// ── Document / receipt detail ──────────────────────────────────────────────────
+
+router.get("/documents/:type/:id", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+
+    const { type, id: idStr } = req.params as { type: string; id: string };
+    const id = parseInt(idStr);
+    if (!["receipt", "document"].includes(type)) return res.status(400).json({ error: "Geçersiz tür" });
+
+    if (type === "receipt") {
+      const [row] = await db.select({
+        id: operationReceiptsTable.id,
+        amount: operationReceiptsTable.amount,
+        currency: operationReceiptsTable.currency,
+        supplierName: operationReceiptsTable.supplierName,
+        receiptDate: operationReceiptsTable.receiptDate,
+        guideNote: operationReceiptsTable.guideNote,
+        photoObjectPath: operationReceiptsTable.photoObjectPath,
+        ocrStatus: operationReceiptsTable.ocrStatus,
+        reviewStatus: operationReceiptsTable.reviewStatus,
+        reviewNotes: operationReceiptsTable.reviewNotes,
+        reviewedByProfileId: operationReceiptsTable.reviewedByProfileId,
+        reviewedAt: operationReceiptsTable.reviewedAt,
+        correctedFields: operationReceiptsTable.correctedFields,
+        operationId: operationReceiptsTable.operationId,
+        createdByUserId: operationReceiptsTable.createdByUserId,
+        createdAt: operationReceiptsTable.createdAt,
+        updatedAt: operationReceiptsTable.updatedAt,
+        tourName: toursTable.name,
+        customerName: customersTable.name,
+        guideName: operationsTable.guideName,
+        driverName: operationsTable.driverName,
+        startDate: operationsTable.startDate,
+        endDate: operationsTable.endDate,
+      })
+      .from(operationReceiptsTable)
+      .leftJoin(operationsTable, eq(operationReceiptsTable.operationId, operationsTable.id))
+      .leftJoin(toursTable, eq(operationsTable.tourId, toursTable.id))
+      .leftJoin(customersTable, eq(operationsTable.customerId, customersTable.id))
+      .where(eq(operationReceiptsTable.id, id))
+      .limit(1);
+
+      if (!row) return res.status(404).json({ error: "Makbuz bulunamadı" });
+
+      // Reviewer profile + linked transaction + operation expense total
+      const [reviewerRow, linkedTxRow, expRow] = await Promise.all([
+        row.reviewedByProfileId
+          ? db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.id, row.reviewedByProfileId)).limit(1)
+          : Promise.resolve([]),
+        db.select({ id: accountingTransactionsTable.id, accountingStatus: accountingTransactionsTable.accountingStatus, paymentStatus: accountingTransactionsTable.paymentStatus })
+          .from(accountingTransactionsTable).where(eq(accountingTransactionsTable.receiptId, id)).limit(1),
+        row.operationId
+          ? db.select({ total: sql<number>`COALESCE(SUM(${accountingTransactionsTable.amount}), 0)` })
+              .from(accountingTransactionsTable)
+              .where(and(eq(accountingTransactionsTable.operationId, row.operationId), eq(accountingTransactionsTable.type, "expense"), eq(accountingTransactionsTable.accountingStatus, "approved")))
+          : Promise.resolve([{ total: 0 }]),
+      ]);
+
+      return res.json({
+        type: "receipt",
+        ...row,
+        reviewerName: reviewerRow[0]?.name ?? null,
+        linkedTransaction: linkedTxRow[0] ?? null,
+        operationExpenses: Number(expRow[0]?.total ?? 0),
+      });
+
+    } else {
+      const [row] = await db.select({
+        id: accountingDocumentsTable.id,
+        documentType: accountingDocumentsTable.documentType,
+        objectPath: accountingDocumentsTable.objectPath,
+        originalFileName: accountingDocumentsTable.originalFileName,
+        mimeType: accountingDocumentsTable.mimeType,
+        fileSize: accountingDocumentsTable.fileSize,
+        ocrStatus: accountingDocumentsTable.ocrStatus,
+        reviewStatus: accountingDocumentsTable.reviewStatus,
+        notes: accountingDocumentsTable.notes,
+        correctedFields: accountingDocumentsTable.correctedFields,
+        transactionId: accountingDocumentsTable.transactionId,
+        operationId: accountingDocumentsTable.operationId,
+        createdByProfileId: accountingDocumentsTable.createdByProfileId,
+        reviewedByProfileId: accountingDocumentsTable.reviewedByProfileId,
+        reviewedAt: accountingDocumentsTable.reviewedAt,
+        createdAt: accountingDocumentsTable.createdAt,
+        updatedAt: accountingDocumentsTable.updatedAt,
+        tourName: toursTable.name,
+        customerName: customersTable.name,
+        guideName: operationsTable.guideName,
+        driverName: operationsTable.driverName,
+        startDate: operationsTable.startDate,
+        endDate: operationsTable.endDate,
+      })
+      .from(accountingDocumentsTable)
+      .leftJoin(operationsTable, eq(accountingDocumentsTable.operationId, operationsTable.id))
+      .leftJoin(toursTable, eq(operationsTable.tourId, toursTable.id))
+      .leftJoin(customersTable, eq(operationsTable.customerId, customersTable.id))
+      .where(eq(accountingDocumentsTable.id, id))
+      .limit(1);
+
+      if (!row) return res.status(404).json({ error: "Belge bulunamadı" });
+
+      const [creatorRow, reviewerRow, linkedTxRow] = await Promise.all([
+        db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.id, row.createdByProfileId)).limit(1),
+        row.reviewedByProfileId
+          ? db.select({ name: profilesTable.name }).from(profilesTable).where(eq(profilesTable.id, row.reviewedByProfileId)).limit(1)
+          : Promise.resolve([]),
+        row.transactionId
+          ? db.select({ id: accountingTransactionsTable.id, accountingStatus: accountingTransactionsTable.accountingStatus, paymentStatus: accountingTransactionsTable.paymentStatus })
+              .from(accountingTransactionsTable).where(eq(accountingTransactionsTable.id, row.transactionId)).limit(1)
+          : Promise.resolve([]),
+      ]);
+
+      return res.json({
+        type: "document",
+        ...row,
+        creatorName: creatorRow[0]?.name ?? null,
+        reviewerName: reviewerRow[0]?.name ?? null,
+        linkedTransaction: linkedTxRow[0] ?? null,
+      });
+    }
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Belge detayı yüklenemedi" });
+  }
+});
+
+// ── Save corrected fields ──────────────────────────────────────────────────────
+
+router.put("/documents/:type/:id", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+
+    const { type, id: idStr } = req.params as { type: string; id: string };
+    const id = parseInt(idStr);
+    if (!["receipt", "document"].includes(type)) return res.status(400).json({ error: "Geçersiz tür" });
+
+    const { correctedFields, notes } = req.body as { correctedFields?: Record<string, unknown>; notes?: string };
+    const cfJson = correctedFields !== undefined ? JSON.stringify(correctedFields) : undefined;
+
+    if (type === "receipt") {
+      const [row] = await db.select({ reviewStatus: operationReceiptsTable.reviewStatus })
+        .from(operationReceiptsTable).where(eq(operationReceiptsTable.id, id)).limit(1);
+      if (!row) return res.status(404).json({ error: "Bulunamadı" });
+      if (row.reviewStatus === "approved") return res.status(409).json({ error: "Onaylanmış kayıt düzenlenemez" });
+      const [updated] = await db.update(operationReceiptsTable)
+        .set({ ...(cfJson !== undefined ? { correctedFields: cfJson } : {}), updatedAt: new Date() })
+        .where(eq(operationReceiptsTable.id, id)).returning();
+      return res.json(updated);
+    } else {
+      const [row] = await db.select({ reviewStatus: accountingDocumentsTable.reviewStatus })
+        .from(accountingDocumentsTable).where(eq(accountingDocumentsTable.id, id)).limit(1);
+      if (!row) return res.status(404).json({ error: "Bulunamadı" });
+      if (row.reviewStatus === "approved") return res.status(409).json({ error: "Onaylanmış kayıt düzenlenemez" });
+      const [updated] = await db.update(accountingDocumentsTable)
+        .set({
+          ...(cfJson !== undefined ? { correctedFields: cfJson } : {}),
+          ...(notes !== undefined ? { notes } : {}),
+          updatedAt: new Date(),
+        })
+        .where(eq(accountingDocumentsTable.id, id)).returning();
+      return res.json(updated);
+    }
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Düzenlemeler kaydedilemedi" });
+  }
+});
+
+// ── File proxy ─────────────────────────────────────────────────────────────────
+
+router.get("/documents/:type/:id/file", async (req, res) => {
+  try {
+    const profile = res.locals.profile;
+    if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
+
+    const { type, id: idStr } = req.params as { type: string; id: string };
+    const id = parseInt(idStr);
+    if (!["receipt", "document"].includes(type)) return res.status(400).json({ error: "Geçersiz tür" });
+
+    let objectPath: string | null = null;
+    let fileName = "dosya";
+    let mimeType = "application/octet-stream";
+
+    if (type === "receipt") {
+      const [row] = await db.select({ photoObjectPath: operationReceiptsTable.photoObjectPath })
+        .from(operationReceiptsTable).where(eq(operationReceiptsTable.id, id)).limit(1);
+      if (!row) return res.status(404).json({ error: "Makbuz bulunamadı" });
+      if (!row.photoObjectPath) return res.status(404).json({ error: "Bu makbuzda fotoğraf yok" });
+      objectPath = row.photoObjectPath;
+      const ext = objectPath.endsWith(".png") ? "png" : "jpg";
+      fileName = `makbuz-${id}.${ext}`;
+      mimeType = ext === "png" ? "image/png" : "image/jpeg";
+    } else {
+      const [row] = await db.select({
+        objectPath: accountingDocumentsTable.objectPath,
+        originalFileName: accountingDocumentsTable.originalFileName,
+        mimeType: accountingDocumentsTable.mimeType,
+      }).from(accountingDocumentsTable).where(eq(accountingDocumentsTable.id, id)).limit(1);
+      if (!row) return res.status(404).json({ error: "Belge bulunamadı" });
+      objectPath = row.objectPath;
+      fileName = row.originalFileName;
+      mimeType = row.mimeType;
+    }
+
+    try {
+      const file = await objectStorageService.getObjectEntityFile(objectPath!);
+      const [metadata] = await file.getMetadata();
+      const ct = (metadata.contentType as string) || mimeType;
+      res.setHeader("Content-Type", ct);
+      res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
+      if (metadata.size) res.setHeader("Content-Length", String(metadata.size));
+      file.createReadStream().pipe(res);
+    } catch (storageErr) {
+      if (storageErr instanceof ObjectNotFoundError) {
+        return res.status(404).json({ error: "Dosya depolamada bulunamadı" });
+      }
+      throw storageErr;
+    }
+    return;
+  } catch (e) {
+    console.error(e);
+    if (!res.headersSent) return res.status(500).json({ error: "Dosya sunulamadı" });
+    return;
   }
 });
 

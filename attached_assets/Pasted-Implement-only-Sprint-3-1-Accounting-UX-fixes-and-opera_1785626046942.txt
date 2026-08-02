@@ -1,0 +1,345 @@
+Implement only Sprint 3.1: Accounting UX fixes and operational finance enhancements.
+
+Current UI problems:
+- Primary buttons such as “Yeni İşlem”, “Raporlar & İhracat” and dialog confirmation buttons have insufficient contrast and appear disabled even when active.
+- Icon-only accounting actions are unclear.
+- English category values such as “other” are visible.
+- The account page displays an incorrect generic role label such as “Personel”.
+- Accounting statistics do not yet provide enough cash-flow, tax and payment information.
+
+1. Button visibility and states
+
+Fix all accounting buttons so their states are visually clear:
+
+- Active primary button:
+  teal background
+  white text
+  visible border
+  proper hover and focus state
+
+- Disabled button:
+  muted gray background
+  muted text
+  not-allowed cursor
+
+- Destructive button:
+  red text or red background according to context
+
+Apply this to:
+- Yeni İşlem
+- Raporlar & İhracat
+- Onayla
+- Reddet
+- Eksik Bilgi
+- Kaydet
+- PDF / Excel / ZIP export buttons
+
+Never use white text on a nearly white background.
+
+2. Tooltips and accessible labels
+
+Every icon-only action must have:
+- Turkish tooltip on hover
+- accessible aria-label
+- visible focus state
+
+Required tooltips:
+
+Green check:
+“İşlemi onayla”
+
+Red cross:
+“İşlemi reddet”
+
+Warning/info action:
+“Eksik bilgi olarak işaretle”
+
+Plus icon:
+“Yeni gelir veya gider işlemi oluştur”
+
+Refresh:
+“Verileri yenile”
+
+Arrow on cards:
+“Detayları görüntüle”
+
+Export icon:
+“PDF, Excel veya ZIP olarak dışa aktar”
+
+On mobile, do not rely only on hover. Use visible text labels or an action menu.
+
+3. Replace ambiguous icon actions
+
+In accounting tables, replace isolated icons with a three-dot action menu or clearly labelled buttons:
+
+- Detayları Gör
+- Düzenle
+- Onayla
+- Reddet
+- Eksik Bilgi
+- Ödendi İşaretle
+- İptal Et
+
+Approved transactions must not be hard-deleted.
+
+4. Turkish labels
+
+Map all internal values to Turkish UI labels.
+
+Examples:
+- other → Diğer
+- income → Gelir
+- expense → Gider
+- pending → Bekliyor
+- paid → Ödendi
+- partially_paid → Kısmen Ödendi
+- pending_review → İnceleme Bekliyor
+- approved → Onaylandı
+- rejected → Reddedildi
+- missing_information → Eksik Bilgi
+
+Never expose raw database enum values in the UI.
+
+5. Fix account role label
+
+The account/settings page must display the actual profile role:
+
+- super_admin → Süper Yönetici
+- admin → Yönetici
+- operations → Operasyon
+- accounting → Muhasebe
+- guide → Rehber
+
+Do not show the generic “Personel” label when a real role exists.
+
+6. Accounting dashboard enhancements
+
+Use real database records only.
+
+Add cards for:
+
+- Bu Ay Gelir
+- Bu Ay Gider
+- Net Nakit Akışı
+- Tahmini Brüt Kâr
+- Tahsilat Bekleyen
+- Ödeme Bekleyen
+- Vadesi Geçen Alacak
+- Vadesi Geçen Borç
+- İnceleme Bekleyen Belge
+- Eksik Bilgili Belge
+- İndirilecek/Hesaplanan KDV Özeti
+
+Add sections:
+
+- Monthly income vs expense chart
+- Cash-flow chart
+- Expense category breakdown
+- Upcoming receivables
+- Upcoming supplier payments
+- Overdue transactions
+- Recent accounting activity
+- Missing-document warnings
+
+7. Tax and VAT support
+
+This is an operational accounting aid, not an official tax filing system.
+
+Add configurable tax settings under:
+Ayarlar → Muhasebe Ayarları
+
+Fields:
+- Default VAT rates
+- Active/inactive VAT rates
+- Default currency
+- Fiscal year start month
+- Payment methods
+- Income categories
+- Expense categories
+- Document numbering preferences
+- Accountant notes
+
+Do not hardcode Turkish legislation.
+
+For each transaction support:
+- VAT-inclusive or VAT-exclusive amount
+- VAT rate
+- net amount
+- VAT amount
+- gross amount
+
+Calculated values must remain editable before approval.
+
+Show a disclaimer:
+“Bu ekran operasyonel finans takibi içindir; resmi muhasebe ve vergi beyannamesi yerine geçmez.”
+
+8. Cash-in and cash-out workflow
+
+Support explicit transaction directions:
+
+Money in:
+- Customer payment
+- Advance payment
+- Quotation payment
+- Operation income
+- Refund received
+- Other income
+
+Money out:
+- Supplier payment
+- Guide payment
+- Driver/transfer payment
+- Hotel
+- Restaurant
+- Entrance ticket
+- Fuel
+- Parking
+- Commission
+- Tax
+- Office expense
+- Customer refund
+- Other expense
+
+Each transaction should support:
+- amount
+- currency
+- TRY equivalent
+- transaction date
+- due date
+- paid date
+- payment method
+- payment status
+- category
+- customer
+- supplier
+- tour
+- operation
+- document number
+- description
+- attached document
+- accounting status
+
+9. Receivables and payables
+
+Add two views or tabs:
+
+- Alacaklar
+- Borçlar
+
+Alacaklar:
+- customer
+- related quotation/operation
+- total amount
+- paid amount
+- remaining amount
+- due date
+- overdue days
+- status
+
+Borçlar:
+- supplier
+- related operation
+- total amount
+- paid amount
+- remaining amount
+- due date
+- overdue days
+- status
+
+Allow partial payments without losing the original transaction.
+
+10. Document review UX
+
+For each receipt or invoice show:
+- thumbnail
+- document type
+- supplier/customer
+- operation
+- amount
+- currency
+- date
+- OCR status
+- review status
+- linked transaction status
+
+Review actions:
+- Onayla
+- Reddet
+- Eksik Bilgi
+- İşleme Dönüştür
+- Belgeyi Görüntüle
+
+Confirmation dialogs must explain the result of the action.
+
+Example:
+“Bu belge onaylanacak ve muhasebe kaydı oluşturulmaya hazır hale gelecektir.”
+
+11. Export corrections
+
+Fix ZIP export so it contains:
+
+accounting-report.pdf
+accounting-data.xlsx
+manifest.json
+/receipts/
+/invoices/
+/missing-files.txt when required
+
+Do not place CSV in the ZIP instead of the XLSX workbook.
+
+Support exporting:
+- all filtered records
+- selected records only
+- one operation
+- one date range
+- receivables only
+- payables only
+
+12. Scope restrictions
+
+Do not implement:
+- official e-Fatura or e-Arşiv integration
+- automatic tax filing
+- bank integration
+- payroll
+- legal ledger
+- legislation scraping
+- automatic changes based on government announcements
+
+Do not modify:
+- Clerk authentication
+- profile identity sync
+- OCR/OpenRouter logic
+- existing role definitions
+- landing page
+- unrelated operational modules
+
+13. Verification
+
+Test:
+- button contrast
+- disabled and active states
+- desktop tooltips
+- mobile action labels
+- VAT calculation
+- partial payment
+- receivable/payable status
+- selected-row export
+- ZIP includes real XLSX
+- role label correctness
+- all Turkish labels
+
+Run:
+- required database migration
+- OpenAPI codegen
+- full TypeScript check
+- production build
+
+Report:
+- UI fixes
+- database changes
+- new accounting settings
+- cash-flow additions
+- VAT calculation behavior
+- export corrections
+- remaining limitations

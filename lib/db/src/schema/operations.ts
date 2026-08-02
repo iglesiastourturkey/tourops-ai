@@ -64,6 +64,11 @@ export const operationReceiptsTable = pgTable("operation_receipts", {
   reviewNotes: text("review_notes"),
   reviewedByProfileId: integer("reviewed_by_profile_id"),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  // OCR + manual correction audit
+  ocrStatus: text("ocr_status").notNull().default("not_started"),
+  // 'not_started' | 'processed' | 'failed'
+  correctedFields: text("corrected_fields"),
+  // JSON: manually corrected overrides (preserves original OCR values in main columns)
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

@@ -35,6 +35,8 @@ import AccountingTransactionsPage from '@/pages/accounting-transactions';
 import AccountingDocumentsPage from '@/pages/accounting-documents';
 import AccountingReportsPage from '@/pages/accounting-reports';
 import AccountingOperationPage from '@/pages/accounting-operation';
+import AccountingSettingsPage from '@/pages/accounting-settings';
+import AccountingDocumentDetailPage from '@/pages/accounting-document-detail';;
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -204,8 +206,10 @@ function Router() {
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/accounting/operations/:id" component={() => <ProtectedRoleRoute component={AccountingOperationPage} roles={['admin', 'accounting', 'operations']} />} />
       <Route path="/accounting/transactions" component={() => <ProtectedRoleRoute component={AccountingTransactionsPage} roles={['admin', 'accounting', 'operations']} />} />
+      <Route path="/accounting/documents/:type/:id" component={() => <ProtectedRoleRoute component={AccountingDocumentDetailPage} roles={['admin', 'accounting']} />} />
       <Route path="/accounting/documents" component={() => <ProtectedRoleRoute component={AccountingDocumentsPage} roles={['admin', 'accounting']} />} />
       <Route path="/accounting/reports" component={() => <ProtectedRoleRoute component={AccountingReportsPage} roles={['admin', 'accounting']} />} />
+      <Route path="/accounting/settings" component={() => <ProtectedRoleRoute component={AccountingSettingsPage} roles={['admin', 'accounting']} />} />
       <Route path="/accounting" component={() => <ProtectedRoleRoute component={AccountingDashboardPage} roles={['admin', 'accounting']} />} />
       <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
       <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />

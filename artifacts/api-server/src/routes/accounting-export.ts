@@ -39,6 +39,7 @@ interface ExportFilters {
   supplierId?: number;
   dateFrom?: string;
   dateTo?: string;
+  selectedIds?: number[];
 }
 
 async function queryTransactions(filters: ExportFilters) {
@@ -54,6 +55,9 @@ async function queryTransactions(filters: ExportFilters) {
   if (filters.supplierId) conds.push(eq(accountingTransactionsTable.supplierId, filters.supplierId));
   if (filters.dateFrom) conds.push(gte(accountingTransactionsTable.transactionDate, filters.dateFrom));
   if (filters.dateTo) conds.push(lte(accountingTransactionsTable.transactionDate, filters.dateTo));
+  if (filters.selectedIds && filters.selectedIds.length > 0) {
+    conds.push(inArray(accountingTransactionsTable.id, filters.selectedIds));
+  }
 
   return db.select({
     id: accountingTransactionsTable.id,
@@ -523,20 +527,64 @@ router.post("/zip", async (req, res) => {
     };
     archive.append(JSON.stringify(manifest, null, 2), { name: "manifest.json" });
 
-    // ── Inline transaction CSV for convenience ───────────────────────────────
-    const csvLines = [
-      "ID,Tarih,Tip,Kategori,Tutar,ParaBirimi,TRY,ÖdemeDurumu,MuhasebeDurumu,Açıklama",
-      ...transactions.map(t =>
-        [t.id, t.transactionDate, TX_TYPE_LABELS[t.type], t.category, t.amount, t.currency,
-          t.amountTry ?? "", PAYMENT_STATUS_LABELS[t.paymentStatus] ?? t.paymentStatus,
-          ACCT_STATUS_LABELS[t.accountingStatus] ?? t.accountingStatus,
-          `"${(t.description ?? "").replace(/"/g, '""')}"`].join(",")
-      ),
-    ].join("\n");
-    archive.append(csvLines, { name: "transactions.csv" });
+    // ── Inline transaction XLSX for convenience ──────────────────────────────
+    const { default: ExcelJS } = await import("exceljs");
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "TourPilot";
+    wb.created = new Date();
+
+    const HEADER_FILL: ExcelJS.Fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
+    const HEADER_FONT: Partial<ExcelJS.Font> = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
+
+    function styleHeader(ws: ExcelJS.Worksheet) {
+      const row = ws.getRow(1);
+      row.eachCell((cell: ExcelJS.Cell) => {
+        cell.fill = HEADER_FILL;
+        cell.font = HEADER_FONT;
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+    }
+
+    const wsAll = wb.addWorksheet("İşlemler");
+    wsAll.columns = [
+      { header: "ID", key: "id", width: 8 },
+      { header: "Tarih", key: "transactionDate", width: 14 },
+      { header: "Tip", key: "type", width: 10 },
+      { header: "Kategori", key: "category", width: 18 },
+      { header: "Tutar", key: "amount", width: 14 },
+      { header: "Para Birimi", key: "currency", width: 12 },
+      { header: "TRY Karşılığı", key: "amountTry", width: 16 },
+      { header: "Ödeme Durumu", key: "paymentStatus", width: 16 },
+      { header: "Muhasebe Durumu", key: "accountingStatus", width: 20 },
+      { header: "Açıklama", key: "description", width: 30 },
+      { header: "Müşteri", key: "customerName", width: 20 },
+      { header: "Tedarikçi", key: "supplierName", width: 20 },
+    ];
+    styleHeader(wsAll);
+    for (const t of transactions) {
+      wsAll.addRow({
+        id: t.id,
+        transactionDate: t.transactionDate ?? "",
+        type: TX_TYPE_LABELS[t.type] ?? t.type,
+        category: t.category,
+        amount: t.amount,
+        currency: t.currency,
+        amountTry: t.amountTry ?? (t.currency === "TRY" ? t.amount : null),
+        paymentStatus: PAYMENT_STATUS_LABELS[t.paymentStatus] ?? t.paymentStatus,
+        accountingStatus: ACCT_STATUS_LABELS[t.accountingStatus] ?? t.accountingStatus,
+        description: t.description ?? "",
+        customerName: t.customerName ?? "",
+        supplierName: t.supplierName ?? "",
+      });
+    }
+    wsAll.getColumn("amount").numFmt = '#,##0.00';
+    wsAll.getColumn("amountTry").numFmt = '#,##0.00';
+
+    const xlsxBuffer = await wb.xlsx.writeBuffer();
+    archive.append(Buffer.from(xlsxBuffer), { name: "accounting-data.xlsx" });
 
     if (warnings.length > 0) {
-      archive.append(warnings.join("\n"), { name: "uyarilar.txt" });
+      archive.append(warnings.join("\n"), { name: "missing-files.txt" });
     }
 
     await archive.finalize();
