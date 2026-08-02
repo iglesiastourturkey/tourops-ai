@@ -23,6 +23,8 @@ import QuotationNewPage from '@/pages/quotation-new';
 import QuotationDetailPage from '@/pages/quotation-detail';
 import OperationsPage from '@/pages/operations';
 import OperationDetailPage from '@/pages/operation-detail';
+import GuideDashboardPage from '@/pages/guide-dashboard';
+import GuideOperationDetailPage from '@/pages/guide-operation-detail';
 import NotificationsPage from '@/pages/notifications';
 import SettingsPage from '@/pages/settings';
 import NewRequestPage from '@/pages/new-request';
@@ -148,7 +150,7 @@ function HomeRedirect() {
   let signedInContent: React.ReactNode = null;
   if (!isLoading) {
     signedInContent = role === 'guide'
-      ? <Redirect to="/operations" />
+      ? <Redirect to="/guide" />
       : <Redirect to="/dashboard" />;
   }
 
@@ -201,8 +203,10 @@ function Router() {
       <Route path="/quotations/new" component={() => <ProtectedRoleRoute component={QuotationNewPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/quotations/:id" component={() => <ProtectedRoleRoute component={QuotationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/quotations" component={() => <ProtectedRoleRoute component={QuotationsPage} roles={['admin', 'operations', 'accounting']} />} />
-      <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
-      <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting', 'guide']} />} />
+      <Route path="/guide/:id" component={() => <ProtectedRoleRoute component={GuideOperationDetailPage} roles={['guide', 'admin', 'super_admin']} />} />
+      <Route path="/guide" component={() => <ProtectedRoleRoute component={GuideDashboardPage} roles={['guide', 'admin', 'super_admin']} />} />
+      <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/accounting/operations/:id" component={() => <ProtectedRoleRoute component={AccountingOperationPage} roles={['admin', 'accounting', 'operations']} />} />
       <Route path="/accounting/transactions" component={() => <ProtectedRoleRoute component={AccountingTransactionsPage} roles={['admin', 'accounting', 'operations']} />} />

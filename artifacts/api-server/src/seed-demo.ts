@@ -90,6 +90,21 @@ async function main() {
   const seedProfileId = seedProfile.id;
   console.log(`✓ Demo profile created (id=${seedProfileId})`);
 
+  // Demo guide profile — assignedGuideUserId on operations matches this clerkUserId
+  // so a test guide user can sign in and see their assigned operations via the guide mobile view.
+  const DEMO_GUIDE_CLERK_ID = "demo_seed_guide_v1";
+  await db
+    .insert(profilesTable)
+    .values({
+      clerkUserId: DEMO_GUIDE_CLERK_ID,
+      email: "rehber@tourpilot.com.tr",
+      name: `Nilay Şahin ${DEMO}`,
+      role: "guide",
+      isActive: true,
+    })
+    .onConflictDoNothing();
+  console.log(`✓ Demo guide profile created (clerkUserId=${DEMO_GUIDE_CLERK_ID})`);
+
   // ═══════════════════════════════════════════════════════════════════════════
   // 1. AGENCY SETTINGS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -996,6 +1011,7 @@ async function main() {
         completionRate: 100,
         guideName: "Nilay Şahin",
         guidePhone: "+90 538 456 7890",
+        assignedGuideUserId: DEMO_GUIDE_CLERK_ID,
         driverName: "Ömer Çakır",
         driverPhone: "+90 533 777 9900",
         vehiclePlate: "35 OPR 001",
@@ -1057,6 +1073,7 @@ async function main() {
         completionRate: 65,
         guideName: "Nilay Şahin",
         guidePhone: "+90 538 456 7890",
+        assignedGuideUserId: DEMO_GUIDE_CLERK_ID,
         driverName: "Ali Kaya",
         driverPhone: "+90 532 444 5566",
         vehiclePlate: "09 AEG 112",
@@ -1118,6 +1135,7 @@ async function main() {
         completionRate: 0,
         guideName: "Nilay Şahin",
         guidePhone: "+90 538 456 7890",
+        assignedGuideUserId: DEMO_GUIDE_CLERK_ID,
         driverName: "Sercan Yılmaz",
         driverPhone: "+90 532 555 6677",
         vehiclePlate: "35 PVT 321",
@@ -1133,6 +1151,7 @@ async function main() {
         completionRate: 0,
         guideName: "Nilay Şahin",
         guidePhone: "+90 538 456 7890",
+        assignedGuideUserId: DEMO_GUIDE_CLERK_ID,
         driverName: "Ömer Çakır",
         driverPhone: "+90 533 777 9900",
         vehiclePlate: "35 GRP 888",

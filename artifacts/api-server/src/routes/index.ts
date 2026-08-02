@@ -14,6 +14,7 @@ import aiRouter from "./ai";
 import usersRouter from "./users";
 import accountingRouter from "./accounting";
 import accountingExportRouter from "./accounting-export";
+import guideRouter from "./guide";
 
 const router: IRouter = Router();
 
@@ -32,5 +33,6 @@ router.use("/ai", aiRouter);
 router.use("/", usersRouter);
 router.use("/accounting/export", accountingExportRouter);
 router.use("/accounting", accountingRouter);
+router.use("/guide", guideRouter);
 
 export default router;

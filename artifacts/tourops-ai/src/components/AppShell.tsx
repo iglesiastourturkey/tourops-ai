@@ -4,7 +4,7 @@ import { UserButton } from '@clerk/react';
 import { useListNotifications } from '@workspace/api-client-react';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
-  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen
+  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen, Compass
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -19,12 +19,13 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Kontrol Paneli', href: '/dashboard', roles: ['admin', 'operations', 'accounting'] },
+  { icon: Compass, label: 'Operasyonlarım', href: '/guide', roles: ['guide'] },
   { icon: Sparkles, label: 'Yeni Talep', href: '/requests/new', roles: ['admin', 'operations', 'accounting'] },
   { icon: Users, label: 'Müşteriler', href: '/customers', roles: ['admin', 'operations', 'accounting'] },
   { icon: Building2, label: 'Tedarikçiler', href: '/suppliers', roles: ['admin', 'operations', 'accounting'] },
   { icon: MapPin, label: 'Turlar', href: '/tours', roles: ['admin', 'operations', 'guide', 'accounting'] },
   { icon: FileText, label: 'Teklifler', href: '/quotations', roles: ['admin', 'operations', 'accounting'] },
-  { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting', 'guide'] },
+  { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting'] },
   { icon: Bell, label: 'Bildirimler', href: '/notifications' },
   { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
   { icon: BookOpen, label: 'Muhasebe', href: '/accounting', roles: ['super_admin', 'admin', 'accounting'] },
