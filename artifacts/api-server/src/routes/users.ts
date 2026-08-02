@@ -182,6 +182,13 @@ router.patch(
           res.status(403).json({ error: "Kullanıcı adı yalnızca yönetici rolündeki hesaplara atanabilir" });
           return;
         }
+        // If the username is already set to this value on the same Clerk user,
+        // skip the update and return success immediately (avoids a spurious 409).
+        const clerkUser = await clerkClient.users.getUser(clerkUserId);
+        if (clerkUser.username === normalizedUsername) {
+          res.json({ ok: true, username: normalizedUsername });
+          return;
+        }
         try {
           await clerkClient.users.updateUser(clerkUserId, { username: normalizedUsername });
         } catch (clerkErr: unknown) {
