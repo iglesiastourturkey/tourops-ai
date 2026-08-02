@@ -130,6 +130,30 @@ export async function getOrCreateProfile(
     }
   }
 
+  // ── 2b. Check for an existing real profile with the same email ───────
+  // Handles the case where a profile was previously created with a
+  // different Clerk user ID (e.g. after an account merge or re-auth).
+  // Claims the existing profile rather than creating a second guide entry.
+  if (email) {
+    const [existingByEmail] = await db
+      .select()
+      .from(profilesTable)
+      .where(eq(profilesTable.email, email.trim().toLowerCase()))
+      .limit(1);
+
+    if (existingByEmail) {
+      const [claimed] = await db
+        .update(profilesTable)
+        .set({
+          clerkUserId,
+          name: name ?? existingByEmail.name,
+        })
+        .where(eq(profilesTable.id, existingByEmail.id))
+        .returning();
+      return claimed;
+    }
+  }
+
   // ── 3. Brand-new user — default to least-privilege "guide" ───────────
   const [created] = await db
     .insert(profilesTable)
