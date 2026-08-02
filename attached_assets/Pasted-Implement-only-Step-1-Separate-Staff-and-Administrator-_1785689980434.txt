@@ -1,0 +1,150 @@
+Implement only Step 1: Separate Staff and Administrator Sign-In for TourPilot.
+
+Goal:
+Create two clear sign-in paths without changing roles or weakening existing RBAC.
+
+Roles:
+Administrative:
+- super_admin
+- admin
+
+Staff:
+- operations
+- field_operations
+- accounting
+- guide
+
+1. Sign-in selection screen
+
+Create a TourPilot sign-in entry page with two options:
+
+- Personel Girişi
+- Yönetici Girişi
+
+This selection only changes the sign-in UI.
+It must never assign or change a user role.
+
+2. Personel Girişi
+
+Support:
+- email + password
+- Google sign-in
+- “Şifremi unuttum”
+
+After sign-in:
+- fetch the real profile role
+- redirect by actual role:
+  operations → /dashboard
+  field_operations → /field
+  accounting → /dashboard
+  guide → /guide
+  admin/super_admin → /dashboard
+
+3. Yönetici Girişi
+
+Support:
+- Clerk username + password
+- Google sign-in only for already-linked admin accounts
+- “Şifremi unuttum”
+
+After sign-in:
+- fetch the real TourPilot profile
+- permit only admin or super_admin
+- non-admin users must be signed out or redirected to a Turkish unauthorized screen
+- show:
+  “Bu giriş alanı yalnızca yetkili yönetici hesapları içindir.”
+
+Do not trust the selected tab as proof of role.
+
+4. Username rules
+
+- only super_admin can assign or update usernames
+- only admin and super_admin may receive usernames
+- usernames must be unique
+- normalize to lowercase
+- do not store passwords in PostgreSQL
+- do not create a custom password database
+- do not expose username-to-email lookup through a public API
+
+5. Existing super admin
+
+Keep the existing:
+- Clerk user ID
+- email
+- Google connection
+- super_admin role
+
+Add a safe super_admin action to assign a Clerk username to the current account.
+
+Do not silently invent a username if Clerk refuses the update.
+Report any manual Clerk Dashboard step required.
+
+6. Password recovery
+
+Use Clerk’s official recovery flow.
+
+- admin never sees another user’s password
+- user creates or resets their own password
+- Google-only users should be told to continue with Google
+- Turkish loading, success and error messages
+
+7. Security
+
+- backend RBAC remains the source of truth
+- prevent staff from gaining admin access through the admin sign-in page
+- preserve final-super-admin protection
+- preserve session revoke behavior
+- recommend MFA for admin and super_admin
+- do not change existing permissions
+
+8. Clerk configuration report
+
+Report the exact Clerk Dashboard settings required:
+- enable username sign-in
+- enable password sign-in
+- email sign-in
+- Google OAuth
+- restricted sign-up/invitation mode
+- MFA recommendation
+
+9. Scope restrictions
+
+Do not modify:
+- role permission matrix
+- system maintenance modes
+- accounting
+- field operations
+- guide workspace
+- OCR/OpenRouter
+- PWA
+- exports
+- landing walkthrough
+- profile synchronization except what is strictly needed for username display
+
+10. Verification
+
+Test:
+- super_admin username + password
+- admin username + password
+- guide attempting administrator sign-in
+- staff email/password
+- staff Google sign-in
+- administrator Google sign-in
+- forgot-password flow
+- wrong credentials
+- account switching
+- role-aware redirects
+- backend 403 enforcement
+
+Run:
+- full TypeScript check
+- production build
+
+Report only:
+- modified files
+- Clerk settings required
+- username assignment method
+- sign-in flows
+- redirect behavior
+- password recovery behavior
+- remaining limitations

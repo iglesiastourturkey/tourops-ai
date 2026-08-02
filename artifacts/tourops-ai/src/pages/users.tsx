@@ -25,7 +25,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { customFetch } from '@workspace/api-client-react';
 import {
-  UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX,
+  UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign,
 } from 'lucide-react';
 
 const BASE = import.meta.env.BASE_URL ?? '/';
@@ -45,6 +45,7 @@ interface EnrichedUser {
   createdAt: string;
   lastSignInAt: number | null;
   imageUrl: string | null;
+  username: string | null;
 }
 
 interface Invitation {
@@ -102,6 +103,10 @@ export default function UsersPage() {
   // ── Password reset link dialog ───────────────────────────────────────────
   const [resetLink, setResetLink] = useState<string | null>(null);
 
+  // ── Username assignment dialog ────────────────────────────────────────────
+  const [usernameUser, setUsernameUser] = useState<EnrichedUser | null>(null);
+  const [newUsername,  setNewUsername]  = useState('');
+
   // ── Fetch users & invitations ────────────────────────────────────────────
   const usersQuery = useQuery<EnrichedUser[]>({
     queryKey: ['users'],
@@ -142,6 +147,22 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['invitations'] });
     },
     onError: (err) => toast({ title: 'Davet gönderilemedi', description: apiErrMsg(err), variant: 'destructive' }),
+  });
+
+  // ── Assign username ──────────────────────────────────────────────────────
+  const setUsernameMutation = useMutation({
+    mutationFn: ({ clerkUserId, username }: { clerkUserId: string; username: string }) =>
+      customFetch<{ ok: boolean; username: string }>(`${API_BASE}/users/${clerkUserId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ username }),
+      }),
+    onSuccess: (data) => {
+      toast({ title: 'Kullanıcı adı atandı', description: `@${data.username}` });
+      setUsernameUser(null);
+      setNewUsername('');
+      qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
   // ── Revoke sessions ──────────────────────────────────────────────────────
@@ -244,6 +265,58 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Username assignment dialog ──────────────────────────── */}
+      <Dialog
+        open={!!usernameUser}
+        onOpenChange={open => { if (!open) { setUsernameUser(null); setNewUsername(''); } }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Kullanıcı Adı Ata</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            <strong>{usernameUser?.name || usernameUser?.email}</strong> hesabına
+            bir Clerk kullanıcı adı atayın. Bu kullanıcı adı ile yönetici girişi yapabilecek.
+          </p>
+          <div className="space-y-1.5 mt-2">
+            <Label htmlFor="un-input">Kullanıcı Adı</Label>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground text-sm font-medium">@</span>
+              <Input
+                id="un-input"
+                placeholder="kullanici_adi"
+                value={newUsername}
+                onChange={e => setNewUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32))}
+                disabled={setUsernameMutation.isPending}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="flex-1"
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Yalnızca harf (a-z), rakam ve alt çizgi — 3 ile 32 karakter. Benzersiz olmalı.
+            </p>
+          </div>
+          <DialogFooter className="gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setUsernameUser(null); setNewUsername(''); }}
+              disabled={setUsernameMutation.isPending}
+            >
+              İptal
+            </Button>
+            <Button
+              onClick={() => usernameUser && setUsernameMutation.mutate({ clerkUserId: usernameUser.clerkUserId, username: newUsername })}
+              disabled={setUsernameMutation.isPending || newUsername.length < 3}
+            >
+              {setUsernameMutation.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Main content ─────────────────────────────────────────── */}
       <Tabs defaultValue="users">
         <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
@@ -308,6 +381,9 @@ export default function UsersPage() {
                                     {isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(Siz)</span>}
                                   </div>
                                   <div className="text-xs text-muted-foreground truncate">{user.email || '—'}</div>
+                                  {user.username && (
+                                    <div className="text-[10px] text-muted-foreground/60 truncate">@{user.username}</div>
+                                  )}
                                 </div>
                               </div>
                             </TableCell>
@@ -387,6 +463,19 @@ export default function UsersPage() {
                                       <KeyRound className="w-4 h-4 mr-2" />
                                       Şifre Sıfırlama Bağlantısı
                                     </DropdownMenuItem>
+                                  )}
+
+                                  {/* ── Assign username (admin/super_admin targets only) ── */}
+                                  {!isSelf && ['admin', 'super_admin'].includes(user.role) && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        onClick={() => { setUsernameUser(user); setNewUsername(user.username ?? ''); }}
+                                      >
+                                        <AtSign className="w-4 h-4 mr-2" />
+                                        Kullanıcı Adı Ata
+                                      </DropdownMenuItem>
+                                    </>
                                   )}
 
                                   {/* Disabled self-actions hint */}

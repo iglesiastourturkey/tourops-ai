@@ -5,34 +5,41 @@ import { useListNotifications } from '@workspace/api-client-react';
 import { OfflineIndicator } from '@/components/OfflineIndicator';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
-  FileText, ClipboardList, Bell, Settings, Menu, UserCog, BookOpen, Compass, HardHat
+  FileText, ClipboardList, Bell, Settings, Menu, UserCog,
+  BookOpen, Compass, HardHat, Shield, Monitor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
+import { useProfile, ROLE_LABELS } from '@/contexts/ProfileContext';
 
 type NavItem = {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  href: string;
-  roles?: UserRole[]; // undefined = all authenticated roles
+  icon:       React.ComponentType<{ className?: string }>;
+  label:      string;
+  href:       string;
+  /**
+   * Required permission as [module, action].
+   * undefined = visible to all authenticated users.
+   */
+  permission?: [string, string];
 };
 
 const navItems: NavItem[] = [
-  { icon: LayoutDashboard, label: 'Kontrol Paneli', href: '/dashboard', roles: ['admin', 'operations', 'accounting'] },
-  { icon: Compass, label: 'Operasyonlarım', href: '/guide', roles: ['guide'] },
-  { icon: Sparkles, label: 'Yeni Talep', href: '/requests/new', roles: ['admin', 'operations', 'accounting'] },
-  { icon: Users, label: 'Müşteriler', href: '/customers', roles: ['admin', 'operations', 'accounting'] },
-  { icon: Building2, label: 'Tedarikçiler', href: '/suppliers', roles: ['admin', 'operations', 'accounting'] },
-  { icon: MapPin, label: 'Turlar', href: '/tours', roles: ['admin', 'operations', 'guide', 'accounting'] },
-  { icon: FileText, label: 'Teklifler', href: '/quotations', roles: ['admin', 'operations', 'accounting'] },
-  { icon: ClipboardList, label: 'Operasyonlar', href: '/operations', roles: ['admin', 'operations', 'accounting'] },
-  { icon: HardHat, label: 'Saha Operasyon', href: '/field', roles: ['field_operations', 'operations', 'admin', 'super_admin'] },
-  { icon: Bell, label: 'Bildirimler', href: '/notifications' },
-  { icon: Settings, label: 'Ayarlar', href: '/settings', roles: ['admin', 'operations'] },
-  { icon: BookOpen, label: 'Muhasebe', href: '/accounting', roles: ['super_admin', 'admin', 'accounting'] },
-  { icon: Settings, label: 'Muhasebe Ayarları', href: '/accounting/settings', roles: ['super_admin', 'admin', 'accounting'] },
-  { icon: UserCog, label: 'Kullanıcı Yönetimi', href: '/users', roles: ['super_admin'] },
+  { icon: LayoutDashboard, label: 'Kontrol Paneli',     href: '/dashboard',          permission: ['dashboard',        'view']   },
+  { icon: Compass,         label: 'Operasyonlarım',     href: '/guide',              permission: ['guide_workspace',  'view']   },
+  { icon: Sparkles,        label: 'Yeni Talep',         href: '/requests/new',       permission: ['operations',       'create'] },
+  { icon: Users,           label: 'Müşteriler',         href: '/customers',          permission: ['customers',        'view']   },
+  { icon: Building2,       label: 'Tedarikçiler',       href: '/suppliers',          permission: ['suppliers',        'view']   },
+  { icon: MapPin,          label: 'Turlar',             href: '/tours',              permission: ['tours',            'view']   },
+  { icon: FileText,        label: 'Teklifler',          href: '/quotations',         permission: ['quotations',       'view']   },
+  { icon: ClipboardList,   label: 'Operasyonlar',       href: '/operations',         permission: ['operations',       'view']   },
+  { icon: HardHat,         label: 'Saha Operasyon',     href: '/field',              permission: ['field_operations', 'view']   },
+  { icon: Bell,            label: 'Bildirimler',        href: '/notifications',      permission: ['notifications',    'view']   },
+  { icon: Settings,        label: 'Ayarlar',            href: '/settings',           permission: ['settings',         'view']   },
+  { icon: BookOpen,        label: 'Muhasebe',           href: '/accounting',         permission: ['accounting',       'view']   },
+  { icon: Settings,        label: 'Muhasebe Ayarları',  href: '/accounting/settings',permission: ['accounting',       'manage'] },
+  { icon: UserCog,         label: 'Kullanıcı Yönetimi', href: '/users',              permission: ['users',            'manage'] },
+  { icon: Shield,          label: 'Rol Yönetimi',       href: '/roles',              permission: ['roles',            'manage'] },
+  { icon: Monitor,         label: 'Sistem Kontrolü',    href: '/system-control',     permission: ['system_control',   'manage'] },
 ];
 
 // Base-path-safe logo: resolves against Vite's BASE_URL at build time so it
@@ -42,7 +49,6 @@ const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
 function AppLogo() {
   const [failed, setFailed] = useState(false);
   if (failed) {
-    // Inline fallback: compact TourPilot compass mark, no external request needed
     return (
       <svg
         width="36" height="36" viewBox="0 0 40 40" fill="none"
@@ -76,18 +82,18 @@ interface AppShellProps {
 }
 
 export function AppShell({ children, title }: AppShellProps) {
-  const [location] = useLocation();
+  const [location]      = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { data: notifications } = useListNotifications();
+  const { data: notifications }       = useListNotifications();
   const unreadCount = notifications?.filter(n => !n.isRead).length ?? 0;
-  const { role, isLoading: profileLoading } = useProfile();
+  const { role, isLoading: profileLoading, permissionSet, allPermissions, permissionsLoaded } = useProfile();
 
   const visibleNavItems = navItems.filter(item => {
-    if (profileLoading) return false;
-    if (!item.roles) return true;          // visible to all authenticated roles
-    if (!role) return false;
-    if (role === 'super_admin') return true; // super_admin sees every nav item
-    return item.roles.includes(role);
+    if (profileLoading || !permissionsLoaded) return false;
+    if (!item.permission) return true;           // no permission required
+    if (allPermissions) return true;             // super_admin sees everything
+    const [module, action] = item.permission;
+    return permissionSet.has(`${module}.${action}`);
   });
 
   const SidebarContent = () => (

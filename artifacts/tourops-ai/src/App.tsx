@@ -1,8 +1,7 @@
-import { ClerkProvider, SignIn, SignUp, Show, useAuth } from '@clerk/react';
+import { ClerkProvider, SignUp, Show, useAuth } from '@clerk/react';
 import { useEffect, useRef } from 'react';
-import { Link } from 'wouter';
 import { publishableKeyFromHost } from '@clerk/react/internal';
-import { shadcn } from '@clerk/themes';
+import { clerkAppearance } from '@/lib/clerk-appearance';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch, Route, Redirect, Router as WouterRouter } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
@@ -12,6 +11,9 @@ import { ProfileProvider, useProfile, type UserRole } from '@/contexts/ProfileCo
 import { OfflineQueueProvider } from '@/contexts/OfflineQueueContext';
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
 import { useNotificationSync } from '@/hooks/useNotificationSync';
+import SignInSelectPage from '@/pages/sign-in-select';
+import SignInStaffPage from '@/pages/sign-in-staff';
+import SignInAdminPage from '@/pages/sign-in-admin';
 import LandingPage from '@/pages/landing';
 import Dashboard from '@/pages/dashboard';
 import CustomersPage from '@/pages/customers';
@@ -45,31 +47,15 @@ import AccountingDocumentsPage from '@/pages/accounting-documents';
 import AccountingReportsPage from '@/pages/accounting-reports';
 import AccountingOperationPage from '@/pages/accounting-operation';
 import AccountingSettingsPage from '@/pages/accounting-settings';
-import AccountingDocumentDetailPage from '@/pages/accounting-document-detail';;
+import AccountingDocumentDetailPage from '@/pages/accounting-document-detail';
+import RolesPage from '@/pages/roles';
+import SystemControlPage from '@/pages/system-control';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
 const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
-const clerkAppearance = {
-  baseTheme: shadcn,
-  layout: {
-    logoImageUrl: `${basePath}/logo.svg`,
-    logoPlacement: 'inside' as const,
-    socialButtonsPlacement: 'bottom' as const,
-  },
-  variables: {
-    colorPrimary: '#0d7377',
-    colorBackground: '#f8fafc',
-    fontFamily: 'Inter, system-ui, sans-serif',
-    borderRadius: '8px',
-  },
-  elements: {
-    card: { boxShadow: '0 4px 24px rgba(13,115,119,0.08)', border: '1px solid #e2e8f0' },
-    formButtonPrimary: { backgroundColor: '#0d7377' },
-  },
-};
 
 /**
  * Gates the entire QueryClientProvider (and therefore all React-Query hooks)
@@ -173,19 +159,6 @@ function HomeRedirect() {
   );
 }
 
-function SignInPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <SignIn routing="path" path={`${basePath}/sign-in`} signUpUrl={`${basePath}/sign-up`} appearance={clerkAppearance} />
-        <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-primary transition-colors">
-          Şifremi Unuttum?
-        </Link>
-      </div>
-    </div>
-  );
-}
-
 function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
@@ -203,7 +176,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomeRedirect} />
-      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-in/staff/*?" component={SignInStaffPage} />
+      <Route path="/sign-in/admin" component={SignInAdminPage} />
+      <Route path="/sign-in" component={SignInSelectPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/forbidden" component={ForbiddenPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />
@@ -238,6 +213,8 @@ function Router() {
       <Route path="/accounting" component={() => <ProtectedRoleRoute component={AccountingDashboardPage} roles={['admin', 'accounting']} />} />
       <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
       <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />
+      <Route path="/roles" component={() => <ProtectedRoleRoute component={RolesPage} roles={['super_admin']} />} />
+      <Route path="/system-control" component={() => <ProtectedRoleRoute component={SystemControlPage} roles={['super_admin']} />} />
       <Route component={NotFound} />
     </Switch>
   );

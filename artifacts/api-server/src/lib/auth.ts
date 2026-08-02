@@ -4,6 +4,7 @@ import { db } from "@workspace/db";
 import { profilesTable } from "@workspace/db/schema";
 import { eq, and, like } from "drizzle-orm";
 import type { UserRole } from "@workspace/db/schema";
+import { hasPermission } from "./permissions";
 
 // ── Express locals augmentation ───────────────────────────────────────────────
 // Makes res.locals.profile properly typed across all route handlers.
@@ -247,6 +248,43 @@ export function requireActive() {
       next();
     } catch {
       res.status(500).json({ error: "Failed to load profile" });
+    }
+  };
+}
+
+/**
+ * Middleware: requires the user to have a specific (module, action) permission.
+ * Performs the same profile load as requireRole; super_admin always bypasses.
+ * Must be used after requireAuth.
+ */
+export function requirePermission(module: string, action: string) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const { userId, sessionClaims } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Kimlik doğrulama gerekli" });
+      return;
+    }
+    try {
+      const email   = (sessionClaims?.email as string) ?? "";
+      const name    = (sessionClaims?.name  as string) ?? undefined;
+      const profile = await getOrCreateProfile(userId, email, name);
+      res.locals.profile = profile;
+
+      if (!profile.isActive) {
+        res.status(403).json({ error: "Hesabınız devre dışı bırakılmış" });
+        return;
+      }
+      // super_admin: universal bypass
+      if (profile.role === "super_admin") { next(); return; }
+
+      const allowed = await hasPermission(profile.id, profile.role, module, action);
+      if (!allowed) {
+        res.status(403).json({ error: "Bu işlem için yetkiniz bulunmamaktadır" });
+        return;
+      }
+      next();
+    } catch {
+      res.status(500).json({ error: "Yetki kontrolü başarısız" });
     }
   };
 }

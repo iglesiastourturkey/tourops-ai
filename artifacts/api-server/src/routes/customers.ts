@@ -2,13 +2,13 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { customersTable, quotationsTable, operationsTable } from "@workspace/db/schema";
 import { eq, like, or, desc, and, isNull, inArray } from "drizzle-orm";
-import { requireAuth, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
 
 // GET /api/customers
-router.get("/", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/", requirePermission("customers", "view"), async (req, res) => {
   try {
     const { search, customerType } = req.query as Record<string, string>;
     let rows = await db.select().from(customersTable).orderBy(desc(customersTable.createdAt));
@@ -23,7 +23,7 @@ router.get("/", requireAnyRole("admin", "operations", "accounting"), async (req,
 });
 
 // POST /api/customers
-router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/", requirePermission("customers", "create"), async (req, res) => {
   try {
     const [customer] = await db.insert(customersTable).values(req.body).returning();
     res.status(201).json(customer);
@@ -31,7 +31,7 @@ router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
 });
 
 // GET /api/customers/:id
-router.get("/:id", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/:id", requirePermission("customers", "view"), async (req, res) => {
   try {
     const [customer] = await db.select().from(customersTable).where(eq(customersTable.id, parseInt(req.params.id as string)));
     if (!customer) { res.status(404).json({ error: "Customer not found" }); return; }
@@ -40,7 +40,7 @@ router.get("/:id", requireAnyRole("admin", "operations", "accounting"), async (r
 });
 
 // PATCH /api/customers/:id (also used for archive: set archivedAt)
-router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.patch("/:id", requirePermission("customers", "update"), async (req, res) => {
   try {
     const [updated] = await db.update(customersTable).set(req.body).where(eq(customersTable.id, parseInt(req.params.id as string))).returning();
     if (!updated) { res.status(404).json({ error: "Customer not found" }); return; }
@@ -49,7 +49,7 @@ router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => 
 });
 
 // DELETE /api/customers/:id — blocked if customer has active quotations or operations
-router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id", requirePermission("customers", "delete"), async (req, res) => {
   try {
     const id = parseInt(req.params.id as string);
     const [activeQuotations, activeOperations] = await Promise.all([

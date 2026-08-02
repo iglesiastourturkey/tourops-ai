@@ -3,7 +3,7 @@ import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { profilesTable, VALID_ROLES } from "@workspace/db/schema";
 import { eq, and, not, like, sql } from "drizzle-orm";
-import { requireAuth, requireRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 import type { UserRole } from "@workspace/db/schema";
 
 const router = Router();
@@ -30,6 +30,7 @@ async function getEnrichedUsers() {
     primaryEmailAddressId: string | null;
     lastSignInAt: number | null;
     imageUrl: string;
+    username: string | null;
   }> = [];
 
   try {
@@ -64,6 +65,7 @@ async function getEnrichedUsers() {
       createdAt: profile.createdAt,
       lastSignInAt: cu?.lastSignInAt ?? null,
       imageUrl: cu?.imageUrl ?? null,
+      username: cu?.username ?? null,
     };
   });
 }
@@ -87,7 +89,7 @@ async function countActiveSuperAdmins(): Promise<number> {
 router.get(
   "/users",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (_req, res) => {
     try {
       const users = await getEnrichedUsers();
@@ -102,17 +104,18 @@ router.get(
 router.patch(
   "/users/:clerkUserId",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const { userId: callerUserId } = getAuth(req);
       const clerkUserId = req.params.clerkUserId as string;
-      const { role, isActive } = req.body as {
+      const { role, isActive, username } = req.body as {
         role?: string;
         isActive?: boolean;
+        username?: string;
       };
 
-      if (role === undefined && isActive === undefined) {
+      if (role === undefined && isActive === undefined && username === undefined) {
         res.status(400).json({ error: "Güncellenecek alan yok" });
         return;
       }
@@ -148,6 +151,45 @@ router.patch(
         .limit(1);
       if (!target) {
         res.status(404).json({ error: "Kullanıcı bulunamadı" });
+        return;
+      }
+
+      // Username assignment: only admin and super_admin may receive a username
+      if (username !== undefined) {
+        const normalizedUsername = username.trim().toLowerCase();
+        if (!normalizedUsername) {
+          res.status(400).json({ error: "Kullanıcı adı boş olamaz" });
+          return;
+        }
+        if (!/^[a-z0-9_]{3,32}$/.test(normalizedUsername)) {
+          res.status(400).json({ error: "Kullanıcı adı 3-32 karakter, yalnızca harf (a-z), rakam veya alt çizgi içerebilir" });
+          return;
+        }
+        // Fetch target profile to check eligibility
+        const [targetCheck] = await db
+          .select({ role: profilesTable.role })
+          .from(profilesTable)
+          .where(eq(profilesTable.clerkUserId, clerkUserId))
+          .limit(1);
+        if (!targetCheck) {
+          res.status(404).json({ error: "Kullanıcı bulunamadı" });
+          return;
+        }
+        if (!["admin", "super_admin"].includes(targetCheck.role)) {
+          res.status(403).json({ error: "Kullanıcı adı yalnızca yönetici rolündeki hesaplara atanabilir" });
+          return;
+        }
+        try {
+          await clerkClient.users.updateUser(clerkUserId, { username: normalizedUsername });
+        } catch (clerkErr: unknown) {
+          const msg =
+            clerkErr && typeof clerkErr === "object" && "errors" in clerkErr
+              ? (clerkErr as { errors: Array<{ message: string }> }).errors?.[0]?.message
+              : undefined;
+          res.status(409).json({ error: msg ?? "Kullanıcı adı atanamadı — Clerk reddetmiş olabilir (benzersiz olmalı)" });
+          return;
+        }
+        res.json({ ok: true, username: normalizedUsername });
         return;
       }
 
@@ -188,7 +230,7 @@ router.patch(
 router.post(
   "/users/invite",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const { email, name, role } = req.body as {
@@ -248,7 +290,7 @@ router.post(
 router.post(
   "/users/:clerkUserId/revoke-sessions",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const { userId: callerUserId } = getAuth(req);
@@ -288,7 +330,7 @@ router.post(
 router.post(
   "/users/:clerkUserId/password-reset",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const clerkUserId = req.params.clerkUserId as string;
@@ -312,7 +354,7 @@ router.post(
 router.get(
   "/invitations",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
@@ -355,7 +397,7 @@ router.get(
 router.post(
   "/invitations/:id/revoke",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const invId = req.params.id as string;
@@ -376,7 +418,7 @@ router.post(
 router.post(
   "/invitations/:id/resend",
   requireAuth,
-  requireRole("super_admin"),
+  requirePermission("users", "manage"),
   async (req, res) => {
     try {
       const invId = req.params.id as string;

@@ -9,10 +9,10 @@ import {
   profilesTable,
 } from "@workspace/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { requireAuth, getProfile, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 
 const router = Router();
-router.use(requireAuth, getProfile);
+router.use(requireAuth);
 
 /** Narrows an Express route param (string | string[]) to a plain string. */
 function paramStr(v: string | string[]): string {
@@ -36,7 +36,7 @@ function paramStr(v: string | string[]): string {
  */
 router.get(
   "/my-operations",
-  requireAnyRole("guide", "admin", "super_admin"),
+  requirePermission("guide_workspace", "view"),
   async (req, res) => {
     try {
       const { userId } = getAuth(req);
@@ -95,7 +95,7 @@ router.get(
  */
 router.get(
   "/my-operations/:id",
-  requireAnyRole("guide", "admin", "super_admin"),
+  requirePermission("guide_workspace", "view"),
   async (req, res) => {
     try {
       const { userId } = getAuth(req);
@@ -162,7 +162,7 @@ router.get(
  */
 router.post(
   "/operations/:id/location",
-  requireAnyRole("guide", "admin", "super_admin"),
+  requirePermission("guide_workspace", "upload"),
   async (req, res) => {
     const opId = parseInt(paramStr(req.params.id), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });
@@ -214,7 +214,7 @@ router.post(
  */
 router.get(
   "/operations/:id/location",
-  requireAnyRole("guide", "admin", "super_admin"),
+  requirePermission("guide_workspace", "view"),
   async (req, res) => {
     const opId = parseInt(paramStr(req.params.id), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });

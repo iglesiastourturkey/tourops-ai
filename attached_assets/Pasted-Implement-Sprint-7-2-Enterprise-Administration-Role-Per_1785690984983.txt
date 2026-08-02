@@ -1,0 +1,410 @@
+Implement Sprint 7.2 — Enterprise Administration (Role Permission Matrix + System Control)
+
+Goal:
+Replace hardcoded role checks with a configurable permission matrix managed by the super_admin while preserving the existing RBAC hierarchy.
+
+This is the final enterprise administration sprint before production deployment.
+
+Priorities:
+
+- Production stability
+- Enterprise security
+- Permission-based authorization
+- Zero breaking changes
+- No business logic refactoring
+
+==========================================================
+1. SYSTEM CONTROL
+==========================================================
+
+Create:
+
+/system-control
+
+Visible only to super_admin.
+
+Features:
+
+System Mode:
+
+🟢 Active
+
+🟡 Maintenance
+
+🔵 Read Only
+
+🔴 Disabled
+
+Behavior:
+
+Active
+- normal operation
+
+Maintenance
+- only super_admin
+- optionally selected admin users
+- everyone else sees a Turkish maintenance page
+
+Read Only
+
+- viewing allowed
+- POST
+- PUT
+- PATCH
+- DELETE
+- APPROVE
+- EXPORT WRITE
+blocked
+
+Disabled
+
+only super_admin can enter
+
+Everyone else:
+
+"Sistem geçici olarak hizmet dışıdır."
+
+Requirements:
+
+- confirmation dialog
+- maintenance message
+- optional start/end time
+- audit log
+- changedBy
+- changedAt
+
+Super Admin must NEVER lock himself out.
+
+==========================================================
+2. ROLE PERMISSION MATRIX
+==========================================================
+
+Create:
+
+/roles
+
+Only super_admin.
+
+Replace hardcoded checks with permissions.
+
+Modules:
+
+dashboard
+
+customers
+
+suppliers
+
+tours
+
+quotations
+
+operations
+
+guide_workspace
+
+field_operations
+
+incidents
+
+receipts
+
+documents
+
+accounting
+
+accounting_ai
+
+reports
+
+notifications
+
+users
+
+roles
+
+settings
+
+system_control
+
+Exports
+
+AI
+
+Actions
+
+View
+
+Create
+
+Update
+
+Delete
+
+Approve
+
+Assign
+
+Upload
+
+Download
+
+Export
+
+Manage
+
+Archive
+
+Represent as checkbox matrix.
+
+==========================================================
+3. USER ROLE SUMMARY
+==========================================================
+
+When assigning a role:
+
+Display:
+
+"This role can access"
+
+with grouped permissions.
+
+Example:
+
+Dashboard
+
+Customers
+
+Operations
+
+Accounting
+
+Reports
+
+AI
+
+Hidden modules shown disabled.
+
+==========================================================
+4. CUSTOM PERMISSIONS
+==========================================================
+
+Keep inheritance.
+
+Role
+
+↓
+
+Permissions
+
+↓
+
+Optional user overrides
+
+Allow:
+
+Additional permission
+
+Explicit deny
+
+Super_admin cannot be overridden.
+
+==========================================================
+5. BACKEND AUTHORIZATION
+==========================================================
+
+Introduce:
+
+requirePermission()
+
+hasPermission()
+
+Every protected API must validate permissions.
+
+Never trust frontend visibility.
+
+Unauthorized:
+
+403
+
+Turkish message.
+
+==========================================================
+6. FRONTEND AUTHORIZATION
+==========================================================
+
+Permission controls:
+
+Sidebar
+
+Routes
+
+Cards
+
+Buttons
+
+Dropdown actions
+
+Tabs
+
+Context menus
+
+Empty states
+
+No role-name checks should remain except:
+
+super_admin bypass.
+
+==========================================================
+7. AUDIT LOG
+==========================================================
+
+Track:
+
+Role changed
+
+Permission changed
+
+Maintenance enabled
+
+Read-only enabled
+
+System disabled
+
+User override
+
+Session revoked
+
+Timestamp
+
+Actor
+
+Old value
+
+New value
+
+==========================================================
+8. SAFETY
+==========================================================
+
+Prevent:
+
+Removing final super_admin
+
+Disabling final super_admin
+
+Removing super_admin permissions
+
+Locking yourself out
+
+Permission escalation
+
+==========================================================
+9. CLERK
+==========================================================
+
+Keep existing:
+
+Username login
+
+Google login
+
+Password reset
+
+Do not modify authentication.
+
+==========================================================
+10. DATABASE
+==========================================================
+
+Create only if missing:
+
+roles
+
+permissions
+
+role_permissions
+
+user_permissions
+
+system_settings
+
+audit_logs
+
+Do not duplicate existing structures.
+
+==========================================================
+11. PERFORMANCE
+==========================================================
+
+Permission cache
+
+Invalidate after updates
+
+No stale permissions
+
+No stale redirects
+
+==========================================================
+12. TESTS
+==========================================================
+
+Verify:
+
+super_admin
+
+admin
+
+operations
+
+field_operations
+
+guide
+
+accounting
+
+Permission matrix
+
+Maintenance mode
+
+Read only mode
+
+Disabled mode
+
+User override
+
+403 API
+
+Sidebar visibility
+
+Route protection
+
+Production build
+
+TypeScript
+
+==========================================================
+13. REPORT
+==========================================================
+
+Report only:
+
+Database changes
+
+Permission model
+
+Modified files
+
+Migration
+
+Authorization helpers
+
+Frontend enforcement
+
+Backend enforcement
+
+Audit
+
+Performance
+
+Remaining limitations

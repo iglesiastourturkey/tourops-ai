@@ -3,7 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { operationsTable, operationTasksTable, operationReceiptsTable } from "@workspace/db/schema";
 import { eq, desc, and } from "drizzle-orm";
-import { requireAuth, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
 
@@ -41,7 +41,7 @@ async function checkGuideOwnership(
 
 // ─── Operations ──────────────────────────────────────────────────────────────
 
-router.get("/", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
+router.get("/", requirePermission("operations", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const profile = res.locals.profile;
@@ -59,14 +59,14 @@ router.get("/", requireAnyRole("admin", "operations", "accounting", "guide"), as
   } catch { res.status(500).json({ error: "Failed to list operations" }); }
 });
 
-router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/", requirePermission("operations", "create"), async (req, res) => {
   try {
     const [row] = await db.insert(operationsTable).values(req.body).returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create operation" }); }
 });
 
-router.get("/:id", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
+router.get("/:id", requirePermission("operations", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -82,7 +82,7 @@ router.get("/:id", requireAnyRole("admin", "operations", "accounting", "guide"),
 });
 
 // Guides cannot PATCH the whole operation — they can only update tasks/receipts on their own operations
-router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.patch("/:id", requirePermission("operations", "update"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
     const [row] = await db.update(operationsTable).set(req.body).where(eq(operationsTable.id, operationId)).returning();
@@ -92,7 +92,7 @@ router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => 
 });
 
 // DELETE /operations/:id — cascades tasks; deletes receipts + their GCS objects
-router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id", requirePermission("operations", "delete"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
 
@@ -118,7 +118,7 @@ router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) =>
 
 // ─── Operation Tasks ─────────────────────────────────────────────────────────
 
-router.get("/:id/tasks", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
+router.get("/:id/tasks", requirePermission("operations", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -131,7 +131,7 @@ router.get("/:id/tasks", requireAnyRole("admin", "operations", "accounting", "gu
   } catch { res.status(500).json({ error: "Failed to list tasks" }); }
 });
 
-router.post("/:id/tasks", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/:id/tasks", requirePermission("operations", "create"), async (req, res) => {
   try {
     const [row] = await db.insert(operationTasksTable)
       .values({ ...req.body, operationId: parseInt(req.params.id as string) })
@@ -141,7 +141,7 @@ router.post("/:id/tasks", requireAnyRole("admin", "operations"), async (req, res
   } catch { res.status(500).json({ error: "Failed to create task" }); }
 });
 
-router.patch("/:id/tasks/:taskId", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
+router.patch("/:id/tasks/:taskId", requirePermission("operations", "update"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -160,7 +160,7 @@ router.patch("/:id/tasks/:taskId", requireAnyRole("admin", "operations", "guide"
   } catch { res.status(500).json({ error: "Failed to update task" }); }
 });
 
-router.delete("/:id/tasks/:taskId", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id/tasks/:taskId", requirePermission("operations", "delete"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
     const taskId = parseInt(req.params.taskId as string);
@@ -176,7 +176,7 @@ router.delete("/:id/tasks/:taskId", requireAnyRole("admin", "operations"), async
 
 // ─── Operation Receipts ───────────────────────────────────────────────────────
 
-router.get("/:id/receipts", requireAnyRole("admin", "operations", "accounting", "guide"), async (req, res) => {
+router.get("/:id/receipts", requirePermission("receipts", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -192,7 +192,7 @@ router.get("/:id/receipts", requireAnyRole("admin", "operations", "accounting", 
 // Canonical private-upload path pattern: /objects/uploads/<uuid>
 const CANONICAL_OBJECT_PATH_RE = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-router.post("/:id/receipts", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
+router.post("/:id/receipts", requirePermission("receipts", "create"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -244,7 +244,7 @@ router.post("/:id/receipts", requireAnyRole("admin", "operations", "guide"), asy
 });
 
 // DELETE /operations/:id/receipts/:receiptId — deletes DB record + GCS object
-router.delete("/:id/receipts/:receiptId", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
+router.delete("/:id/receipts/:receiptId", requirePermission("receipts", "delete"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;

@@ -3,7 +3,8 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { profilesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth, requireActive, requireRole, getOrCreateProfile } from "../lib/auth";
+import { requireAuth, requireActive, getOrCreateProfile } from "../lib/auth";
+import { getPermissionsForProfile } from "../lib/permissions";
 
 const router = Router();
 
@@ -33,6 +34,26 @@ router.patch("/me", requireAuth, requireActive(), async (req, res) => {
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: "Failed to update profile" });
+  }
+});
+
+// GET /api/profiles/me/permissions — returns the caller's effective permission set
+router.get("/me/permissions", requireAuth, requireActive(), async (req, res) => {
+  try {
+    const { userId, sessionClaims } = getAuth(req);
+    const email = (sessionClaims?.email as string) ?? "";
+    const name  = (sessionClaims?.name  as string) ?? undefined;
+    const profile = await getOrCreateProfile(userId!, email, name);
+
+    if (profile.role === "super_admin") {
+      res.json({ all: true, permissions: [] });
+      return;
+    }
+
+    const perms = await getPermissionsForProfile(profile.id, profile.role);
+    res.json({ all: false, permissions: Array.from(perms) });
+  } catch {
+    res.status(500).json({ error: "Failed to load permissions" });
   }
 });
 

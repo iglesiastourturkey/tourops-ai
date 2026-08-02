@@ -8,7 +8,7 @@ import {
   operationReceiptsTable,
 } from "@workspace/db/schema";
 import { eq, gte, lt, and, inArray, ne, not, desc, isNull } from "drizzle-orm";
-import { requireAuth, getProfile, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
@@ -24,7 +24,7 @@ function daysAhead(n: number) {
 
 // ─── /stats  (all authenticated roles, role-aware response) ───────────────────
 
-router.get("/stats", getProfile, async (req, res) => {
+router.get("/stats", requirePermission("dashboard", "view"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     const role: string = profile.role;
@@ -176,7 +176,7 @@ router.get("/stats", getProfile, async (req, res) => {
 
 // ─── /alerts  (all authenticated roles, role-aware) ───────────────────────────
 
-router.get("/alerts", getProfile, async (req, res) => {
+router.get("/alerts", requirePermission("dashboard", "view"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     const role: string = profile.role;
@@ -262,7 +262,7 @@ router.get("/alerts", getProfile, async (req, res) => {
 
 // ─── /charts  (admin / operations only) ───────────────────────────────────────
 
-router.get("/charts", requireAnyRole("admin", "operations"), async (req, res) => {
+router.get("/charts", requirePermission("dashboard", "view"), async (req, res) => {
   try {
     const now = new Date();
     const buckets = Array.from({ length: 6 }, (_, i) => {
@@ -330,7 +330,7 @@ router.get("/charts", requireAnyRole("admin", "operations"), async (req, res) =>
 
 // ─── /upcoming  (admin / operations / accounting) ─────────────────────────────
 
-router.get("/upcoming", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/upcoming", requirePermission("dashboard", "view"), async (req, res) => {
   try {
     const today = todayStr();
     const fourteenDays = daysAhead(14);
@@ -363,7 +363,7 @@ router.get("/upcoming", requireAnyRole("admin", "operations", "accounting"), asy
 
 // ─── /guide-ops  (guide's assigned operations; admin/super_admin can pass ?guideUserId=) ─
 
-router.get("/guide-ops", getProfile, async (req, res) => {
+router.get("/guide-ops", requirePermission("dashboard", "view"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     const role: string = profile.role;

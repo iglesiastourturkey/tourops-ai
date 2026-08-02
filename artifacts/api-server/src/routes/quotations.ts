@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { quotationsTable, operationsTable } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { requireAuth, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
@@ -12,7 +12,7 @@ function genQuotationNumber() {
   return `TEK-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 }
 
-router.get("/", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/", requirePermission("quotations", "view"), async (req, res) => {
   try {
     const { status, customerId } = req.query as Record<string, string>;
     let rows = await db.select().from(quotationsTable).orderBy(desc(quotationsTable.createdAt));
@@ -22,7 +22,7 @@ router.get("/", requireAnyRole("admin", "operations", "accounting"), async (req,
   } catch { res.status(500).json({ error: "Failed to list quotations" }); }
 });
 
-router.post("/", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.post("/", requirePermission("quotations", "create"), async (req, res) => {
   try {
     const body = { ...req.body };
     if (!body.number) body.number = genQuotationNumber();
@@ -31,7 +31,7 @@ router.post("/", requireAnyRole("admin", "operations", "accounting"), async (req
   } catch { res.status(500).json({ error: "Failed to create quotation" }); }
 });
 
-router.get("/:id", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/:id", requirePermission("quotations", "view"), async (req, res) => {
   try {
     const [row] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id as string)));
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -39,7 +39,7 @@ router.get("/:id", requireAnyRole("admin", "operations", "accounting"), async (r
   } catch { res.status(500).json({ error: "Failed to get quotation" }); }
 });
 
-router.patch("/:id", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.patch("/:id", requirePermission("quotations", "update"), async (req, res) => {
   try {
     const [row] = await db.update(quotationsTable).set(req.body).where(eq(quotationsTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -48,7 +48,7 @@ router.patch("/:id", requireAnyRole("admin", "operations", "accounting"), async 
 });
 
 // DELETE /quotations/:id — blocked if quotation has an active operation
-router.delete("/:id", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.delete("/:id", requirePermission("quotations", "delete"), async (req, res) => {
   try {
     const id = parseInt(req.params.id as string);
     const activeOps = await db.select({ id: operationsTable.id }).from(operationsTable).where(
@@ -64,7 +64,7 @@ router.delete("/:id", requireAnyRole("admin", "operations", "accounting"), async
 });
 
 // PATCH /quotations/:id/status
-router.patch("/:id/status", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.patch("/:id/status", requirePermission("quotations", "update"), async (req, res) => {
   try {
     const { status } = req.body;
     const updates: Record<string, unknown> = { status };
@@ -77,7 +77,7 @@ router.patch("/:id/status", requireAnyRole("admin", "operations", "accounting"),
 });
 
 // POST /quotations/:id/duplicate
-router.post("/:id/duplicate", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.post("/:id/duplicate", requirePermission("quotations", "create"), async (req, res) => {
   try {
     const [orig] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id as string)));
     if (!orig) { res.status(404).json({ error: "Not found" }); return; }
@@ -88,7 +88,7 @@ router.post("/:id/duplicate", requireAnyRole("admin", "operations", "accounting"
 });
 
 // POST /quotations/:id/convert-to-operation
-router.post("/:id/convert-to-operation", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/:id/convert-to-operation", requirePermission("quotations", "manage"), async (req, res) => {
   try {
     const [quot] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id as string)));
     if (!quot) { res.status(404).json({ error: "Not found" }); return; }

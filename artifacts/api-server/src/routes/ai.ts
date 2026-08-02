@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireActive, requireAnyRole, getUserId } from "../lib/auth";
+import { requireAuth, requireActive, requirePermission, getUserId } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
@@ -37,7 +37,7 @@ async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise
 }
 
 // POST /api/ai/analyze-request
-router.post("/analyze-request", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/analyze-request", requirePermission("ai", "view"), async (req, res) => {
   try {
     const { message } = req.body as { message: string };
     if (!message) { res.status(400).json({ error: "message required" }); return; }
@@ -71,7 +71,7 @@ Bulamadığın alanları null olarak bırak ve missingFields listesine ekle.`;
 });
 
 // POST /api/ai/generate-itinerary
-router.post("/generate-itinerary", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/generate-itinerary", requirePermission("ai", "view"), async (req, res) => {
   try {
     const body = req.body;
 
@@ -110,7 +110,7 @@ Sadece JSON döndür.`;
 });
 
 // POST /api/ai/generate-email
-router.post("/generate-email", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/generate-email", requirePermission("ai", "view"), async (req, res) => {
   try {
     const { templateType, context, language = "tr" } = req.body as { templateType: string; context: string; language?: string };
 
@@ -138,7 +138,7 @@ Sadece JSON döndür.`;
 });
 
 // POST /api/ai/assist
-router.post("/assist", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/assist", requirePermission("ai", "view"), async (req, res) => {
   try {
     const { prompt, context } = req.body as { prompt: string; context?: string };
 
@@ -232,7 +232,7 @@ Confidence rules:
 Do not store or reference the image content beyond what is needed for extraction.`;
 
 // POST /api/ai/ocr-receipt
-router.post("/ocr-receipt", requireAnyRole("admin", "operations", "guide"), async (req, res) => {
+router.post("/ocr-receipt", requirePermission("ai", "view"), async (req, res) => {
   try {
     const userId = getUserId(req);
 

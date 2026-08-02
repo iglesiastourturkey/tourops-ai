@@ -3,7 +3,7 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { toursTable, tourDaysTable, tourCostsTable, quotationsTable, operationsTable } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
-import { requireAuth, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 import type { UserRole } from "@workspace/db/schema";
 
 const router = Router();
@@ -25,7 +25,7 @@ async function getGuideAllowedTourIds(userId: string): Promise<Set<number>> {
 }
 
 // Tours CRUD
-router.get("/", requireAnyRole("admin", "operations", "guide", "accounting"), async (req, res) => {
+router.get("/", requirePermission("tours", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -45,7 +45,7 @@ router.get("/", requireAnyRole("admin", "operations", "guide", "accounting"), as
   } catch { res.status(500).json({ error: "Failed to list tours" }); }
 });
 
-router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/", requirePermission("tours", "create"), async (req, res) => {
   try {
     const body = req.body;
     if (!body.code) {
@@ -56,7 +56,7 @@ router.post("/", requireAnyRole("admin", "operations"), async (req, res) => {
   } catch (err) { res.status(500).json({ error: "Failed to create tour" }); }
 });
 
-router.get("/:id", requireAnyRole("admin", "operations", "guide", "accounting"), async (req, res) => {
+router.get("/:id", requirePermission("tours", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -75,7 +75,7 @@ router.get("/:id", requireAnyRole("admin", "operations", "guide", "accounting"),
   } catch { res.status(500).json({ error: "Failed to get tour" }); }
 });
 
-router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.patch("/:id", requirePermission("tours", "update"), async (req, res) => {
   try {
     const [row] = await db.update(toursTable).set(req.body).where(eq(toursTable.id, parseInt(req.params.id as string))).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
@@ -83,7 +83,7 @@ router.patch("/:id", requireAnyRole("admin", "operations"), async (req, res) => 
   } catch { res.status(500).json({ error: "Failed to update tour" }); }
 });
 
-router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id", requirePermission("tours", "delete"), async (req, res) => {
   try {
     const tourId = parseInt(req.params.id as string);
     // Prevent deleting a tour that has active quotations or operations
@@ -108,7 +108,7 @@ router.delete("/:id", requireAnyRole("admin", "operations"), async (req, res) =>
 });
 
 // Tour cost summary — financial data; guides are excluded
-router.get("/:id/cost-summary", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/:id/cost-summary", requirePermission("tours", "view"), async (req, res) => {
   try {
     const tourId = parseInt(req.params.id as string);
     const [tour] = await db.select().from(toursTable).where(eq(toursTable.id, tourId));
@@ -139,7 +139,7 @@ router.get("/:id/cost-summary", requireAnyRole("admin", "operations", "accountin
 });
 
 // Tour days — guides may read days for tours linked to their operations
-router.get("/:id/days", requireAnyRole("admin", "operations", "guide", "accounting"), async (req, res) => {
+router.get("/:id/days", requirePermission("tours", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const role = res.locals.profile?.role as UserRole;
@@ -156,21 +156,21 @@ router.get("/:id/days", requireAnyRole("admin", "operations", "guide", "accounti
   } catch { res.status(500).json({ error: "Failed to list tour days" }); }
 });
 
-router.post("/:id/days", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/:id/days", requirePermission("tours", "update"), async (req, res) => {
   try {
     const [row] = await db.insert(tourDaysTable).values({ ...req.body, tourId: parseInt(req.params.id as string) }).returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create tour day" }); }
 });
 
-router.patch("/:id/days/:dayId", requireAnyRole("admin", "operations"), async (req, res) => {
+router.patch("/:id/days/:dayId", requirePermission("tours", "update"), async (req, res) => {
   try {
     const [row] = await db.update(tourDaysTable).set(req.body).where(eq(tourDaysTable.id, parseInt(req.params.dayId as string))).returning();
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to update tour day" }); }
 });
 
-router.delete("/:id/days/:dayId", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id/days/:dayId", requirePermission("tours", "update"), async (req, res) => {
   try {
     await db.delete(tourDaysTable).where(eq(tourDaysTable.id, parseInt(req.params.dayId as string)));
     res.status(204).send();
@@ -178,14 +178,14 @@ router.delete("/:id/days/:dayId", requireAnyRole("admin", "operations"), async (
 });
 
 // Tour costs — financial data; guides are excluded
-router.get("/:id/costs", requireAnyRole("admin", "operations", "accounting"), async (req, res) => {
+router.get("/:id/costs", requirePermission("tours", "view"), async (req, res) => {
   try {
     const rows = await db.select().from(tourCostsTable).where(eq(tourCostsTable.tourId, parseInt(req.params.id as string)));
     res.json(rows);
   } catch { res.status(500).json({ error: "Failed to list tour costs" }); }
 });
 
-router.post("/:id/costs", requireAnyRole("admin", "operations"), async (req, res) => {
+router.post("/:id/costs", requirePermission("tours", "update"), async (req, res) => {
   try {
     const body = { ...req.body, tourId: parseInt(req.params.id as string) };
     body.total = (body.quantity || 1) * (body.unitCost || 0);
@@ -194,7 +194,7 @@ router.post("/:id/costs", requireAnyRole("admin", "operations"), async (req, res
   } catch { res.status(500).json({ error: "Failed to create tour cost" }); }
 });
 
-router.patch("/:id/costs/:costId", requireAnyRole("admin", "operations"), async (req, res) => {
+router.patch("/:id/costs/:costId", requirePermission("tours", "update"), async (req, res) => {
   try {
     const body = { ...req.body };
     if (body.quantity !== undefined || body.unitCost !== undefined) {
@@ -208,7 +208,7 @@ router.patch("/:id/costs/:costId", requireAnyRole("admin", "operations"), async 
   } catch { res.status(500).json({ error: "Failed to update tour cost" }); }
 });
 
-router.delete("/:id/costs/:costId", requireAnyRole("admin", "operations"), async (req, res) => {
+router.delete("/:id/costs/:costId", requirePermission("tours", "update"), async (req, res) => {
   try {
     await db.delete(tourCostsTable).where(eq(tourCostsTable.id, parseInt(req.params.costId as string)));
     res.status(204).send();

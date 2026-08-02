@@ -13,17 +13,13 @@ import {
   agencySettingsTable,
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, inArray, not, desc } from "drizzle-orm";
-import { requireAuth, getProfile } from "../lib/auth";
+import { requireAuth, getProfile, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 
 const router = Router();
 router.use(requireAuth, getProfile);
 
 const objectStorageService = new ObjectStorageService();
-
-function canExport(role: string) {
-  return role === "super_admin" || role === "admin" || role === "accounting";
-}
 
 // ── Shared: build transaction query from filters ──────────────────────────────
 
@@ -140,10 +136,8 @@ const REVIEW_STATUS_LABELS: Record<string, string> = { pending_review: "Bekliyor
 
 // ── PDF Export ─────────────────────────────────────────────────────────────────
 
-router.post("/pdf", async (req, res) => {
+router.post("/pdf", requirePermission("exports", "export"), async (req, res) => {
   try {
-    const role = res.locals.profile?.role as string;
-    if (!canExport(role)) return res.status(403).json({ error: "Forbidden" });
 
     const filters: ExportFilters = req.body?.filters ?? {};
     const [transactions, receipts, agencyName] = await Promise.all([
@@ -302,10 +296,8 @@ router.post("/pdf", async (req, res) => {
 
 // ── Excel Export ───────────────────────────────────────────────────────────────
 
-router.post("/excel", async (req, res) => {
+router.post("/excel", requirePermission("exports", "export"), async (req, res) => {
   try {
-    const role = res.locals.profile?.role as string;
-    if (!canExport(role)) return res.status(403).json({ error: "Forbidden" });
 
     const filters: ExportFilters = req.body?.filters ?? {};
     const [transactions, receipts] = await Promise.all([
@@ -468,10 +460,8 @@ router.post("/excel", async (req, res) => {
 
 // ── ZIP Export ─────────────────────────────────────────────────────────────────
 
-router.post("/zip", async (req, res) => {
+router.post("/zip", requirePermission("exports", "export"), async (req, res) => {
   try {
-    const role = res.locals.profile?.role as string;
-    if (!canExport(role)) return res.status(403).json({ error: "Forbidden" });
 
     const filters: ExportFilters = req.body?.filters ?? {};
     const [transactions, receipts] = await Promise.all([

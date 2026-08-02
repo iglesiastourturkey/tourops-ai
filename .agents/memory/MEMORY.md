@@ -18,3 +18,4 @@
 - [AI accounting assistant](ai-accounting-assistant.md) — GET /api/accounting/ai-summary; admin/accounting/super_admin only; 10-min in-memory cache keyed by role:from:to; model fallback AI_ACCOUNTING_MODEL→AI_MODEL→gpt-4o-mini; Zod-validated response; deterministic fallback when AI unavailable
 - [Field Operations Center](field-operations-center.md) — Sprint 6 complete; field_operations 6th role; mobile FieldShell + 4 pages; multer added to api-server; DB tables pushed
 - [PWA and offline foundation](pwa-offline.md) — Sprint 6.1: vite-plugin-pwa (generateSW), IndexedDB offline queue, location sharing, browser notifications; operationLocationsTable added to DB
+- [Separate sign-in paths](sign-in-paths.md) — /sign-in=selection, /sign-in/staff/*?=Clerk <SignIn>, /sign-in/admin=custom form; clerkAppearance shared via lib/clerk-appearance.ts; username assignment in PATCH /api/users/:clerkUserId

@@ -7,6 +7,7 @@ import { clerkMiddleware } from "@clerk/express";
 import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { systemModeMiddleware } from "./middlewares/systemMode";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
@@ -52,6 +53,8 @@ app.use(
   })),
 );
 
+// System-mode gate: runs before all API handlers
+app.use("/api", systemModeMiddleware);
 app.use("/api", router);
 
 // ── Production static file serving ─────────────────────────────────────────

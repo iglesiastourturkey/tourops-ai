@@ -13,7 +13,7 @@ import {
   profilesTable,
 } from "@workspace/db/schema";
 import { eq, and, gte, lte, inArray, isNull, not, desc, or, sql } from "drizzle-orm";
-import { requireAuth, getProfile, requireAnyRole } from "../lib/auth";
+import { requireAuth, getProfile, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 
 const router = Router();
@@ -40,7 +40,7 @@ const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Ey
 
 // ── Dashboard stats ────────────────────────────────────────────────────────────
 
-router.get("/dashboard", async (req, res) => {
+router.get("/dashboard", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -171,7 +171,7 @@ router.get("/dashboard", async (req, res) => {
 
 // ── Transactions ───────────────────────────────────────────────────────────────
 
-router.get("/transactions", async (req, res) => {
+router.get("/transactions", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -239,7 +239,7 @@ router.get("/transactions", async (req, res) => {
   }
 });
 
-router.post("/transactions", async (req, res) => {
+router.post("/transactions", requirePermission("accounting", "create"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -268,7 +268,7 @@ router.post("/transactions", async (req, res) => {
   }
 });
 
-router.get("/transactions/:id", async (req, res) => {
+router.get("/transactions/:id", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -283,7 +283,7 @@ router.get("/transactions/:id", async (req, res) => {
   }
 });
 
-router.patch("/transactions/:id", async (req, res) => {
+router.patch("/transactions/:id", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -306,7 +306,7 @@ router.patch("/transactions/:id", async (req, res) => {
   }
 });
 
-router.post("/transactions/:id/approve", async (req, res) => {
+router.post("/transactions/:id/approve", requirePermission("accounting", "approve"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -324,7 +324,7 @@ router.post("/transactions/:id/approve", async (req, res) => {
   }
 });
 
-router.post("/transactions/:id/reject", async (req, res) => {
+router.post("/transactions/:id/reject", requirePermission("accounting", "approve"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -345,7 +345,7 @@ router.post("/transactions/:id/reject", async (req, res) => {
   }
 });
 
-router.post("/transactions/:id/cancel", async (req, res) => {
+router.post("/transactions/:id/cancel", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -369,7 +369,7 @@ router.post("/transactions/:id/cancel", async (req, res) => {
 
 // ── Document review queue ──────────────────────────────────────────────────────
 
-router.get("/documents", async (req, res) => {
+router.get("/documents", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -443,7 +443,7 @@ router.get("/documents", async (req, res) => {
   }
 });
 
-router.post("/documents/:id/review", async (req, res) => {
+router.post("/documents/:id/review", requirePermission("accounting", "approve"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -469,7 +469,7 @@ router.post("/documents/:id/review", async (req, res) => {
 
 // ── Receipt review ─────────────────────────────────────────────────────────────
 
-router.post("/receipts/:id/review", async (req, res) => {
+router.post("/receipts/:id/review", requirePermission("accounting", "approve"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -493,7 +493,7 @@ router.post("/receipts/:id/review", async (req, res) => {
   }
 });
 
-router.post("/receipts/:id/create-transaction", async (req, res) => {
+router.post("/receipts/:id/create-transaction", requirePermission("accounting", "create"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -535,7 +535,7 @@ router.post("/receipts/:id/create-transaction", async (req, res) => {
 
 // ── Operation accounting file ──────────────────────────────────────────────────
 
-router.get("/operations/:id", async (req, res) => {
+router.get("/operations/:id", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -627,7 +627,7 @@ router.get("/operations/:id", async (req, res) => {
 
 // ── Mark transaction as missing info ────────────────────────────────────────────
 
-router.post("/transactions/:id/mark-missing", async (req, res) => {
+router.post("/transactions/:id/mark-missing", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -643,7 +643,7 @@ router.post("/transactions/:id/mark-missing", async (req, res) => {
 
 // ── Mark transaction as paid ──────────────────────────────────────────────────
 
-router.post("/transactions/:id/mark-paid", async (req, res) => {
+router.post("/transactions/:id/mark-paid", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -659,7 +659,7 @@ router.post("/transactions/:id/mark-paid", async (req, res) => {
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 
-router.get("/settings", async (req, res) => {
+router.get("/settings", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -676,7 +676,7 @@ router.get("/settings", async (req, res) => {
   } catch (e) { console.error(e); return res.status(500).json({ error: "Ayarlar yüklenemedi" }); }
 });
 
-router.put("/settings", async (req, res) => {
+router.put("/settings", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -693,7 +693,7 @@ router.put("/settings", async (req, res) => {
 
 // ── Receivables ───────────────────────────────────────────────────────────────
 
-router.get("/receivables", async (req, res) => {
+router.get("/receivables", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -733,7 +733,7 @@ router.get("/receivables", async (req, res) => {
 
 // ── Payables ──────────────────────────────────────────────────────────────────
 
-router.get("/payables", async (req, res) => {
+router.get("/payables", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canRead(role)) return res.status(403).json({ error: "Forbidden" });
@@ -773,7 +773,7 @@ router.get("/payables", async (req, res) => {
 
 // ── Document / receipt detail ──────────────────────────────────────────────────
 
-router.get("/documents/:type/:id", async (req, res) => {
+router.get("/documents/:type/:id", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -901,7 +901,7 @@ router.get("/documents/:type/:id", async (req, res) => {
 
 // ── Save corrected fields ──────────────────────────────────────────────────────
 
-router.put("/documents/:type/:id", async (req, res) => {
+router.put("/documents/:type/:id", requirePermission("accounting", "update"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -944,7 +944,7 @@ router.put("/documents/:type/:id", async (req, res) => {
 
 // ── File proxy ─────────────────────────────────────────────────────────────────
 
-router.get("/documents/:type/:id/file", async (req, res) => {
+router.get("/documents/:type/:id/file", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const profile = res.locals.profile;
     if (!canWrite(profile.role)) return res.status(403).json({ error: "Forbidden" });
@@ -1115,7 +1115,7 @@ function buildDeterministicSummary(agg: Aggregates, from: string, to: string): A
 }
 
 // GET /api/accounting/ai-summary
-router.get("/ai-summary", async (req, res) => {
+router.get("/ai-summary", requirePermission("accounting", "view"), async (req, res) => {
   try {
     const role = res.locals.profile?.role as string;
     if (!canWrite(role)) return res.status(403).json({ error: "Forbidden" });

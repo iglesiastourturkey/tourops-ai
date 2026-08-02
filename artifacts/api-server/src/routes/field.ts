@@ -23,7 +23,7 @@ import {
 import {
   eq, desc, asc, and, or, gte, lte, sql, isNull, ne, not, like,
 } from "drizzle-orm";
-import { requireAuth, requireAnyRole } from "../lib/auth";
+import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import multer from "multer";
 import type { Request, Response } from "express";
@@ -36,8 +36,6 @@ function paramStr(v: string | string[]): string {
   return Array.isArray(v) ? (v[0] ?? "") : v;
 }
 
-const FIELD_ROLES = ["field_operations", "operations", "admin", "super_admin"] as const;
-const fieldAccess = requireAnyRole(...FIELD_ROLES);
 
 const objectStorageService = new ObjectStorageService();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
@@ -112,7 +110,7 @@ async function notifyRoles(
 
 // ── GET /field/dashboard ──────────────────────────────────────────────────────
 
-router.get("/dashboard", fieldAccess, async (req: Request, res: Response) => {
+router.get("/dashboard", requirePermission("field_operations", "view"), async (req: Request, res: Response) => {
   try {
     const today = todayISO();
     const upcoming = plusDays(7);
@@ -294,7 +292,7 @@ router.get("/dashboard", fieldAccess, async (req: Request, res: Response) => {
 
 // ── GET /field/operations ─────────────────────────────────────────────────────
 
-router.get("/operations", fieldAccess, async (req: Request, res: Response) => {
+router.get("/operations", requirePermission("field_operations", "view"), async (req: Request, res: Response) => {
   try {
     const today = todayISO();
     const upcoming = plusDays(14);
@@ -335,7 +333,7 @@ router.get("/operations", fieldAccess, async (req: Request, res: Response) => {
 
 // ── GET /field/operations/:id ─────────────────────────────────────────────────
 
-router.get("/operations/:id", fieldAccess, async (req: Request, res: Response) => {
+router.get("/operations/:id", requirePermission("field_operations", "view"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -410,7 +408,7 @@ router.get("/operations/:id", fieldAccess, async (req: Request, res: Response) =
 
 // ── PATCH /field/operations/:id/status ───────────────────────────────────────
 
-router.patch("/operations/:id/status", fieldAccess, async (req: Request, res: Response) => {
+router.patch("/operations/:id/status", requirePermission("field_operations", "update"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -472,7 +470,7 @@ router.patch("/operations/:id/status", fieldAccess, async (req: Request, res: Re
 
 // ── PATCH /field/operations/:id/assignments ───────────────────────────────────
 
-router.patch("/operations/:id/assignments", fieldAccess, async (req: Request, res: Response) => {
+router.patch("/operations/:id/assignments", requirePermission("field_operations", "update"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -576,7 +574,7 @@ router.patch("/operations/:id/assignments", fieldAccess, async (req: Request, re
 
 // ── PATCH /field/operations/:id/tasks/:taskId ─────────────────────────────────
 
-router.patch("/operations/:id/tasks/:taskId", fieldAccess, async (req: Request, res: Response) => {
+router.patch("/operations/:id/tasks/:taskId", requirePermission("field_operations", "update"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     const taskId = parseInt(paramStr(req.params["taskId"]), 10);
@@ -609,7 +607,7 @@ router.patch("/operations/:id/tasks/:taskId", fieldAccess, async (req: Request, 
 
 // ── POST /field/operations/:id/tasks ─────────────────────────────────────────
 
-router.post("/operations/:id/tasks", fieldAccess, async (req: Request, res: Response) => {
+router.post("/operations/:id/tasks", requirePermission("field_operations", "create"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -645,7 +643,7 @@ router.post("/operations/:id/tasks", fieldAccess, async (req: Request, res: Resp
 
 // ── GET /field/operations/:id/notes ──────────────────────────────────────────
 
-router.get("/operations/:id/notes", fieldAccess, async (req: Request, res: Response) => {
+router.get("/operations/:id/notes", requirePermission("field_operations", "view"), async (req: Request, res: Response) => {
   try {
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -677,7 +675,7 @@ router.get("/operations/:id/notes", fieldAccess, async (req: Request, res: Respo
 
 router.post(
   "/operations/:id/notes",
-  fieldAccess,
+  requirePermission("field_operations", "create"),
   upload.single("photo"),
   async (req: Request, res: Response) => {
     try {
@@ -721,7 +719,7 @@ router.post(
 // ── GET /field/guides ─────────────────────────────────────────────────────────
 // Lists active guide profiles for assignment picker
 
-router.get("/guides", fieldAccess, async (req: Request, res: Response) => {
+router.get("/guides", requirePermission("field_operations", "view"), async (req: Request, res: Response) => {
   try {
     const today = todayISO();
 
@@ -774,7 +772,7 @@ router.get("/guides", fieldAccess, async (req: Request, res: Response) => {
 
 // ── GET /field/incidents ──────────────────────────────────────────────────────
 
-router.get("/incidents", fieldAccess, async (req: Request, res: Response) => {
+router.get("/incidents", requirePermission("incidents", "view"), async (req: Request, res: Response) => {
   try {
     const { status, severity } = req.query as { status?: string; severity?: string };
 
@@ -816,7 +814,7 @@ router.get("/incidents", fieldAccess, async (req: Request, res: Response) => {
 
 router.post(
   "/incidents",
-  fieldAccess,
+  requirePermission("incidents", "upload"),
   upload.single("photo"),
   async (req: Request, res: Response) => {
     try {
@@ -888,7 +886,7 @@ router.post(
 
 // ── GET /field/incidents/:id ──────────────────────────────────────────────────
 
-router.get("/incidents/:id", fieldAccess, async (req: Request, res: Response) => {
+router.get("/incidents/:id", requirePermission("incidents", "view"), async (req: Request, res: Response) => {
   try {
     const incId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(incId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -928,7 +926,7 @@ router.get("/incidents/:id", fieldAccess, async (req: Request, res: Response) =>
 
 // ── PATCH /field/incidents/:id ────────────────────────────────────────────────
 
-router.patch("/incidents/:id", fieldAccess, async (req: Request, res: Response) => {
+router.patch("/incidents/:id", requirePermission("incidents", "update"), async (req: Request, res: Response) => {
   try {
     const incId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(incId)) return res.status(400).json({ error: "Geçersiz ID" });
@@ -984,7 +982,7 @@ router.patch("/incidents/:id", fieldAccess, async (req: Request, res: Response) 
  * Saves the current user's one-shot location for the operation.
  * Accessible to: field_operations, operations, admin, super_admin.
  */
-router.post("/operations/:id/location", fieldAccess, async (req, res) => {
+router.post("/operations/:id/location", requirePermission("field_operations", "create"), async (req, res) => {
   const opId = parseInt(paramStr(req.params.id), 10);
   if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });
 
@@ -1025,7 +1023,7 @@ router.post("/operations/:id/location", fieldAccess, async (req, res) => {
  * Returns the most recent location entry for the operation.
  * Accessible to: field_operations, operations, admin, super_admin.
  */
-router.get("/operations/:id/location", fieldAccess, async (req, res) => {
+router.get("/operations/:id/location", requirePermission("field_operations", "view"), async (req, res) => {
   const opId = parseInt(paramStr(req.params.id), 10);
   if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz operasyon ID" });
 

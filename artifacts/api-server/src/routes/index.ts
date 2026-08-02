@@ -16,6 +16,9 @@ import accountingRouter from "./accounting";
 import accountingExportRouter from "./accounting-export";
 import guideRouter from "./guide";
 import fieldRouter from "./field";
+import rolesRouter from "./roles";
+import systemRouter from "./system";
+import auditRouter from "./audit";
 
 const router: IRouter = Router();
 
@@ -36,5 +39,8 @@ router.use("/accounting/export", accountingExportRouter);
 router.use("/accounting", accountingRouter);
 router.use("/guide", guideRouter);
 router.use("/field", fieldRouter);
+router.use("/roles", rolesRouter);
+router.use("/system", systemRouter);
+router.use("/audit", auditRouter);
 
 export default router;
