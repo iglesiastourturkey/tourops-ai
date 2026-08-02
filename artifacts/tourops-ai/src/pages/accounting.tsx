@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { customFetch } from '@workspace/api-client-react';
 import { AppShell } from '@/components/AppShell';
@@ -9,7 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/labels';
 import {
   TrendingUp, TrendingDown, DollarSign, Clock, AlertTriangle,
-  FileText, BarChart3, ArrowRight, RefreshCw, AlertCircle, Receipt
+  FileText, BarChart3, ArrowRight, RefreshCw, AlertCircle, Receipt,
+  Bot, Loader2, CheckCircle2, Zap, Info,
 } from 'lucide-react';
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -74,7 +76,78 @@ function KpiCard({ icon: Icon, label, value, variant = 'default', link, sub }: {
   return link ? <Link href={link}>{content}</Link> : content;
 }
 
+// ── AI Summary types ────────────────────────────────────────────────────────
+interface AiWarning {
+  severity: 'critical' | 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  actionType: 'documents' | 'transactions' | 'receivables' | 'payables' | 'operation' | 'report' | 'none';
+  filter: Record<string, string>;
+}
+interface AiRecommendation {
+  title: string;
+  description: string;
+  actionType: AiWarning['actionType'];
+  filter: Record<string, string>;
+}
+interface AiSummaryResponse {
+  summary: string;
+  warnings: AiWarning[];
+  recommendations: AiRecommendation[];
+  generatedAt: string;
+  dataPeriod: { from: string; to: string };
+  cached: boolean;
+}
+
+const SEVERITY_CONFIG = {
+  critical: { label: 'Kritik', cls: 'bg-red-100 text-red-800 border-red-200', border: 'border-l-red-500' },
+  high:     { label: 'Yüksek', cls: 'bg-orange-100 text-orange-800 border-orange-200', border: 'border-l-orange-500' },
+  medium:   { label: 'Orta',   cls: 'bg-amber-100 text-amber-800 border-amber-200', border: 'border-l-amber-500' },
+  low:      { label: 'Düşük',  cls: 'bg-blue-100 text-blue-700 border-blue-200', border: 'border-l-blue-400' },
+};
+
+function actionHref(actionType: AiWarning['actionType'], filter: Record<string, string>): string | null {
+  const params = new URLSearchParams(filter).toString();
+  const qs = params ? `?${params}` : '';
+  switch (actionType) {
+    case 'documents':    return `${BASE}accounting/documents${qs}`;
+    case 'transactions': return `${BASE}accounting/transactions${qs}`;
+    case 'receivables':  return `${BASE}accounting/transactions?type=income&paymentStatus=pending`;
+    case 'payables':     return `${BASE}accounting/transactions?type=expense&paymentStatus=pending`;
+    case 'report':       return `${BASE}accounting/reports`;
+    default:             return null;
+  }
+}
+
+function getMonthStart() {
+  const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).toISOString().split('T')[0];
+}
+function getToday() { return new Date().toISOString().split('T')[0]; }
+
+// ── Dashboard page ───────────────────────────────────────────────────────────
 export default function AccountingDashboardPage() {
+  const queryClient = useQueryClient();
+
+  const [aiFrom, setAiFrom] = useState(getMonthStart);
+  const [aiTo, setAiTo]     = useState(getToday);
+
+  const {
+    data: aiData, isLoading: aiLoading, isFetching: aiFetching, isError: aiError,
+  } = useQuery({
+    queryKey: ['accounting', 'ai-summary', aiFrom, aiTo],
+    queryFn: () => customFetch<AiSummaryResponse>(`${API_BASE}/accounting/ai-summary?from=${aiFrom}&to=${aiTo}`),
+    staleTime: 10 * 60 * 1000,
+    retry: 1,
+  });
+
+  async function handleAiRefresh() {
+    await queryClient.fetchQuery({
+      queryKey: ['accounting', 'ai-summary', aiFrom, aiTo],
+      queryFn: () => customFetch<AiSummaryResponse>(`${API_BASE}/accounting/ai-summary?from=${aiFrom}&to=${aiTo}&refresh=true`),
+      staleTime: 0,
+    });
+  }
+
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['accounting', 'dashboard'],
     queryFn: () => customFetch<DashboardStats>(`${API_BASE}/accounting/dashboard`),
@@ -166,6 +239,179 @@ export default function AccountingDashboardPage() {
             />
           </>}
         </div>
+
+        {/* ── AI Accounting Assistant ──────────────────────────────────────── */}
+        <Card className="border-[#0d7377]/30 bg-gradient-to-br from-[#0d7377]/5 to-transparent">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-[#0d7377]/10">
+                  <Bot className="h-4 w-4 text-[#0d7377]" />
+                </div>
+                <div>
+                  <CardTitle className="text-base text-[#1e3a5f] flex items-center gap-2">
+                    AI Muhasebe Asistanı
+                    {aiData?.cached && (
+                      <Badge variant="outline" className="text-[10px] font-normal border-blue-200 text-blue-600 py-0">
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" />Önbellekten
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  {aiData && (
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(aiData.generatedAt).toLocaleString('tr-TR', { dateStyle: 'medium', timeStyle: 'short' })} · {aiData.dataPeriod.from} – {aiData.dataPeriod.to}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <input
+                  type="date" value={aiFrom} max={aiTo}
+                  onChange={e => setAiFrom(e.target.value)}
+                  className="text-xs border rounded-md px-2 py-1 bg-background h-8"
+                  aria-label="Başlangıç tarihi"
+                />
+                <span className="text-xs text-muted-foreground">–</span>
+                <input
+                  type="date" value={aiTo} min={aiFrom} max={getToday()}
+                  onChange={e => setAiTo(e.target.value)}
+                  className="text-xs border rounded-md px-2 py-1 bg-background h-8"
+                  aria-label="Bitiş tarihi"
+                />
+                <Button
+                  variant="outline" size="sm"
+                  onClick={handleAiRefresh}
+                  disabled={aiFetching}
+                  title="AI özetini yenile"
+                  aria-label="AI özetini yenile"
+                  className="h-8"
+                >
+                  {aiFetching
+                    ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Yenileniyor…</>
+                    : <><Zap className="h-3.5 w-3.5 mr-1.5" />Yenile</>
+                  }
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-4">
+            {/* Loading skeleton */}
+            {aiLoading && (
+              <div className="space-y-3">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-4/5" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 w-full" />)}
+                </div>
+              </div>
+            )}
+
+            {/* Error state */}
+            {aiError && !aiLoading && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+                <p className="text-sm text-destructive flex-1">AI özeti yüklenemedi.</p>
+                <Button variant="outline" size="sm" onClick={handleAiRefresh}>Yeniden Dene</Button>
+              </div>
+            )}
+
+            {/* AI result */}
+            {aiData && !aiLoading && (
+              <>
+                {/* Summary */}
+                <p className="text-sm leading-relaxed text-foreground">{aiData.summary}</p>
+
+                {/* Warnings */}
+                {aiData.warnings.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Uyarılar</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                      {aiData.warnings.map((w, i) => {
+                        const cfg = SEVERITY_CONFIG[w.severity];
+                        const href = actionHref(w.actionType, w.filter);
+                        return (
+                          <div key={i} className={`rounded-lg border border-l-4 p-3 ${cfg.border} bg-background`}>
+                            <div className="flex items-start justify-between gap-2 mb-1">
+                              <p className="text-xs font-semibold leading-tight">{w.title}</p>
+                              <Badge variant="outline" className={`text-[10px] font-medium shrink-0 ${cfg.cls}`}>
+                                {cfg.label}
+                              </Badge>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-snug">{w.description}</p>
+                            {href && (
+                              <a href={href} className="inline-flex items-center gap-1 text-[11px] text-[#0d7377] mt-1.5 hover:underline font-medium">
+                                İncele <ArrowRight className="h-2.5 w-2.5" />
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recommendations */}
+                {aiData.recommendations.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Önerilen Aksiyonlar</p>
+                    <div className="space-y-1.5">
+                      {aiData.recommendations.map((rec, i) => {
+                        const href = actionHref(rec.actionType, rec.filter);
+                        return (
+                          <div key={i} className="flex items-start gap-2.5 py-1.5 px-3 rounded-lg bg-muted/40 border">
+                            <Info className="h-3.5 w-3.5 text-[#0d7377] shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium">{rec.title}</p>
+                              <p className="text-[11px] text-muted-foreground">{rec.description}</p>
+                            </div>
+                            {href && (
+                              <a href={href} className="text-[11px] text-[#0d7377] hover:underline shrink-0 font-medium self-center">
+                                Git →
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick actions */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Hızlı Erişim</p>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'İnceleme Bekleyen Belgeler', href: `${BASE}accounting/documents` },
+                      { label: 'Eksik Bilgili Belgeler', href: `${BASE}accounting/documents?status=missing_information` },
+                      { label: 'Vadesi Geçen Alacaklar', href: `${BASE}accounting/transactions?type=income&paymentStatus=pending` },
+                      { label: 'Vadesi Geçen Borçlar', href: `${BASE}accounting/transactions?type=expense&paymentStatus=pending` },
+                      { label: 'Rapor Oluştur', href: `${BASE}accounting/reports` },
+                      { label: 'Tüm İşlemler', href: `${BASE}accounting/transactions` },
+                    ].map(item => (
+                      <a key={item.href} href={item.href}>
+                        <Button variant="outline" size="sm" className="h-7 text-xs">
+                          {item.label}
+                        </Button>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Empty-data notice */}
+                {aiData.warnings.length === 0 && aiData.recommendations.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">Bu dönemde analiz için yeterli veri bulunamadı.</p>
+                )}
+
+                {/* Disclaimer */}
+                <p className="text-[11px] text-muted-foreground border rounded-lg px-3 py-2 bg-muted/20 flex items-start gap-1.5">
+                  <Info className="h-3 w-3 shrink-0 mt-0.5" />
+                  Bu özet operasyonel destek amaçlıdır; resmî muhasebe, mali müşavirlik veya vergi görüşü değildir.
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Monthly chart */}

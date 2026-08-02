@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   accountingTransactionsTable,
@@ -996,6 +997,363 @@ router.get("/documents/:type/:id/file", async (req, res) => {
     console.error(e);
     if (!res.headersSent) return res.status(500).json({ error: "Dosya sunulamadı" });
     return;
+  }
+});
+
+// ── AI Accounting Summary ───────────────────────────────────────────────────────
+
+// In-memory cache: keyed by "role:from:to", 10-minute TTL
+const aiSummaryCache = new Map<string, { data: unknown; expiresAt: number }>();
+const AI_SUMMARY_TTL_MS = 10 * 60 * 1000;
+
+const ACCOUNTING_AI_MODEL =
+  process.env.AI_ACCOUNTING_MODEL?.trim() ||
+  process.env.AI_MODEL?.trim() ||
+  "openai/gpt-4o-mini";
+
+const aiSummaryWarningSchema = z.object({
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  title: z.string(),
+  description: z.string(),
+  actionType: z
+    .enum(["documents", "transactions", "receivables", "payables", "operation", "report", "none"])
+    .default("none"),
+  filter: z.record(z.unknown()).default({}),
+});
+
+const aiSummaryRecommendationSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  actionType: z
+    .enum(["documents", "transactions", "receivables", "payables", "operation", "report", "none"])
+    .default("none"),
+  filter: z.record(z.unknown()).default({}),
+});
+
+const aiSummarySchema = z.object({
+  summary: z.string(),
+  warnings: z.array(aiSummaryWarningSchema).default([]),
+  recommendations: z.array(aiSummaryRecommendationSchema).default([]),
+  generatedAt: z.string(),
+  dataPeriod: z.object({ from: z.string(), to: z.string() }),
+});
+
+type AiSummary = z.infer<typeof aiSummarySchema>;
+
+interface Aggregates {
+  period: { from: string; to: string };
+  income: number;
+  expenses: number;
+  grossProfit: number;
+  prevPeriodExpenses: number;
+  documents: { pendingReview: number; rejected: number; missingInfo: number; missingPhoto: number };
+  transactions: { total: number; unpaid: number; partiallyPaid: number; missingExchangeRate: number; missingLinkedDoc: number; duplicateCandidates: number };
+  receivables: { overdueCount: number; overdueAmountTRY: number; upcomingCount: number };
+  payables: { overdueCount: number; overdueAmountTRY: number; upcomingCount: number };
+  vatApprovedTRY: number;
+  highExpenseSuppliers: Array<{ label: string; amountTRY: number }>;
+  categoryChanges: Array<{ cat: string; pct: number }>;
+}
+
+function buildDeterministicSummary(agg: Aggregates, from: string, to: string): AiSummary {
+  const w: AiSummary["warnings"] = [];
+  const r: AiSummary["recommendations"] = [];
+
+  if (agg.receivables.overdueCount > 0)
+    w.push({ severity: "critical", title: `${agg.receivables.overdueCount} vadesi geçen alacak`, description: `Toplam ${agg.receivables.overdueAmountTRY.toLocaleString("tr-TR")} ₺ tutarında tahsilat gecikmiş durumda.`, actionType: "receivables", filter: { type: "income", paymentStatus: "pending" } });
+
+  if (agg.payables.overdueCount > 0)
+    w.push({ severity: "critical", title: `${agg.payables.overdueCount} vadesi geçen borç`, description: `Toplam ${agg.payables.overdueAmountTRY.toLocaleString("tr-TR")} ₺ tutarında ödeme gecikmiş.`, actionType: "payables", filter: { type: "expense", paymentStatus: "pending" } });
+
+  if (agg.grossProfit < 0)
+    w.push({ severity: "high", title: "Negatif brüt kâr", description: `Giderler gelirden ${Math.abs(agg.grossProfit).toLocaleString("tr-TR")} ₺ fazla.`, actionType: "report", filter: {} });
+
+  if (agg.documents.rejected > 0)
+    w.push({ severity: "high", title: `${agg.documents.rejected} reddedilen belge`, description: "Reddedilen belgeler tekrar düzenlenmeli veya kaldırılmalıdır.", actionType: "documents", filter: {} });
+
+  if (agg.documents.pendingReview > 5)
+    w.push({ severity: "high", title: `${agg.documents.pendingReview} belge inceleme bekliyor`, description: "Belge birikimi muhasebe kapanışını geciktirebilir.", actionType: "documents", filter: {} });
+
+  if (agg.transactions.missingExchangeRate > 0)
+    w.push({ severity: "medium", title: `${agg.transactions.missingExchangeRate} işlemde döviz kuru eksik`, description: "TRY karşılığı girilmemiş yabancı para işlemleri raporları olumsuz etkiler.", actionType: "transactions", filter: {} });
+
+  if (agg.documents.missingInfo > 0)
+    w.push({ severity: "medium", title: `${agg.documents.missingInfo} belgede eksik bilgi`, description: "Eksik bilgili belgeler tamamlanmadan onaylanamaz.", actionType: "documents", filter: {} });
+
+  if (agg.transactions.duplicateCandidates > 0)
+    w.push({ severity: "medium", title: "Olası yinelenen işlemler", description: `${agg.transactions.duplicateCandidates} işlem aynı tutar/tarihle kaydedilmiş; mükerrer kayıt riski var.`, actionType: "transactions", filter: {} });
+
+  if (agg.documents.missingPhoto > 0)
+    w.push({ severity: "low", title: `${agg.documents.missingPhoto} fişte fotoğraf yok`, description: "Fotoğraf eksik fişler belge eksikliği oluşturabilir.", actionType: "documents", filter: {} });
+
+  if (agg.receivables.upcomingCount > 0)
+    r.push({ title: `${agg.receivables.upcomingCount} yaklaşan alacak`, description: "Bu hafta vadesi gelen tahsilatlar için müşterilerle iletişime geçin.", actionType: "receivables", filter: {} });
+
+  if (agg.payables.upcomingCount > 0)
+    r.push({ title: `${agg.payables.upcomingCount} yaklaşan ödeme`, description: "Bu hafta ödeme vadesi gelenler için banka transferini planlayın.", actionType: "payables", filter: {} });
+
+  if (agg.transactions.missingLinkedDoc > 0)
+    r.push({ title: `${agg.transactions.missingLinkedDoc} işlemde belge bağlantısı yok`, description: "Gider işlemlerine fiş veya belge bağlanması muhasebeyi güçlendirir.", actionType: "documents", filter: {} });
+
+  r.push({ title: "Dönem raporu oluşturun", description: "Bu dönem için PDF/Excel raporu üretip arşivleyin.", actionType: "report", filter: {} });
+
+  const pct = agg.income > 0 ? Math.round((agg.grossProfit / agg.income) * 100) : 0;
+  const summary =
+    `${from} – ${to} döneminde ${agg.income.toLocaleString("tr-TR")} ₺ gelir ve ` +
+    `${agg.expenses.toLocaleString("tr-TR")} ₺ gider kaydedildi; tahmini brüt kâr ` +
+    `${agg.grossProfit.toLocaleString("tr-TR")} ₺ (%${pct}).` +
+    (agg.documents.pendingReview > 0 ? ` ${agg.documents.pendingReview} belge inceleme bekliyor.` : "") +
+    (agg.transactions.unpaid > 0 ? ` ${agg.transactions.unpaid} ödenmemiş işlem mevcut.` : "");
+
+  return {
+    summary,
+    warnings: w.slice(0, 5),
+    recommendations: r.slice(0, 4),
+    generatedAt: new Date().toISOString(),
+    dataPeriod: { from, to },
+  };
+}
+
+// GET /api/accounting/ai-summary
+router.get("/ai-summary", async (req, res) => {
+  try {
+    const role = res.locals.profile?.role as string;
+    if (!canWrite(role)) return res.status(403).json({ error: "Forbidden" });
+
+    const today = todayStr();
+    const mStart = monthStartStr();
+    const fromParam = typeof req.query.from === "string" ? req.query.from : mStart;
+    const toParam = typeof req.query.to === "string" ? req.query.to : today;
+    const forceRefresh = req.query.refresh === "true";
+
+    const cacheKey = `${role}:${fromParam}:${toParam}`;
+    const now = Date.now();
+
+    if (!forceRefresh) {
+      const cached = aiSummaryCache.get(cacheKey);
+      if (cached && cached.expiresAt > now) {
+        return res.json({ ...(cached.data as object), cached: true });
+      }
+    }
+
+    // Previous period (same duration, shifted back)
+    const fromMs = new Date(fromParam).getTime();
+    const toMs = new Date(toParam).getTime();
+    const durMs = Math.max(toMs - fromMs, 0);
+    const prevFrom = new Date(fromMs - durMs - 86_400_000).toISOString().split("T")[0];
+    const prevTo = new Date(fromMs - 86_400_000).toISOString().split("T")[0];
+    const nextWeekStr = new Date(now + 7 * 86_400_000).toISOString().split("T")[0];
+
+    // ── Parallel data fetch ─────────────────────────────────────────────────
+    const [txAll, txPrev, receipts, docs, supplierRows] = await Promise.all([
+      db.select().from(accountingTransactionsTable).where(and(
+        gte(accountingTransactionsTable.transactionDate, fromParam),
+        lte(accountingTransactionsTable.transactionDate, toParam),
+      )),
+      db.select().from(accountingTransactionsTable).where(and(
+        gte(accountingTransactionsTable.transactionDate, prevFrom),
+        lte(accountingTransactionsTable.transactionDate, prevTo),
+      )),
+      db.select().from(operationReceiptsTable),
+      db.select().from(accountingDocumentsTable),
+      db.select({ id: suppliersTable.id, name: suppliersTable.name }).from(suppliersTable),
+    ]);
+
+    type TxRow = typeof txAll[number];
+    const toTry = (t: TxRow) =>
+      (t as Record<string, unknown>).amountTry as number ??
+      (t.currency === "TRY" ? t.amount : 0);
+
+    // Financial totals
+    const income = txAll.filter(t => t.type === "income").reduce((s, t) => s + toTry(t), 0);
+    const expenses = txAll.filter(t => t.type === "expense").reduce((s, t) => s + toTry(t), 0);
+    const prevExpenses = txPrev.filter(t => t.type === "expense").reduce((s, t) => s + toTry(t), 0);
+
+    // Document review counts
+    const receiptPending = receipts.filter(r => r.reviewStatus === "pending_review").length;
+    const receiptRejected = receipts.filter(r => r.reviewStatus === "rejected").length;
+    const receiptMissing = receipts.filter(r => r.reviewStatus === "missing_information").length;
+    const docPending = docs.filter(d => d.reviewStatus === "pending").length;
+    const docRejected = docs.filter(d => d.reviewStatus === "rejected").length;
+    const docMissing = docs.filter(d => d.reviewStatus === "missing_information").length;
+    const missingPhoto = receipts.filter(r => !(r as Record<string, unknown>).photoObjectPath).length;
+
+    // Transaction status
+    const unpaid = txAll.filter(t => t.paymentStatus === "pending").length;
+    const partiallyPaid = txAll.filter(t => t.paymentStatus === "partially_paid").length;
+
+    // Overdue (dueDate < today, not paid/cancelled)
+    const overdueRec = txAll.filter(t =>
+      t.type === "income" && t.dueDate && t.dueDate < today &&
+      !["paid", "cancelled"].includes(t.paymentStatus)
+    );
+    const overduePayTx = txAll.filter(t =>
+      t.type === "expense" && t.dueDate && t.dueDate < today &&
+      !["paid", "cancelled"].includes(t.paymentStatus)
+    );
+    const upcomingRec = txAll.filter(t =>
+      t.type === "income" && t.dueDate && t.dueDate >= today && t.dueDate <= nextWeekStr &&
+      !["paid", "cancelled"].includes(t.paymentStatus)
+    );
+    const upcomingPay = txAll.filter(t =>
+      t.type === "expense" && t.dueDate && t.dueDate >= today && t.dueDate <= nextWeekStr &&
+      !["paid", "cancelled"].includes(t.paymentStatus)
+    );
+
+    // VAT (approved only)
+    const vatApprovedTRY = txAll
+      .filter(t => t.accountingStatus === "approved")
+      .reduce((s, t) => s + ((t as Record<string, unknown>).taxAmount as number ?? 0), 0);
+
+    // Missing exchange rate (foreign currency, no amountTry)
+    const missingExchangeRate = txAll.filter(t =>
+      t.currency !== "TRY" && !((t as Record<string, unknown>).amountTry)
+    ).length;
+
+    // Missing linked document (expense with no receiptId)
+    const missingLinkedDoc = txAll.filter(t =>
+      t.type === "expense" && !((t as Record<string, unknown>).receiptId)
+    ).length;
+
+    // Duplicate candidates (same amount+currency+date)
+    const txGroups = new Map<string, number>();
+    txAll.forEach(t => {
+      const k = `${t.amount}:${t.currency}:${t.transactionDate}`;
+      txGroups.set(k, (txGroups.get(k) ?? 0) + 1);
+    });
+    const duplicateCandidates = [...txGroups.values()].filter(v => v > 1).reduce((s, v) => s + v, 0);
+
+    // Suppliers with unusually high expense (> 2× average)
+    const supplierExp = new Map<number, number>();
+    txAll.filter(t => t.type === "expense").forEach(t => {
+      const sid = ((t as Record<string, unknown>).supplierId as number) ?? 0;
+      if (sid) supplierExp.set(sid, (supplierExp.get(sid) ?? 0) + toTry(t));
+    });
+    const supTotals = [...supplierExp.entries()];
+    const avgSup = supTotals.length > 0
+      ? supTotals.reduce((s, [, v]) => s + v, 0) / supTotals.length : 0;
+    const supNameMap = new Map(supplierRows.map(s => [s.id, s.name ?? `Tedarikçi #${s.id}`]));
+    const highExpenseSuppliers = supTotals
+      .filter(([, v]) => v > avgSup * 2)
+      .map(([id, amt]) => ({ label: supNameMap.get(id) ?? `#${id}`, amountTRY: Math.round(amt) }))
+      .slice(0, 5);
+
+    // Category changes vs prev period (> 50% increase)
+    const catNow: Record<string, number> = {};
+    txAll.filter(t => t.type === "expense").forEach(t => {
+      catNow[t.category] = (catNow[t.category] ?? 0) + toTry(t);
+    });
+    const catPrev: Record<string, number> = {};
+    txPrev.filter(t => t.type === "expense").forEach(t => {
+      catPrev[t.category] = (catPrev[t.category] ?? 0) + toTry(t);
+    });
+    const categoryChanges = Object.entries(catNow)
+      .filter(([cat, amt]) => (catPrev[cat] ?? 0) > 0 && amt > (catPrev[cat] ?? 0) * 1.5)
+      .map(([cat, amt]) => ({ cat, pct: Math.round(((amt - (catPrev[cat] ?? 0)) / (catPrev[cat] ?? 1)) * 100) }))
+      .slice(0, 3);
+
+    const agg: Aggregates = {
+      period: { from: fromParam, to: toParam },
+      income: Math.round(income),
+      expenses: Math.round(expenses),
+      grossProfit: Math.round(income - expenses),
+      prevPeriodExpenses: Math.round(prevExpenses),
+      documents: {
+        pendingReview: receiptPending + docPending,
+        rejected: receiptRejected + docRejected,
+        missingInfo: receiptMissing + docMissing,
+        missingPhoto,
+      },
+      transactions: {
+        total: txAll.length,
+        unpaid, partiallyPaid,
+        missingExchangeRate, missingLinkedDoc, duplicateCandidates,
+      },
+      receivables: {
+        overdueCount: overdueRec.length,
+        overdueAmountTRY: Math.round(overdueRec.reduce((s, t) => s + toTry(t), 0)),
+        upcomingCount: upcomingRec.length,
+      },
+      payables: {
+        overdueCount: overduePayTx.length,
+        overdueAmountTRY: Math.round(overduePayTx.reduce((s, t) => s + toTry(t), 0)),
+        upcomingCount: upcomingPay.length,
+      },
+      vatApprovedTRY: Math.round(vatApprovedTRY),
+      highExpenseSuppliers,
+      categoryChanges,
+    };
+
+    // ── Try AI call ─────────────────────────────────────────────────────────
+    let result: AiSummary | null = null;
+
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        const systemPrompt =
+          `Sen Türk seyahat acenteleri için muhasebe analiz asistanısın. ` +
+          `Sana verilen dönem istatistiklerini analiz et ve Türkçe özet, uyarılar ve öneriler üret. ` +
+          `Sadece geçerli JSON döndür. Başka açıklama yapma. ` +
+          `Şema:\n` +
+          `{\n` +
+          `  "summary": "2-3 cümle yönetici özeti",\n` +
+          `  "warnings": [{ "severity": "critical|high|medium|low", "title": "string", "description": "string", "actionType": "documents|transactions|receivables|payables|operation|report|none", "filter": {} }],\n` +
+          `  "recommendations": [{ "title": "string", "description": "string", "actionType": "documents|transactions|receivables|payables|operation|report|none", "filter": {} }],\n` +
+          `  "generatedAt": "${new Date().toISOString()}",\n` +
+          `  "dataPeriod": { "from": "${fromParam}", "to": "${toParam}" }\n` +
+          `}\n` +
+          `Kurallar:\n` +
+          `- Muhasebe işlemlerini kendin yapma; yalnızca analiz et ve tavsiye ver\n` +
+          `- Kesin hukuki veya vergi tavsiyesi verme\n` +
+          `- Yalnızca verilen rakamları kullan, icat etme\n` +
+          `- Uyarıları önem sırasına göre sırala (critical önce), maksimum 5 uyarı, 4 öneri`;
+
+        const userPrompt = `Dönem muhasebe verileri (${fromParam} – ${toParam}):\n${JSON.stringify(agg)}`;
+
+        const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+            "HTTP-Referer": "https://tourops.replit.app",
+            "X-Title": "TourOps AI",
+          },
+          body: JSON.stringify({
+            model: ACCOUNTING_AI_MODEL,
+            messages: [
+              { role: "system", content: systemPrompt },
+              { role: "user", content: userPrompt },
+            ],
+            temperature: 0.3,
+            max_tokens: 2000,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        });
+
+        if (!aiRes.ok) throw new Error(`OpenRouter ${aiRes.status}`);
+
+        const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
+        const raw = aiData.choices[0]?.message?.content ?? "{}";
+        const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
+        const validated = aiSummarySchema.safeParse(JSON.parse(cleaned));
+        if (validated.success) {
+          result = validated.data;
+        } else {
+          console.error("[ai-summary] Zod validation failed (first 3):", validated.error.issues.slice(0, 3));
+        }
+      } catch (aiErr) {
+        // Do not log business data; log only the error type
+        console.error("[ai-summary] AI call failed:", String(aiErr).slice(0, 120));
+      }
+    }
+
+    // ── Deterministic fallback ───────────────────────────────────────────────
+    if (!result) result = buildDeterministicSummary(agg, fromParam, toParam);
+
+    aiSummaryCache.set(cacheKey, { data: result, expiresAt: Date.now() + AI_SUMMARY_TTL_MS });
+    return res.json({ ...result, cached: false });
+  } catch (e) {
+    console.error("[ai-summary] Unexpected error:", String(e).slice(0, 200));
+    return res.status(500).json({ error: "AI özeti oluşturulamadı" });
   }
 });
 

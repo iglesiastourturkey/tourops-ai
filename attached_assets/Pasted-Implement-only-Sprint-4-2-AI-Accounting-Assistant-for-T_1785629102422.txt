@@ -1,0 +1,289 @@
+Implement only Sprint 4.2: AI Accounting Assistant for TourPilot.
+
+Goal:
+Help accounting users understand financial status, document risks and required follow-up actions from real accounting data. The assistant must summarize and prioritize; it must never approve, reject, edit, create or delete financial records automatically.
+
+Access:
+- super_admin
+- admin
+- accounting
+
+Do not expose this feature to operations or guide roles.
+
+1. Add AI Accounting Assistant to the accounting dashboard
+
+Add a prominent card titled:
+
+“AI Muhasebe Asistanı”
+
+Place it below the main KPI cards and above detailed tables/charts.
+
+Show:
+- short executive summary
+- prioritized warnings
+- recommended follow-up actions
+- last generated timestamp
+- selected date period
+- refresh button
+
+2. Real data sources
+
+Use only existing real data from:
+
+- accounting_transactions
+- accounting_documents
+- operation_receipts
+- operations
+- tours
+- customers
+- suppliers
+- accounting_settings
+
+Do not use mock financial values.
+
+3. Deterministic accounting aggregates
+
+Before calling the model, calculate these values on the backend:
+
+- current-period income
+- current-period expenses
+- estimated gross profit
+- pending-review documents
+- rejected documents
+- missing-information documents
+- receipts missing photos
+- unpaid transactions
+- partially paid transactions
+- overdue receivables
+- overdue payables
+- upcoming due receivables
+- upcoming due payables
+- VAT total
+- input VAT total when available
+- output VAT total when available
+- transactions missing exchange rates
+- transactions missing linked documents
+- possible duplicate receipt/transaction candidates
+- operations with negative or unusually low profit
+- suppliers with unusually high expense totals
+- expense category changes versus previous period
+
+Do not invent values when the data is unavailable.
+
+4. AI response structure
+
+The model must return validated structured JSON:
+
+{
+  "summary": "string",
+  "warnings": [
+    {
+      "severity": "critical | high | medium | low",
+      "title": "string",
+      "description": "string",
+      "actionType": "documents | transactions | receivables | payables | operation | report | none",
+      "filter": {}
+    }
+  ],
+  "recommendations": [
+    {
+      "title": "string",
+      "description": "string",
+      "actionType": "documents | transactions | receivables | payables | operation | report | none",
+      "filter": {}
+    }
+  ],
+  "generatedAt": "ISO date",
+  "dataPeriod": {
+    "from": "YYYY-MM-DD",
+    "to": "YYYY-MM-DD"
+  }
+}
+
+Validate the response with Zod.
+
+5. Model configuration
+
+Use the existing OpenRouter provider.
+
+Read model from:
+
+AI_ACCOUNTING_MODEL
+
+Fallback order:
+1. AI_ACCOUNTING_MODEL
+2. AI_MODEL
+3. openai/gpt-4o-mini
+
+Do not expose API keys to the frontend.
+
+6. Privacy and data minimization
+
+Send only:
+- aggregated totals
+- record IDs
+- dates
+- statuses
+- categories
+- currencies
+- anonymized or minimum required entity labels
+
+Do not send:
+- document images
+- auth tokens
+- passwords
+- full customer contact details
+- unnecessary personal data
+- private object storage paths
+
+Do not log full AI payloads or model responses containing business data.
+
+7. Fallback behavior
+
+If:
+- OPENROUTER_API_KEY is missing
+- OpenRouter fails
+- the model times out
+- the response is invalid
+
+return a deterministic non-AI summary generated from the same aggregates.
+
+The accounting dashboard must remain usable without AI.
+
+8. Cost control
+
+- Cache each generated summary for 10 minutes
+- Cache key must include:
+  - user role
+  - date range
+  - relevant filters
+- Do not call AI automatically on every dashboard re-render
+- Load the cached/latest summary first
+- Call AI only:
+  - on first eligible request when cache is empty
+  - when the user presses “Yenile”
+  - when date range changes
+
+Add a maximum request timeout.
+
+9. Dashboard UI
+
+Show:
+
+- concise summary paragraph
+- warning cards ordered by severity
+- recommendation list
+- severity badges:
+  - critical = red
+  - high = orange
+  - medium = amber
+  - low = neutral/blue
+- clickable action buttons where filter/action data exists
+
+Required quick actions:
+
+- İnceleme Bekleyen Belgeleri Gör
+- Eksik Bilgili Belgeleri Gör
+- Vadesi Geçen Alacakları Gör
+- Vadesi Geçen Borçları Gör
+- Bu Ayın Raporunu Oluştur
+- Operasyon Kârlılığını Gör
+
+Buttons must navigate to the relevant page with supported query filters.
+
+10. Safety boundaries
+
+The AI assistant must never:
+- approve or reject a document
+- create or edit a transaction
+- mark a payment as paid
+- change VAT settings
+- change accounting settings
+- delete or archive records
+- provide definitive legal or tax advice
+
+Show this notice:
+
+“Bu özet operasyonel destek amaçlıdır; resmî muhasebe, mali müşavirlik veya vergi görüşü değildir.”
+
+11. Error and loading UX
+
+Add:
+- skeleton loading state
+- cached result indicator
+- “Yenileniyor...” state
+- Turkish error message
+- retry button
+- last generated timestamp
+- empty state when there is insufficient data
+
+Do not block the rest of the accounting dashboard if the assistant fails.
+
+12. API
+
+Add a protected endpoint such as:
+
+GET /api/accounting/ai-summary
+
+Supported query parameters:
+- from
+- to
+- optional filters already supported by accounting reports
+
+Optional refresh behavior:
+- refresh=true
+
+Backend RBAC:
+- super_admin
+- admin
+- accounting only
+
+13. Scope restrictions
+
+Do not modify:
+- document approval/rejection behavior
+- transaction CRUD
+- OCR extraction
+- export logic
+- Clerk authentication
+- profile sync
+- RBAC role definitions
+- accounting schema unless caching persistence is strictly required
+- landing page
+- TourPilot branding
+- unrelated modules
+
+Prefer in-memory caching for this MVP.
+
+14. Verification
+
+Test:
+- OpenRouter available
+- OpenRouter missing
+- invalid AI JSON
+- request timeout
+- no accounting data
+- pending documents
+- overdue receivables/payables
+- duplicate candidates
+- role denial for operations and guide
+- cached response
+- forced refresh
+- mobile dashboard layout
+
+Run:
+- full TypeScript check
+- production build
+
+15. Final report
+
+Report only:
+- backend aggregates used
+- data sent to the AI
+- model configuration
+- fallback behavior
+- cache behavior
+- new endpoint
+- modified files
+- TypeScript/build results
+- remaining limitations
