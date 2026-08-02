@@ -39,7 +39,7 @@ type Mode = 'form' | 'checking' | 'denied' | 'error';
 
 export default function SignInAdminPage() {
   const { signIn }        = useSignIn();
-  const { isLoaded, userId } = useAuth();
+  const { isLoaded, userId, getToken } = useAuth();
   const clerk             = useClerk();
   const { toast }         = useToast();
   const [, navigate]      = useLocation();
@@ -81,27 +81,54 @@ export default function SignInAdminPage() {
   // ── Role check ────────────────────────────────────────────────────────────
   async function doRoleCheck() {
     try {
-      const token = await clerk.session?.getToken();
-      if (!token) throw new Error('no-token');
+      // Use hook-sourced getToken() — more reliable than clerk.session?.getToken()
+      // because clerk.session may still be null milliseconds after setActive().
+      // Retry once with a short delay if the JWT hasn't propagated yet.
+      let token = await getToken();
+      if (!token) {
+        await new Promise<void>(r => setTimeout(r, 800));
+        token = await getToken();
+      }
+
+      if (!token) {
+        // JWT never arrived — show form error without signing out so user can retry
+        setMode('form');
+        setFormError('Oturum başlatılamadı. Lütfen tekrar giriş yapın.');
+        return;
+      }
 
       const res = await fetch(`${API_BASE}/profiles/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('fetch-failed');
+
+      if (res.status === 403) {
+        // Deactivated account
+        await clerk.signOut().catch(() => {});
+        isOAuthReturn.current = false;
+        setMode('denied');
+        return;
+      }
+
+      if (!res.ok) {
+        // Network or server error — do NOT sign out, let the user retry
+        setMode('form');
+        setFormError(`Profil doğrulanamadı (HTTP ${res.status}). Lütfen tekrar deneyin.`);
+        return;
+      }
 
       const profile = await res.json();
 
       if (['admin', 'super_admin'].includes(profile?.role)) {
         navigate('/dashboard');
       } else {
-        await clerk.signOut();
+        // Valid session but wrong role — sign out and show denied screen
+        await clerk.signOut().catch(() => {});
         isOAuthReturn.current = false;
         setMode('denied');
       }
     } catch {
-      await clerk.signOut().catch(() => {});
-      isOAuthReturn.current = false;
-      setMode('error');
+      // Unexpected network failure — show form error without signing out
+      setMode('form');
       setFormError('Kimlik doğrulama sırasında bir hata oluştu. Lütfen tekrar deneyin.');
     }
   }
@@ -116,6 +143,8 @@ export default function SignInAdminPage() {
     setFormError(null);
 
     try {
+      // In this Clerk build, create() / finalize() return { error } rather than
+      // throwing, and they mutate the signIn resource in-place.
       const { error: createErr } = await signIn.create({
         identifier: username.trim().toLowerCase(),
         password,
@@ -131,9 +160,19 @@ export default function SignInAdminPage() {
         return;
       }
 
-      // Session established — useEffect on [mode, isLoaded, userId] will pick this up
+      // CRITICAL: setActive() issues the JWT and sets userId non-null.
+      // Without this step the session lives only on Clerk's server — userId
+      // stays null in the browser, doRoleCheck never fires, and the spinner
+      // loops forever.  signIn.status / createdSessionId are on the resource
+      // object itself (updated in-place by finalize()), not on its return value.
+      if (signIn.status === 'complete') {
+        await clerk.setActive({ session: signIn.createdSessionId });
+      }
+
+      // useEffect on [mode, isLoaded, userId] will fire doRoleCheck() once
+      // Clerk propagates the new session.
       setMode('checking');
-    } catch (err) {
+    } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Giriş başarısız');
     } finally {
       setLoading(false);

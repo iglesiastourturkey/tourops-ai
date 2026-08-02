@@ -9,6 +9,7 @@
  */
 import { Link } from 'wouter';
 import { Users, Shield, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 
 const base    = import.meta.env.BASE_URL ?? '/';
@@ -88,13 +89,12 @@ export default function SignInSelectPage() {
           </div>
 
           {/* Back to home */}
-          <div className="mt-10 text-center">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 text-xs text-[#162033]/40 hover:text-[#162033]/70 transition-colors"
-            >
-              <ChevronLeft className="w-3 h-3" />
-              Ana sayfaya dön
+          <div className="mt-10 flex justify-center">
+            <Link href="/">
+              <Button variant="outline" size="sm" className="gap-1.5 text-sm">
+                <ChevronLeft className="w-4 h-4" />
+                Ana Sayfaya Dön
+              </Button>
             </Link>
           </div>
 

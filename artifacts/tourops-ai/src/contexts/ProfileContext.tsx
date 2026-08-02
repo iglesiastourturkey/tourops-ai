@@ -15,6 +15,10 @@ export interface ProfileContextValue {
   role:              UserRole | null;
   isActive:          boolean;
   isLoading:         boolean;
+  /** True when the /api/profiles/me fetch has permanently failed (after retries). */
+  isError:           boolean;
+  /** Trigger a fresh profile fetch (e.g. after a transient error). */
+  refetchProfile:    () => void;
   /** Flat set of "module.action" strings this user may perform */
   permissionSet:     Set<string>;
   /** true for super_admin — has every possible permission */
@@ -27,14 +31,16 @@ const ProfileContext = createContext<ProfileContextValue>({
   role:              null,
   isActive:          true,
   isLoading:         true,
+  isError:           false,
+  refetchProfile:    () => {},
   permissionSet:     new Set(),
   allPermissions:    false,
   permissionsLoaded: false,
 });
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const { data: profile, isLoading } = useGetMyProfile();
-  const { getToken }                  = useAuth();
+  const { data: profile, isLoading, isError, refetch: refetchProfile } = useGetMyProfile();
+  const { getToken } = useAuth();
 
   const [permissionSet,     setPermissionSet]     = useState<Set<string>>(new Set());
   const [allPermissions,    setAllPermissions]    = useState(false);
@@ -86,10 +92,12 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
     role:              (profile?.role as UserRole) ?? null,
     isActive:          profile?.isActive ?? true,
     isLoading,
+    isError,
+    refetchProfile,
     permissionSet,
     allPermissions,
     permissionsLoaded,
-  }), [profile?.role, profile?.isActive, isLoading, permissionSet, allPermissions, permissionsLoaded]);
+  }), [profile?.role, profile?.isActive, isLoading, isError, refetchProfile, permissionSet, allPermissions, permissionsLoaded]);
 
   return (
     <ProfileContext.Provider value={value}>

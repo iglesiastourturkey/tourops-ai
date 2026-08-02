@@ -1,9 +1,11 @@
-import { ClerkProvider, SignUp, Show, useAuth } from '@clerk/react';
+import { ClerkProvider, SignUp, Show, useAuth, useClerk } from '@clerk/react';
 import { lazy, Suspense, useEffect, useRef } from 'react';
+import { AlertTriangle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Switch, Route, Redirect, Router as WouterRouter } from 'wouter';
+import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from 'wouter';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
@@ -148,12 +150,15 @@ function ProtectedRoleRoute({ component: Comp, roles }: { component: React.Compo
  *   field_operations  → /field
  *   everyone else     → /dashboard
  *   still loading     → render nothing (Clerk Show handles signed-out → landing)
+ *   role=null (error) → render nothing (ProfileError overlay handles the UI)
  */
 function HomeRedirect() {
   const { role, isLoading } = useProfile();
 
   let signedInContent: React.ReactNode = null;
-  if (!isLoading) {
+  // Only redirect when we have a definitive role — guards against an infinite
+  // redirect loop when role=null due to a profile fetch error.
+  if (!isLoading && role !== null) {
     if (role === 'guide') {
       signedInContent = <Redirect to="/guide" />;
     } else if (role === 'field_operations') {
@@ -168,6 +173,60 @@ function HomeRedirect() {
       <Show when="signed-in">{signedInContent}</Show>
       <Show when="signed-out"><LandingPage /></Show>
     </>
+  );
+}
+
+/**
+ * Full-screen error overlay shown when the profile fetch permanently fails
+ * for a signed-in user. Offers Retry, Sign Out, and Go Home.
+ * Must be rendered inside both ProfileProvider and WouterRouter.
+ */
+function ProfileError() {
+  const { isError, isLoading, refetchProfile } = useProfile();
+  const { userId } = useAuth();
+  const clerk = useClerk();
+  const [, navigate] = useLocation();
+
+  // Only show for authenticated users after the query has definitively failed.
+  if (!userId || !isError || isLoading) return null;
+
+  return (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-background/95 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm flex flex-col items-center gap-5 text-center">
+        <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+          <AlertTriangle className="w-8 h-8 text-destructive" />
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">Profil Yüklenemedi</h2>
+          <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+            Sunucuya bağlanırken bir hata oluştu.
+            İnternet bağlantınızı kontrol edip tekrar deneyin.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2.5 w-full">
+          <Button className="w-full" onClick={() => refetchProfile()}>
+            Yeniden Dene
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => clerk.signOut().catch(() => {})}
+          >
+            Çıkış Yap
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            onClick={async () => {
+              await clerk.signOut().catch(() => {});
+              navigate('/');
+            }}
+          >
+            Ana Sayfaya Dön
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -244,6 +303,7 @@ export default function App() {
                   <Suspense fallback={<PageLoader />}>
                     <Router />
                   </Suspense>
+                  <ProfileError />
                 </WouterRouter>
                 <AppServices />
                 <Toaster />
