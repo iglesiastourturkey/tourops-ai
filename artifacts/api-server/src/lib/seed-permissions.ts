@@ -176,7 +176,7 @@ export async function seedPermissions(): Promise<void> {
   // 1. Upsert roles
   await db
     .insert(rolesTable)
-    .values(ROLE_DEFS)
+    .values([...ROLE_DEFS])
     .onConflictDoUpdate({
       target: rolesTable.name,
       set: {

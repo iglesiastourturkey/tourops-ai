@@ -60,7 +60,7 @@ router.get("/settings", async (_req, res) => {
 
 // ── PATCH /system/settings ────────────────────────────────────────────────────
 const patchSchema = z.object({
-  systemMode:                   z.enum(SYSTEM_MODES as [string, ...string[]]).optional(),
+  systemMode:                   z.enum([...SYSTEM_MODES] as [string, ...string[]]).optional(),
   maintenanceMessage:           z.string().max(500).nullable().optional(),
   maintenanceStartAt:           z.string().nullable().optional(),
   maintenanceEndAt:             z.string().nullable().optional(),

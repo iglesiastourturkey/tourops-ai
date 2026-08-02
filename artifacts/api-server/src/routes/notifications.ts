@@ -3,13 +3,13 @@ import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
 import { notificationsTable } from "@workspace/db/schema";
 import { eq, or, isNull, desc, and } from "drizzle-orm";
-import { requireAuth, requireActive } from "../lib/auth";
+import { requireAuth, requireActive, requirePermission } from "../lib/auth";
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireActive());
 
-router.get("/", async (req, res) => {
+router.get("/", requirePermission("notifications", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const { unreadOnly } = req.query as Record<string, string>;
@@ -22,7 +22,7 @@ router.get("/", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to list notifications" }); }
 });
 
-router.patch("/:id/read", async (req, res) => {
+router.patch("/:id/read", requirePermission("notifications", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     const notifId = parseInt(req.params.id as string);
@@ -36,7 +36,7 @@ router.patch("/:id/read", async (req, res) => {
   } catch { res.status(500).json({ error: "Failed to mark read" }); }
 });
 
-router.patch("/read-all", async (req, res) => {
+router.patch("/read-all", requirePermission("notifications", "view"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
     await db.update(notificationsTable)

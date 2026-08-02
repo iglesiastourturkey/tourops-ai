@@ -43,7 +43,7 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!profile?.role) return;
 
-    if (profile.role === 'super_admin') {
+    if ((profile.role as string) === 'super_admin') {
       setAllPermissions(true);
       setPermissionSet(new Set());
       setPermissionsLoaded(true);

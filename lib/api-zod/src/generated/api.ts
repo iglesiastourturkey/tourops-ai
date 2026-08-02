@@ -24,7 +24,7 @@ export const GetMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -43,7 +43,7 @@ export const UpdateMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -62,7 +62,7 @@ export const ListProfilesResponseItem = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
+  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()

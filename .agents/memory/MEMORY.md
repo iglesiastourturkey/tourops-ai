@@ -19,3 +19,4 @@
 - [Field Operations Center](field-operations-center.md) — Sprint 6 complete; field_operations 6th role; mobile FieldShell + 4 pages; multer added to api-server; DB tables pushed
 - [PWA and offline foundation](pwa-offline.md) — Sprint 6.1: vite-plugin-pwa (generateSW), IndexedDB offline queue, location sharing, browser notifications; operationLocationsTable added to DB
 - [Separate sign-in paths](sign-in-paths.md) — /sign-in=selection, /sign-in/staff/*?=Clerk <SignIn>, /sign-in/admin=custom form; clerkAppearance shared via lib/clerk-appearance.ts; username assignment in PATCH /api/users/:clerkUserId
+- [Sprint 7.2 Enterprise Administration](sprint72-enterprise-admin.md) — permission matrix, system mode, /roles + /system-control pages; DB dist & api-zod dist must be rebuilt after schema/generated-type changes

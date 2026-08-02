@@ -9,7 +9,7 @@ import { getAuth } from "@clerk/express";
 import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
 import { operationReceiptsTable, operationsTable } from "@workspace/db/schema";
-import { requireAuth, requireActive, requireAnyRole } from "../lib/auth";
+import { requireAuth, requireActive, requirePermission } from "../lib/auth";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
 
@@ -24,7 +24,7 @@ const objectStorageService = new ObjectStorageService();
  * Body: { name: string, size: number, contentType: string }
  * Response: { uploadURL: string, objectPath: string, metadata: {...} }
  */
-router.post("/storage/uploads/request-url", requireAuth, requireActive(), requireAnyRole("admin", "operations", "guide"), async (req: Request, res: Response) => {
+router.post("/storage/uploads/request-url", requireAuth, requireActive(), requirePermission("documents", "manage"), async (req: Request, res: Response) => {
 
   const { name, size, contentType } = req.body ?? {};
   if (!name || size == null || !contentType) {
