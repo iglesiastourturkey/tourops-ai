@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
+import { logger } from "../lib/logger";
 import { db } from "@workspace/db";
 import { profilesTable, VALID_ROLES } from "@workspace/db/schema";
 import { eq, and, not, like, sql } from "drizzle-orm";
@@ -160,6 +161,19 @@ router.patch(
       // Username assignment: only admin and super_admin may receive a username
       if (username !== undefined) {
         const normalizedUsername = username.trim().toLowerCase();
+
+        // ── TEMPORARY DIAGNOSTIC LOGGING ──────────────────────────────────
+        const clerkInstance = (process.env.CLERK_PUBLISHABLE_KEY ?? "").startsWith("pk_live_")
+          ? "Production"
+          : "Development";
+        logger.info({
+          diag: "username-assignment",
+          targetClerkUserId: clerkUserId,
+          submittedUsername: normalizedUsername,
+          clerkInstance,
+        }, "[DIAG] username assignment attempt");
+        // ──────────────────────────────────────────────────────────────────
+
         if (!normalizedUsername) {
           res.status(400).json({ error: "Kullanıcı adı boş olamaz" });
           return;
@@ -184,7 +198,20 @@ router.patch(
         }
         // If the username is already set to this value on the same Clerk user,
         // skip the update and return success immediately (avoids a spurious 409).
-        const clerkUser = await clerkClient.users.getUser(clerkUserId);
+        let clerkUser;
+        try {
+          clerkUser = await clerkClient.users.getUser(clerkUserId);
+        } catch (getErr: unknown) {
+          logger.error({
+            diag: "username-assignment-getUser-failed",
+            targetClerkUserId: clerkUserId,
+            submittedUsername: normalizedUsername,
+            clerkInstance,
+            clerkError: getErr,
+            stack: getErr instanceof Error ? getErr.stack : undefined,
+          }, "[DIAG] clerkClient.users.getUser threw");
+          throw getErr; // re-throw — let the outer catch produce the 500
+        }
         if (clerkUser.username === normalizedUsername) {
           res.json({ ok: true, username: normalizedUsername });
           return;
@@ -230,7 +257,14 @@ router.patch(
         .returning();
 
       res.json(updated);
-    } catch {
+    } catch (err: unknown) {
+      // ── TEMPORARY DIAGNOSTIC LOGGING ──────────────────────────────────
+      logger.error({
+        diag: "patch-users-outer-catch",
+        clerkError: err,
+        stack: err instanceof Error ? err.stack : undefined,
+      }, "[DIAG] PATCH /api/users/:clerkUserId unhandled exception");
+      // ──────────────────────────────────────────────────────────────────
       res.status(500).json({ error: "Kullanıcı güncellenemedi" });
     }
   },

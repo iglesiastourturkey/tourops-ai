@@ -166,8 +166,13 @@ export default function SignInAdminPage() {
     setFormError(null);
 
     try {
-      // In this Clerk build, create() / finalize() return { error } rather than
-      // throwing, and they mutate the signIn resource in-place.
+      // create() with both identifier + password completes the sign-in in one
+      // step for password-based flows.  The resource is mutated in-place;
+      // the return value only carries { error }.
+      //
+      // DO NOT call finalize() here — finalize() is for flows with a pending
+      // next factor (e.g. MFA).  Calling it on an already-complete sign-in
+      // returns "Cannot finalize sign-in without a created session".
       const { error: createErr } = await signIn.create({
         identifier: username.trim().toLowerCase(),
         password,
@@ -177,24 +182,23 @@ export default function SignInAdminPage() {
         return;
       }
 
-      const { error: finalErr } = await signIn.finalize();
-      if (finalErr) {
-        setFormError(clerkMsg(finalErr));
-        return;
-      }
-
-      // CRITICAL: setActive() issues the JWT and sets userId non-null.
-      // Without this step the session lives only on Clerk's server — userId
-      // stays null in the browser, doRoleCheck never fires, and the spinner
-      // loops forever.  signIn.status / createdSessionId are on the resource
-      // object itself (updated in-place by finalize()), not on its return value.
-      if (signIn.status === 'complete') {
+      // Inspect the resource directly (mutated in-place by create()).
+      // status and createdSessionId are NOT on the create() return value.
+      if (signIn.status === 'complete' && signIn.createdSessionId) {
+        // setActive() issues the JWT and sets userId non-null in the browser.
+        // Without it the session lives only on Clerk's server and doRoleCheck
+        // never fires.
         await clerk.setActive({ session: signIn.createdSessionId });
+        // useEffect on [mode, isLoaded, userId] fires doRoleCheck() once
+        // Clerk propagates the new session.
+        setMode('checking');
+      } else {
+        // Sign-in did not complete in one step — surface the actual state so
+        // it can be investigated rather than swallowed silently.
+        setFormError(
+          `Giriş tamamlanamadı (durum: ${signIn.status ?? 'bilinmiyor'}). Lütfen tekrar deneyin.`
+        );
       }
-
-      // useEffect on [mode, isLoaded, userId] will fire doRoleCheck() once
-      // Clerk propagates the new session.
-      setMode('checking');
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Giriş başarısız');
     } finally {
@@ -324,17 +328,17 @@ export default function SignInAdminPage() {
               <div className="w-full border-t border-border" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card px-2 text-muted-foreground">veya kullanıcı adıyla</span>
+              <span className="bg-card px-2 text-muted-foreground">veya e-posta / kullanıcı adıyla</span>
             </div>
           </div>
 
           {/* ── Username / password form ── */}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="adm-user">Kullanıcı Adı</Label>
+              <Label htmlFor="adm-user">E-posta veya Kullanıcı Adı</Label>
               <Input
                 id="adm-user"
-                placeholder="kullanici_adi"
+                placeholder="ornek@email.com veya kullanici_adi"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
                 disabled={loading}
