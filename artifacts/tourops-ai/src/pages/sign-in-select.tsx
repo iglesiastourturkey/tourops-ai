@@ -60,7 +60,7 @@ export default function SignInSelectPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-[#0d7377] font-medium">
-                  E-posta veya Google
+                  E-posta ile giriş
                   <ArrowRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -81,7 +81,7 @@ export default function SignInSelectPage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1 text-xs text-[#F97316] font-medium">
-                  Kullanıcı adı veya Google
+                  E-posta ile giriş
                   <ArrowRight className="w-3.5 h-3.5 ml-0.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>

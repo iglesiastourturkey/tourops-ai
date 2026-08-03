@@ -30,12 +30,20 @@ export default function SignInStaffPage() {
       </div>
 
       {/* Clerk SignIn — handles SSO callback at /sign-in/staff/sso-callback automatically */}
+      {/* Google social button and divider hidden via appearance; OAuth integration kept intact */}
       <SignIn
         routing="path"
         path={`${VITE_BASE}/sign-in/staff`}
         signUpUrl={`${VITE_BASE}/sign-up`}
         forceRedirectUrl={`${VITE_BASE}/`}
-        appearance={clerkAppearance}
+        appearance={{
+          ...clerkAppearance,
+          elements: {
+            ...clerkAppearance.elements,
+            socialButtonsRoot: 'hidden',
+            dividerRow: 'hidden',
+          },
+        }}
       />
 
       {/* Forgot password link below the card */}
