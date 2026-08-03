@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@clerk/react';
-import { useGetMyProfile } from '@workspace/api-client-react';
+import { useGetMyProfile, getGetMyProfileQueryKey } from '@workspace/api-client-react';
 import { API_BASE } from '@/lib/clerk-appearance';
 
 export type UserRole =
@@ -42,9 +42,83 @@ const ProfileContext = createContext<ProfileContextValue>({
 });
 
 export function ProfileProvider({ children }: { children: React.ReactNode }) {
-  const { data: profile, isLoading, isError, refetch: refetchProfile } = useGetMyProfile();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded, userId } = useAuth();
 
+  // ── Token-ready gate ───────────────────────────────────────────────────────
+  // After clerk.setActive() on first sign-in, isLoaded and userId are set
+  // immediately, but getToken() can return null for 100–800 ms while Clerk
+  // propagates the JWT into browser storage.  Firing the profile query before
+  // the token is ready sends a request with no Authorization header, receives
+  // a 401, and React Query treats it as a permanent failure (4xx → no retry).
+  //
+  // Solution: poll getToken() every 200 ms until it returns a real token, then
+  // flip tokenReady which enables the profile query.
+  const [tokenReady, setTokenReady] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || !userId) {
+      setTokenReady(false);
+      return;
+    }
+
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+
+    async function probe() {
+      const token = await getToken();
+      if (cancelled) return;
+      if (token) {
+        setTokenReady(true);
+      } else {
+        // Token not yet available — retry in 200 ms.
+        // Typically resolves within 1–2 probes after a fresh sign-in.
+        timer = setTimeout(() => { void probe(); }, 200);
+      }
+    }
+
+    void probe();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  // Re-run when the signed-in user changes (sign-out / account switch).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, userId]);
+
+  // ── Profile query ──────────────────────────────────────────────────────────
+  // enabled: only fire when Clerk is loaded, a user is signed in, AND the
+  // token getter is confirmed to return a real JWT.
+  //
+  // retry: one automatic retry after 1.5 s for transient failures (401, 5xx,
+  // network error).  403 (deactivated / forbidden) is a final state — never
+  // retry it so the denial screen appears immediately.
+  const {
+    data: profile,
+    isLoading: queryLoading,
+    isError,
+    refetch: refetchProfile,
+  } = useGetMyProfile({
+    query: {
+      queryKey: getGetMyProfileQueryKey(),
+      enabled: tokenReady,
+      retry: (failureCount, error) => {
+        // Duck-type: ApiError carries a numeric `status` field.
+        const status = (error as { status?: number })?.status;
+        if (status === 403) return false;   // deactivated / forbidden — final
+        return failureCount < 1;            // one auto-retry for 401, 5xx, network
+      },
+      retryDelay: 1_500,
+    },
+  });
+
+  // isLoading is true across three phases:
+  //   1. Clerk is still initialising (isLoaded=false)
+  //   2. Clerk is ready but the token hasn't propagated yet (tokenReady=false)
+  //   3. The profile query is in-flight
+  const isLoading = !isLoaded || (!!userId && !tokenReady) || queryLoading;
+
+  // ── Permissions fetch ──────────────────────────────────────────────────────
   const [permissionSet,     setPermissionSet]     = useState<Set<string>>(new Set());
   const [allPermissions,    setAllPermissions]    = useState(false);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
@@ -89,9 +163,10 @@ export function ProfileProvider({ children }: { children: React.ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.id, profile?.role]);
 
-  // Stabilise the context value object so consumers only re-render when a
-  // field they depend on actually changes, not on every ProfileProvider render.
-  // mustChangePassword comes from Clerk's publicMetadata, included in the /me response.
+  // ── Context value ──────────────────────────────────────────────────────────
+  // Stabilise the object so consumers only re-render when a field they depend
+  // on actually changes, not on every ProfileProvider render.
+  // mustChangePassword comes from Clerk's publicMetadata, included in /me.
   // Cast needed because the generated Profile type predates this field.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mustChangePassword = ((profile as any)?.mustChangePassword as boolean) ?? false;
