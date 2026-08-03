@@ -464,6 +464,7 @@ export default function OperationDetailPage() {
   // ── Derived values ────────────────────────────────────────────────────────
   const allTasks = tasks ?? [];
   const completedCount = allTasks.filter(t => t.status === 'completed').length;
+  const progressPercent = allTasks.length === 0 ? 0 : Math.round((completedCount / allTasks.length) * 100);
   const allReceipts = receipts ?? [];
   const missingPhotoCount = allReceipts.filter(r => !r.photoObjectPath).length;
 
@@ -527,8 +528,8 @@ export default function OperationDetailPage() {
               <div className="flex flex-col items-end gap-1 min-w-[120px]">
                 <span className="text-xs text-muted-foreground">Tamamlanma</span>
                 <div className="flex items-center gap-2">
-                  <Progress value={operation.completionRate} className="h-2 w-24" />
-                  <span className="text-sm font-medium">%{Math.round(operation.completionRate)}</span>
+                  <Progress value={progressPercent} className="h-2 w-24" />
+                  <span className="text-sm font-medium">%{progressPercent}</span>
                 </div>
                 <span className="text-xs text-muted-foreground">{completedCount}/{allTasks.length} görev</span>
               </div>
