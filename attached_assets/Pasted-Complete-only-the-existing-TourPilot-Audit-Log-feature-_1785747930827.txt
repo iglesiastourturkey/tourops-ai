@@ -1,0 +1,189 @@
+Complete only the existing TourPilot Audit Log feature.
+
+Important:
+- Reuse the existing audit_logs table.
+- Reuse the existing /api/audit route if present.
+- Do not create a duplicate audit table or parallel logging system.
+- Do not modify business logic beyond adding audit events.
+- Keep the current RBAC and permission matrix unchanged.
+
+Goal:
+Provide a production-ready Audit Log page for super_admin users and record critical actions across TourPilot.
+
+1. Access and navigation
+
+Add a sidebar item:
+
+Denetim Kayıtları
+
+Route:
+
+/audit
+
+Visible and accessible only to:
+- super_admin
+
+Admins and all other roles must receive 403 from the backend and must not see the sidebar item.
+
+2. Audit Log page
+
+Create or complete a professional Turkish page with:
+
+Header:
+- Denetim Kayıtları
+- “Sistemde gerçekleştirilen kritik işlemleri ve güvenlik olaylarını inceleyin.”
+
+Summary cards:
+- Bugünkü İşlemler
+- Başarısız İşlemler
+- Kullanıcı İşlemleri
+- Kritik Değişiklikler
+
+Table columns:
+- Tarih ve saat
+- Kullanıcı
+- Rol
+- İşlem
+- Modül
+- Hedef kayıt
+- Sonuç
+- IP adresi
+
+Filters:
+- date range
+- user
+- role
+- module
+- action
+- result: success / failure
+- search
+
+Add:
+- pagination
+- newest first
+- Turkish empty state
+- loading skeleton
+- retry state
+- detail drawer/modal for metadata
+
+Do not expose passwords, tokens, secrets, full authorization headers or sensitive personal data.
+
+3. Events to record
+
+Record only important actions:
+
+Authentication:
+- login success
+- login failure where available
+- logout
+- password reset requested
+- password changed
+
+Users and authorization:
+- invitation sent
+- user activated/deactivated
+- role changed
+- permissions changed
+- username changed
+- temporary password generated
+- sessions revoked
+
+System:
+- system mode changed
+- maintenance settings changed
+
+Operations:
+- operation created/updated
+- status changed
+- guide assignment changed
+- driver/vehicle assignment changed
+- task created/completed/reopened/deleted
+- incident created/resolved
+
+Accounting:
+- accounting document approved/rejected
+- transaction created/deleted
+- approved financial records changed
+
+Do not log read-only page views or every GET request.
+
+4. Audit record structure
+
+Reuse existing columns where possible.
+
+Each event should contain:
+- actorProfileId
+- actor email/name snapshot
+- actor role
+- action
+- module
+- entityType
+- entityId
+- result
+- description
+- ipAddress
+- userAgent
+- metadata JSON
+- createdAt
+
+Metadata must contain only relevant changed fields.
+Never store passwords, JWTs, API keys, cookies or uploaded file contents.
+
+5. Backend
+
+Create or complete a reusable helper such as:
+
+logAuditEvent(...)
+
+Requirements:
+- audit logging must not break the main business action
+- log failures safely
+- use backend-derived actor identity, never trust actor data from the client
+- capture IP using trusted proxy settings correctly
+- sanitize metadata
+- enforce super_admin permission on GET /api/audit
+
+Add only the endpoints needed for:
+- paginated audit list
+- filter options if required
+- single audit detail if required
+
+6. Retention and safety
+
+For now:
+- keep records indefinitely
+- do not add automatic deletion
+- document a future retention recommendation
+- audit records must not be editable from the UI
+- do not add delete buttons
+
+7. Verification
+
+Test:
+- super_admin can open /audit
+- admin cannot open /audit
+- guide cannot open /audit
+- role change creates an event
+- operation status change creates an event
+- task completion creates an event
+- accounting approval creates an event
+- failed action can be recorded without exposing secrets
+- filters and pagination work
+- no password/token appears in stored metadata
+- mobile and desktop layouts
+
+Run:
+- database migration only if the existing table genuinely lacks required columns
+- frontend TypeScript check
+- API TypeScript check
+- production build
+
+Report only:
+- existing audit infrastructure reused
+- database changes, if any
+- modified files
+- events now recorded
+- page and filter behaviour
+- RBAC verification
+- TypeScript/build results
+- remaining limitations

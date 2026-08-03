@@ -6,6 +6,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
+import { createAuditLog } from "../lib/audit";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -62,6 +63,14 @@ router.get("/", requirePermission("operations", "view"), async (req, res) => {
 router.post("/", requirePermission("operations", "create"), async (req, res) => {
   try {
     const [row] = await db.insert(operationsTable).values(req.body).returning();
+    await createAuditLog({
+      eventType: "operation_created",
+      actorProfileId: res.locals.profile.id,
+      module: "operations",
+      entityType: "operation",
+      entityId: row.id,
+      description: "Operasyon oluşturuldu",
+    });
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create operation" }); }
 });
@@ -85,8 +94,21 @@ router.get("/:id", requirePermission("operations", "view"), async (req, res) => 
 router.patch("/:id", requirePermission("operations", "update"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
+    const [before] = await db.select({ status: operationsTable.status, assignedGuideUserId: operationsTable.assignedGuideUserId })
+      .from(operationsTable).where(eq(operationsTable.id, operationId));
     const [row] = await db.update(operationsTable).set(req.body).where(eq(operationsTable.id, operationId)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
+    await createAuditLog({
+      eventType: before?.status !== row.status ? "operation_status_changed" : "operation_updated",
+      actorProfileId: res.locals.profile.id,
+      oldValue: before,
+      newValue: { status: row.status, assignedGuideUserId: row.assignedGuideUserId },
+      metadata: { changedFields: Object.keys(req.body) },
+      module: "operations",
+      entityType: "operation",
+      entityId: row.id,
+      description: before?.status !== row.status ? "Operasyon durumu değiştirildi" : "Operasyon güncellendi",
+    });
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to update operation" }); }
 });
@@ -133,10 +155,20 @@ router.get("/:id/tasks", requirePermission("operations", "view"), async (req, re
 
 router.post("/:id/tasks", requirePermission("operations", "create"), async (req, res) => {
   try {
+    const operationId = parseInt(req.params.id as string);
     const [row] = await db.insert(operationTasksTable)
-      .values({ ...req.body, operationId: parseInt(req.params.id as string) })
+      .values({ ...req.body, operationId })
       .returning();
-    await updateCompletionRate(parseInt(req.params.id as string));
+    await updateCompletionRate(operationId);
+    await createAuditLog({
+      eventType: "task_created",
+      actorProfileId: res.locals.profile.id,
+      newValue: { title: row.title, status: row.status },
+      module: "operations",
+      entityType: "operation_task",
+      entityId: row.id,
+      description: "Operasyon görevi oluşturuldu",
+    });
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create task" }); }
 });
@@ -148,6 +180,9 @@ router.patch("/:id/tasks/:taskId", requirePermission("operations", "update"), as
     const operationId = parseInt(req.params.id as string);
     const taskId = parseInt(req.params.taskId as string);
     if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
+    const [before] = await db.select({ status: operationTasksTable.status, title: operationTasksTable.title })
+      .from(operationTasksTable)
+      .where(and(eq(operationTasksTable.id, taskId), eq(operationTasksTable.operationId, operationId)));
     const body = { ...req.body };
     if (body.status === "completed" && !body.completedAt) body.completedAt = new Date();
     // Scope update to both operationId AND taskId to prevent cross-operation task mutation
@@ -156,6 +191,18 @@ router.patch("/:id/tasks/:taskId", requirePermission("operations", "update"), as
       .returning();
     if (!row) { res.status(404).json({ error: "Task not found" }); return; }
     await updateCompletionRate(operationId);
+    await createAuditLog({
+      eventType: row.status === "completed" && before?.status !== "completed" ? "task_completed"
+        : row.status !== "completed" && before?.status === "completed" ? "task_reopened" : "task_updated",
+      actorProfileId: res.locals.profile.id,
+      oldValue: before,
+      newValue: { status: row.status, title: row.title },
+      module: "operations",
+      entityType: "operation_task",
+      entityId: row.id,
+      description: row.status === "completed" && before?.status !== "completed" ? "Operasyon görevi tamamlandı"
+        : row.status !== "completed" && before?.status === "completed" ? "Operasyon görevi yeniden açıldı" : "Operasyon görevi güncellendi",
+    });
     res.json(row);
   } catch { res.status(500).json({ error: "Failed to update task" }); }
 });
@@ -170,6 +217,14 @@ router.delete("/:id/tasks/:taskId", requirePermission("operations", "delete"), a
       .returning({ id: operationTasksTable.id });
     if (!deleted) { res.status(404).json({ error: "Task not found" }); return; }
     await updateCompletionRate(operationId);
+    await createAuditLog({
+      eventType: "task_deleted",
+      actorProfileId: res.locals.profile.id,
+      module: "operations",
+      entityType: "operation_task",
+      entityId: deleted.id,
+      description: "Operasyon görevi silindi",
+    });
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete task" }); }
 });

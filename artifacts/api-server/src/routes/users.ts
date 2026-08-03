@@ -6,6 +6,7 @@ import { db } from "@workspace/db";
 import { profilesTable, VALID_ROLES } from "@workspace/db/schema";
 import { eq, and, not, like, sql } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
+import { createAuditLog } from "../lib/audit";
 import type { UserRole } from "@workspace/db/schema";
 
 const router = Router();
@@ -256,6 +257,19 @@ router.patch(
         .where(eq(profilesTable.clerkUserId, clerkUserId))
         .returning();
 
+      await createAuditLog({
+        eventType: role !== undefined ? "role_changed" : isActive !== undefined ? (isActive ? "user_activated" : "user_deactivated") : "user_updated",
+        actorProfileId: res.locals.profile.id,
+        targetProfileId: target.id,
+        oldValue: { role: target.role, isActive: target.isActive },
+        newValue: { role: updated.role, isActive: updated.isActive },
+        metadata: { changedFields: Object.keys(req.body) },
+        module: "users",
+        entityType: "profile",
+        entityId: target.id,
+        description: role !== undefined ? "Kullanıcı rolü değiştirildi" : isActive !== undefined ? "Kullanıcı durumu değiştirildi" : "Kullanıcı güncellendi",
+      });
+
       res.json(updated);
     } catch (err: unknown) {
       // ── TEMPORARY DIAGNOSTIC LOGGING ──────────────────────────────────
@@ -322,6 +336,15 @@ router.post(
           target: profilesTable.clerkUserId,
           set: { role: role as UserRole, name: trimmedName, email: trimmedEmail },
         });
+
+      await createAuditLog({
+        eventType: "invitation_sent",
+        actorProfileId: res.locals.profile.id,
+        metadata: { role, emailDomain: trimmedEmail.split("@")[1] ?? null },
+        module: "users",
+        entityType: "invitation",
+        description: "Kullanıcı daveti gönderildi",
+      });
 
       res.json({ ok: true });
     } catch {

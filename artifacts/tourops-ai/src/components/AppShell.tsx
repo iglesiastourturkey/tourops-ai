@@ -22,6 +22,7 @@ type NavItem = {
    * undefined = visible to all authenticated users.
    */
   permission?: [string, string];
+  superAdminOnly?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -41,6 +42,7 @@ const navItems: NavItem[] = [
   { icon: UserCog,         label: 'Kullanıcı Yönetimi', href: '/users',              permission: ['users',            'manage'] },
   { icon: Shield,          label: 'Rol Yönetimi',       href: '/roles',              permission: ['roles',            'manage'] },
   { icon: Monitor,         label: 'Sistem Kontrolü',    href: '/system-control',     permission: ['system_control',   'manage'] },
+  { icon: Shield,          label: 'Denetim Kayıtları',   href: '/audit',              superAdminOnly: true },
 ];
 
 // Base-path-safe logo: resolves against Vite's BASE_URL at build time so it
@@ -91,6 +93,7 @@ export function AppShell({ children, title }: AppShellProps) {
 
   const visibleNavItems = navItems.filter(item => {
     if (profileLoading || !permissionsLoaded) return false;
+    if (item.superAdminOnly) return role === 'super_admin';
     if (!item.permission) return true;           // no permission required
     if (allPermissions) return true;             // super_admin sees everything
     const [module, action] = item.permission;

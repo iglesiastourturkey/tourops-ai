@@ -56,6 +56,7 @@ const AccountingDocumentDetailPage = lazy(() => import('@/pages/accounting-docum
 const UsersPage                    = lazy(() => import('@/pages/users'));
 const RolesPage                    = lazy(() => import('@/pages/roles'));
 const SystemControlPage            = lazy(() => import('@/pages/system-control'));
+const AuditLogPage                 = lazy(() => import('@/pages/audit'));
 const ChangePasswordPage           = lazy(() => import('@/pages/change-password'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
@@ -315,6 +316,7 @@ function Router() {
       <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />
       <Route path="/roles" component={() => <ProtectedRoleRoute component={RolesPage} roles={['super_admin']} />} />
       <Route path="/system-control" component={() => <ProtectedRoleRoute component={SystemControlPage} roles={['super_admin']} />} />
+      <Route path="/audit" component={() => <ProtectedRoleRoute component={AuditLogPage} roles={['super_admin']} />} />
       <Route component={NotFound} />
     </Switch>
   );

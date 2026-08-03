@@ -15,6 +15,7 @@ import {
 import { eq, and, gte, lte, inArray, isNull, not, desc, or, sql } from "drizzle-orm";
 import { requireAuth, getProfile, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { createAuditLog } from "../lib/audit";
 
 const router = Router();
 router.use(requireAuth, getProfile);
@@ -317,6 +318,15 @@ router.post("/transactions/:id/approve", requirePermission("accounting", "approv
       .where(eq(accountingTransactionsTable.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    await createAuditLog({
+      eventType: "accounting_transaction_approved",
+      actorProfileId: profile.id,
+      newValue: { accountingStatus: row.accountingStatus },
+      module: "accounting",
+      entityType: "transaction",
+      entityId: row.id,
+      description: "Muhasebe işlemi onaylandı",
+    });
     return res.json(row);
   } catch (e) {
     console.error(e);
@@ -338,6 +348,15 @@ router.post("/transactions/:id/reject", requirePermission("accounting", "approve
       .where(eq(accountingTransactionsTable.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    await createAuditLog({
+      eventType: "accounting_transaction_rejected",
+      actorProfileId: profile.id,
+      newValue: { accountingStatus: row.accountingStatus, rejectionReason: row.rejectionReason },
+      module: "accounting",
+      entityType: "transaction",
+      entityId: row.id,
+      description: "Muhasebe işlemi reddedildi",
+    });
     return res.json(row);
   } catch (e) {
     console.error(e);
@@ -460,6 +479,16 @@ router.post("/documents/:id/review", requirePermission("accounting", "approve"),
       .where(eq(accountingDocumentsTable.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    await createAuditLog({
+      eventType: `accounting_document_${action}`,
+      actorProfileId: profile.id,
+      newValue: { reviewStatus: row.reviewStatus },
+      metadata: { notes: notes ?? null },
+      module: "accounting",
+      entityType: "accounting_document",
+      entityId: row.id,
+      description: "Muhasebe belgesi inceleme sonucu kaydedildi",
+    });
     return res.json(row);
   } catch (e) {
     console.error(e);
@@ -486,6 +515,16 @@ router.post("/receipts/:id/review", requirePermission("accounting", "approve"), 
       .where(eq(operationReceiptsTable.id, id))
       .returning();
     if (!row) return res.status(404).json({ error: "Bulunamadı" });
+    await createAuditLog({
+      eventType: `accounting_receipt_${action}`,
+      actorProfileId: profile.id,
+      newValue: { reviewStatus: row.reviewStatus },
+      metadata: { notes: notes ?? null },
+      module: "accounting",
+      entityType: "receipt",
+      entityId: row.id,
+      description: "Makbuz inceleme sonucu kaydedildi",
+    });
     return res.json(row);
   } catch (e) {
     console.error(e);
