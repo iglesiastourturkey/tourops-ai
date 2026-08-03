@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customFetch } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { useOfflineQueue } from '@/contexts/OfflineQueueContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
   AlertTriangle, CheckCircle2, ChevronRight, Clock, Filter, PlusCircle, RefreshCw,
 } from 'lucide-react';
@@ -47,6 +49,8 @@ export default function FieldIncidentsPage() {
 
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { queueAction } = useOfflineQueue();
+  const { isOnline } = useNetworkStatus();
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [createDialog, setCreateDialog] = useState(!!prefilledOpId);
 
@@ -68,18 +72,31 @@ export default function FieldIncidentsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (body: typeof form) =>
-      customFetch(`${API_BASE}/field/incidents`, {
+    mutationFn: async (body: typeof form) => {
+      if (!isOnline) {
+        const operationId = body.operationId ? Number(body.operationId) : undefined;
+        await queueAction({
+          url: `${API_BASE}/field/incidents`,
+          method: 'POST',
+          body: { ...body, occurredAt: new Date().toISOString() },
+          type: 'incident',
+          label: 'Olay taslağı',
+          operationId: Number.isFinite(operationId) ? operationId : undefined,
+        });
+        return { queued: true };
+      }
+      return customFetch(`${API_BASE}/field/incidents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
+      });
+    },
+    onSuccess: (data: { queued?: boolean }) => {
       qc.invalidateQueries({ queryKey: ['field-incidents'] });
       qc.invalidateQueries({ queryKey: ['field-dashboard'] });
       setCreateDialog(false);
       setForm({ operationId: '', type: 'other', severity: 'medium', title: '', description: '' });
-      toast({ title: 'Olay bildirildi' });
+      toast({ title: data?.queued ? 'Olay taslağı senkronizasyon için bekliyor' : 'Olay bildirildi' });
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });

@@ -46,6 +46,7 @@ const FieldDashboardPage           = lazy(() => import('@/pages/field-dashboard'
 const FieldOperationDetailPage     = lazy(() => import('@/pages/field-operation-detail'));
 const FieldIncidentsPage           = lazy(() => import('@/pages/field-incidents'));
 const FieldIncidentDetailPage      = lazy(() => import('@/pages/field-incident-detail'));
+const OfflineQueuePage             = lazy(() => import('@/pages/offline-queue'));
 const AccountingDashboardPage      = lazy(() => import('@/pages/accounting'));
 const AccountingTransactionsPage   = lazy(() => import('@/pages/accounting-transactions'));
 const AccountingDocumentsPage      = lazy(() => import('@/pages/accounting-documents'));
@@ -299,6 +300,7 @@ function Router() {
       <Route path="/guide" component={() => <ProtectedRoleRoute component={GuideDashboardPage} roles={['guide', 'admin', 'super_admin']} />} />
       <Route path="/field/incidents/:id" component={() => <ProtectedRoleRoute component={FieldIncidentDetailPage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/field/incidents" component={() => <ProtectedRoleRoute component={FieldIncidentsPage} roles={['field_operations', 'operations', 'admin']} />} />
+      <Route path="/field/pending-actions" component={() => <ProtectedRoleRoute component={OfflineQueuePage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/field/operations/:id" component={() => <ProtectedRoleRoute component={FieldOperationDetailPage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/field/operations" component={() => <Redirect to="/field" />} />
       <Route path="/field" component={() => <ProtectedRoleRoute component={FieldDashboardPage} roles={['field_operations', 'operations', 'admin']} />} />

@@ -10,6 +10,7 @@ import { WifiOff, RefreshCw, Clock } from 'lucide-react';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOfflineQueue } from '@/contexts/OfflineQueueContext';
 import { cn } from '@/lib/utils';
+import { Link } from 'wouter';
 
 export function OfflineIndicator() {
   const { isOnline } = useNetworkStatus();
@@ -27,14 +28,13 @@ export function OfflineIndicator() {
       )}
 
       {pendingCount > 0 && (
-        <button
-          onClick={() => { void retryAll(); }}
-          disabled={isRetrying || !isOnline}
-          title={`${pendingCount} bekleyen işlem — tıklayarak yeniden deneyin`}
+        <Link
+          href="/field/pending-actions"
+          title={`${pendingCount} bekleyen işlem`}
           className={cn(
             'flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5 transition-colors',
             isOnline
-              ? 'bg-amber-500 text-white hover:bg-amber-600 cursor-pointer'
+              ? 'bg-amber-500 text-white hover:bg-amber-600'
               : 'bg-amber-100 text-amber-700 cursor-default',
           )}
         >
@@ -44,7 +44,7 @@ export function OfflineIndicator() {
             <Clock className="w-3 h-3" />
           )}
           {pendingCount} bekliyor
-        </button>
+        </Link>
       )}
     </div>
   );

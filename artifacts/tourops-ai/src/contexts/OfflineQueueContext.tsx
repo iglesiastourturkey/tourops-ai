@@ -25,9 +25,13 @@ import {
   hasActionWithKey,
   makeIdempotencyKey,
   removeAction,
+  rebaseNextAction,
+  updateAction,
+  makeFreshIdempotencyKey,
 } from '@/lib/offlineQueue';
 import { customFetch } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@clerk/react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -38,6 +42,7 @@ interface QueueNewAction {
   type: ActionType;
   label: string;
   operationId?: number;
+  expectedVersion?: number;
 }
 
 interface OfflineQueueContextValue {
@@ -48,6 +53,8 @@ interface OfflineQueueContextValue {
   queueAction: (action: QueueNewAction) => Promise<boolean>;
   retryAll: () => Promise<void>;
   removeFromQueue: (id: string) => Promise<void>;
+  resendAsNew: (id: string) => Promise<boolean>;
+  checkServerState: (id: string) => Promise<unknown>;
 }
 
 const ctx = createContext<OfflineQueueContextValue>({
@@ -57,6 +64,8 @@ const ctx = createContext<OfflineQueueContextValue>({
   queueAction: async () => false,
   retryAll: async () => {},
   removeFromQueue: async () => {},
+  resendAsNew: async () => false,
+  checkServerState: async () => null,
 });
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -66,6 +75,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
   const [isRetrying, setIsRetrying] = useState(false);
   const retryingRef = useRef(false);
   const { toast } = useToast();
+  const { userId } = useAuth();
 
   // Load queue from IndexedDB on mount
   useEffect(() => {
@@ -96,14 +106,17 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       type: action.type,
       label: action.label,
       operationId: action.operationId,
+      userId: userId ?? undefined,
+      expectedVersion: action.expectedVersion,
       createdAt: Date.now(),
       retryCount: 0,
+      status: 'pending',
     };
 
     await addAction(pending);
     await refresh();
     return true;
-  }, [refresh]);
+  }, [refresh, userId]);
 
   const retryAll = useCallback(async () => {
     if (retryingRef.current) return;
@@ -117,17 +130,61 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       let successCount = 0;
       let failCount = 0;
 
+      const blockedOperations = new Set<number>();
       for (const action of actions) {
+        // Preserve FIFO within one operation. A failed earlier mutation blocks
+        // later same-operation mutations until the user resolves it.
+        if (action.operationId && blockedOperations.has(action.operationId)) continue;
+        if (action.status === 'ambiguous' || action.status === 'conflict') continue;
+        await updateAction(action.id, { status: 'sending', lastError: undefined });
         try {
-          await customFetch(action.url, {
+          const result = await customFetch(action.url, {
             method: action.method as 'POST' | 'PATCH' | 'PUT' | 'DELETE',
             headers: action.headers,
             body: action.bodyJson ? JSON.parse(action.bodyJson) : undefined,
           });
+          const responseVersion = result && typeof result === 'object'
+            ? (result as { version?: unknown }).version
+            : undefined;
           await removeAction(action.id);
+          if (action.operationId && typeof responseVersion === 'number') {
+            await rebaseNextAction(action.operationId, action.id, responseVersion);
+          }
           successCount++;
-        } catch {
-          await bumpRetry(action.id);
+        } catch (error) {
+          const status = error && typeof error === 'object' && 'status' in error
+            ? Number((error as { status: number }).status)
+            : undefined;
+          const data = error && typeof error === 'object' && 'data' in error
+            ? (error as { data?: unknown }).data
+            : undefined;
+          const message = data && typeof data === 'object' && 'error' in data
+            ? String((data as { error: unknown }).error)
+            : error instanceof Error ? error.message : 'Senkronizasyon başarısız';
+
+          if (status === 409) {
+            await updateAction(action.id, {
+              status: 'conflict',
+              lastError: message,
+              lastResponse: data,
+            });
+            if (action.operationId) blockedOperations.add(action.operationId);
+          } else if (status && status >= 500) {
+            // A cached 5xx is ambiguous: it may have reached the server.
+            await updateAction(action.id, {
+              status: 'ambiguous',
+              lastError: message,
+              lastResponse: data,
+            });
+            if (action.operationId) blockedOperations.add(action.operationId);
+          } else if (status && status >= 400) {
+            await updateAction(action.id, { status: 'error', lastError: message, lastResponse: data });
+            if (action.operationId) blockedOperations.add(action.operationId);
+          } else {
+            await bumpRetry(action.id);
+            await updateAction(action.id, { status: 'pending', lastError: message });
+            if (action.operationId) blockedOperations.add(action.operationId);
+          }
           failCount++;
         }
       }
@@ -137,7 +194,7 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       if (successCount > 0) {
         toast({
           title: `${successCount} işlem senkronize edildi`,
-          description: failCount > 0 ? `${failCount} işlem tekrar deneniyor` : undefined,
+          description: failCount > 0 ? `${failCount} işlem incelenmeyi bekliyor` : undefined,
         });
       }
     } finally {
@@ -150,6 +207,36 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
     await removeAction(id);
     await refresh();
   }, [refresh]);
+
+  const resendAsNew = useCallback(async (id: string) => {
+    const action = (await getAllActions()).find(item => item.id === id);
+    if (!action || action.status !== 'ambiguous') return false;
+    const key = makeFreshIdempotencyKey();
+    const headers = { ...action.headers, 'Idempotency-Key': key };
+    await addAction({
+      ...action,
+      id: generateId(),
+      idempotencyKey: key,
+      headers,
+      createdAt: Date.now(),
+      retryCount: 0,
+      status: 'pending',
+      lastError: undefined,
+      lastResponse: undefined,
+    });
+    await refresh();
+    return true;
+  }, [refresh]);
+
+  const checkServerState = useCallback(async (id: string) => {
+    const action = (await getAllActions()).find(item => item.id === id);
+    if (!action) return null;
+    const match = action.url.match(/^(.*)\/(operations|incidents)\/(\d+)(?:\/.*)?$/);
+    const url = match
+      ? `${match[1]}/${match[2]}/${match[3]}`
+      : action.url.replace(/\/(status|tasks\/\d+|notes)$/, '');
+    return customFetch(url, { method: 'GET' });
+  }, []);
 
   // Auto-retry on reconnect
   useEffect(() => {
@@ -166,6 +253,8 @@ export function OfflineQueueProvider({ children }: { children: React.ReactNode }
       queueAction,
       retryAll,
       removeFromQueue,
+      resendAsNew,
+      checkServerState,
     }}>
       {children}
     </ctx.Provider>

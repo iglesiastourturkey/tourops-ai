@@ -1,0 +1,61 @@
+Fix only the two remaining Offline Sync reliability defects.
+
+Do not add features.
+Do not redesign the queue.
+Reuse the existing offline queue, idempotency records and conflict UI.
+
+1. Fix false CAS conflicts
+
+Current defect:
+CAS compares PostgreSQL updated_at timestamps against JavaScript Date values.
+PostgreSQL preserves microseconds while JavaScript Date preserves milliseconds.
+The preliminary comparison may pass, but the SQL CAS predicate fails and returns a false 409.
+
+Required fix:
+- Do not use JavaScript Date equality as the authoritative CAS token.
+- Introduce a precision-safe CAS mechanism.
+- Prefer an integer version column if a minimal migration is acceptable.
+- Each successful mutation must atomically increment version.
+- Mutation succeeds only when expectedVersion matches current version.
+- Return the new version in the response.
+- Rebase the next queued action for the same operation using the returned version.
+- Preserve FIFO ordering per operation.
+
+If avoiding a schema change, use a canonical opaque server-generated token that preserves exact database precision. Do not compare timestamps after JavaScript Date conversion.
+
+Verify:
+- queue two status changes for the same operation while offline
+- action 1 succeeds
+- action 2 is rebased with the new CAS value
+- action 2 succeeds
+- a real concurrent server edit still returns 409
+
+2. Make ambiguous cached-5xx records resolution-only
+
+Current defect:
+Ambiguous records still display the generic “Tekrar dene” action, which can call forced replay with the same idempotency key.
+
+Required behavior:
+- Remove generic retry and automatic replay for ambiguous records.
+- Do not call forced replay for an ambiguous record.
+- Show only:
+  - Sunucu Durumunu Kontrol Et
+  - Yeni İşlem Olarak Yeniden Gönder
+- “Yeni İşlem Olarak Yeniden Gönder” must require confirmation and create a new idempotency key.
+- “Sunucu Durumunu Kontrol Et” must fetch current server state and help the user decide whether the original action was applied.
+- Keep the original ambiguous record immutable for auditability.
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- production builds
+- focused offline queue tests
+
+Report only:
+- CAS mechanism selected
+- database migration, if any
+- modified files
+- two-action sequential replay result
+- real conflict result
+- ambiguous-record UI behavior
+- build/test results

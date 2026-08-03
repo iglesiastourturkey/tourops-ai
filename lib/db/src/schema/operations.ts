@@ -15,6 +15,8 @@ export const operationsTable = pgTable("operations", {
   endDate: date("end_date"),
   status: text("status").notNull().default("active"),
   completionRate: real("completion_rate").notNull().default(0),
+  // Monotonic, precision-safe compare-and-swap token for field mutations.
+  version: integer("version").notNull().default(1),
   assignedTo: text("assigned_to"),
   notes: text("notes"),
   // Guide & driver assignment

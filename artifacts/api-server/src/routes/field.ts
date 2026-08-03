@@ -24,6 +24,7 @@ import {
   eq, desc, asc, and, or, gte, lte, sql, isNull, ne, not, like,
 } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
+import { replayIdempotentResponse, rememberIdempotentResponse } from "../lib/idempotency";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import multer from "multer";
 import type { Request, Response } from "express";
@@ -218,6 +219,7 @@ router.get("/dashboard", requirePermission("field_operations", "view"), async (r
           vehiclePlate: operationsTable.vehiclePlate,
           notes: operationsTable.notes,
           completionRate: operationsTable.completionRate,
+         version: operationsTable.version,
           tourName: toursTable.name,
           customerName: customersTable.name,
         })
@@ -361,6 +363,7 @@ router.get("/operations/:id", requirePermission("field_operations", "view"), asy
         tourId: operationsTable.tourId,
         customerId: operationsTable.customerId,
         quotationId: operationsTable.quotationId,
+         version: operationsTable.version,
       })
       .from(operationsTable)
       .leftJoin(toursTable, eq(operationsTable.tourId, toursTable.id))
@@ -413,7 +416,8 @@ router.patch("/operations/:id/status", requirePermission("field_operations", "up
     const opId = parseInt(paramStr(req.params["id"]), 10);
     if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
 
-    const { status, note } = req.body as { status: string; note?: string };
+    if (await replayIdempotentResponse(req, res)) return;
+    const { status, note, expectedVersion } = req.body as { status: string; note?: string; expectedVersion?: number };
     const VALID = ["planned", "ready", "active", "started", "in_progress", "delayed", "completed", "cancelled"];
     if (!status || !VALID.includes(status)) {
       return res.status(400).json({ error: "Geçersiz durum" });
@@ -421,14 +425,30 @@ router.patch("/operations/:id/status", requirePermission("field_operations", "up
 
     const profile = res.locals.profile;
     const [current] = await db
-      .select({ status: operationsTable.status })
+      .select({ status: operationsTable.status, version: operationsTable.version })
       .from(operationsTable)
       .where(eq(operationsTable.id, opId))
       .limit(1);
 
     if (!current) return res.status(404).json({ error: "Operasyon bulunamadı" });
+    if (expectedVersion !== undefined && (!Number.isInteger(expectedVersion) || expectedVersion < 1)) {
+      return res.status(400).json({ error: "Geçersiz operasyon sürümü" });
+    }
 
-    // Record history then update
+    const [updated] = await db
+      .update(operationsTable)
+      .set({ status, version: sql`${operationsTable.version} + 1` })
+      .where(and(
+        eq(operationsTable.id, opId),
+        expectedVersion === undefined ? sql`TRUE` : eq(operationsTable.version, expectedVersion),
+      ))
+      .returning();
+    if (!updated) {
+      return res.status(409).json({
+        error: "Operasyon sunucuda değişti. Yerel değişiklik uygulanmadı.",
+        conflict: { server: current, expectedVersion },
+      });
+    }
     await db.insert(operationStatusHistoryTable).values({
       operationId: opId,
       fromStatus: current.status,
@@ -436,12 +456,6 @@ router.patch("/operations/:id/status", requirePermission("field_operations", "up
       actorProfileId: profile?.id ?? null,
       note: note ?? null,
     });
-
-    const [updated] = await db
-      .update(operationsTable)
-      .set({ status })
-      .where(eq(operationsTable.id, opId))
-      .returning();
 
     // Notifications for key transitions
     const STATUS_LABELS: Record<string, string> = {
@@ -461,7 +475,9 @@ router.patch("/operations/:id/status", requirePermission("field_operations", "up
       );
     }
 
-    return res.json(updated);
+    const payload = { ...updated, offlineReplay: Boolean(req.get("Idempotency-Key")) };
+    await rememberIdempotentResponse(req, res, payload, 200, opId);
+    return res.json(payload);
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Durum güncellenemedi" });
@@ -580,7 +596,8 @@ router.patch("/operations/:id/tasks/:taskId", requirePermission("field_operation
     const taskId = parseInt(paramStr(req.params["taskId"]), 10);
     if (isNaN(opId) || isNaN(taskId)) return res.status(400).json({ error: "Geçersiz ID" });
 
-    const { status, completionNote } = req.body as { status?: string; completionNote?: string };
+    if (await replayIdempotentResponse(req, res)) return;
+    const { status, completionNote, expectedVersion } = req.body as { status?: string; completionNote?: string; expectedVersion?: number };
     const VALID_TASK_STATUS = ["pending", "in_progress", "completed", "blocked", "not_started", "cancelled"];
     if (status && !VALID_TASK_STATUS.includes(status)) {
       return res.status(400).json({ error: "Geçersiz görev durumu" });
@@ -591,12 +608,28 @@ router.patch("/operations/:id/tasks/:taskId", requirePermission("field_operation
     if (completionNote !== undefined) updates.description = completionNote;
     if (status === "completed") updates.completedAt = new Date();
 
+    if (expectedVersion !== undefined) {
+      const [versioned] = await db
+        .update(operationsTable)
+        .set({ version: sql`${operationsTable.version} + 1` })
+        .where(and(eq(operationsTable.id, opId), eq(operationsTable.version, expectedVersion)))
+        .returning({ version: operationsTable.version });
+      if (!versioned) return res.status(409).json({ error: "Operasyon sunucuda değişti. Görev uygulanmadı.", conflict: { expectedVersion } });
+      const [updated] = await db
+        .update(operationTasksTable)
+        .set(updates)
+        .where(and(eq(operationTasksTable.id, taskId), eq(operationTasksTable.operationId, opId)))
+        .returning();
+      if (!updated) return res.status(404).json({ error: "Görev bulunamadı" });
+      const payload = { ...updated, version: versioned.version };
+      await rememberIdempotentResponse(req, res, payload, 200, opId);
+      return res.json(payload);
+    }
     const [updated] = await db
       .update(operationTasksTable)
       .set(updates)
       .where(and(eq(operationTasksTable.id, taskId), eq(operationTasksTable.operationId, opId)))
       .returning();
-
     if (!updated) return res.status(404).json({ error: "Görev bulunamadı" });
     return res.json(updated);
   } catch (e) {
@@ -681,6 +714,7 @@ router.post(
     try {
       const opId = parseInt(paramStr(req.params["id"]), 10);
       if (isNaN(opId)) return res.status(400).json({ error: "Geçersiz ID" });
+      if (await replayIdempotentResponse(req, res)) return;
 
       const { noteText, category } = req.body as { noteText: string; category?: string };
       if (!noteText?.trim()) return res.status(400).json({ error: "Not metni zorunludur" });
@@ -708,7 +742,9 @@ router.post(
         })
         .returning();
 
-      return res.status(201).json({ ...note, authorName: profile?.name ?? null });
+      const payload = { ...note, authorName: profile?.name ?? null, offlineReplay: Boolean(req.get("Idempotency-Key")) };
+      await rememberIdempotentResponse(req, res, payload, 201, opId);
+      return res.status(201).json(payload);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: "Not eklenemedi" });
@@ -835,6 +871,7 @@ router.post(
       };
 
       if (!title?.trim()) return res.status(400).json({ error: "Başlık zorunludur" });
+      if (await replayIdempotentResponse(req, res)) return;
 
       const VALID_TYPES = ["medical", "vehicle", "delay", "missing_person", "customer_complaint", "supplier", "document", "other"];
       const VALID_SEV = ["low", "medium", "high", "critical"];
@@ -876,7 +913,9 @@ router.post(
         );
       }
 
-      return res.status(201).json(incident);
+      const payload = { ...incident, offlineReplay: Boolean(req.get("Idempotency-Key")) };
+      await rememberIdempotentResponse(req, res, payload, 201, operationId ? parseInt(operationId, 10) : null);
+      return res.status(201).json(payload);
     } catch (e) {
       console.error(e);
       return res.status(500).json({ error: "Olay bildirilemedi" });

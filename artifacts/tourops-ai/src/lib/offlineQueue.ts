@@ -29,14 +29,19 @@ export interface PendingAction {
   type: ActionType;
   label: string;           // Turkish description shown in the UI
   operationId?: number;
+  userId?: string;
+  expectedVersion?: number;
   createdAt: number;       // Date.now()
   retryCount: number;
+  status: 'pending' | 'sending' | 'error' | 'conflict' | 'ambiguous';
+  lastError?: string;
+  lastResponse?: unknown;
 }
 
 // ── IndexedDB helpers ─────────────────────────────────────────────────────────
 
 const DB_NAME = 'tourpilot-offline-queue';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'pending-actions';
 
 function openDB(): Promise<IDBDatabase> {
@@ -95,6 +100,56 @@ export function removeAction(id: string): Promise<undefined> {
   return tx('readwrite', (store) => store.delete(id) as IDBRequest<undefined>);
 }
 
+export async function updateAction(
+  id: string,
+  changes: Partial<PendingAction>,
+): Promise<PendingAction | undefined> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const t = db.transaction(STORE_NAME, 'readwrite');
+    const store = t.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const action = getReq.result as PendingAction | undefined;
+      if (!action) {
+        resolve(undefined);
+        return;
+      }
+      const next = { ...action, ...changes };
+      const putReq = store.put(next);
+      putReq.onsuccess = () => resolve(next);
+    };
+    getReq.onerror = () => reject(getReq.error);
+    t.oncomplete = () => db.close();
+    t.onerror = () => reject(t.error);
+  });
+}
+
+export async function rebaseNextAction(
+  operationId: number,
+  completedActionId: string,
+  version: number,
+): Promise<PendingAction | undefined> {
+  const actions = await getAllActions();
+  const next = actions.find(
+    (action) =>
+      action.id !== completedActionId &&
+      action.operationId === operationId &&
+      action.createdAt > (actions.find(a => a.id === completedActionId)?.createdAt ?? -1) &&
+      action.status !== 'ambiguous' &&
+      action.status !== 'conflict',
+  );
+  if (!next || !next.bodyJson) return next;
+  try {
+    const body = JSON.parse(next.bodyJson) as Record<string, unknown>;
+    if (!Object.prototype.hasOwnProperty.call(body, 'expectedVersion')) return next;
+    body.expectedVersion = version;
+    return updateAction(next.id, { bodyJson: JSON.stringify(body), expectedVersion: version });
+  } catch {
+    return next;
+  }
+}
+
 export async function hasActionWithKey(idempotencyKey: string): Promise<boolean> {
   const all = await getAllActions();
   return all.some((a) => a.idempotencyKey === idempotencyKey);
@@ -137,4 +192,13 @@ export function makeIdempotencyKey(method: string, url: string, bodyJson: string
     h = h >>> 0; // keep 32-bit unsigned
   }
   return h.toString(16);
+}
+
+/** A fresh key is required when an ambiguous action is intentionally sent as a new action. */
+export function makeFreshIdempotencyKey(): string {
+  return `offline-${generateId()}`;
+}
+
+export function isNetworkError(error: unknown): boolean {
+  return !(error && typeof error === 'object' && 'status' in error);
 }

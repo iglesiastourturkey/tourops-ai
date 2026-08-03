@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customFetch } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { useOfflineQueue } from '@/contexts/OfflineQueueContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
   AlertTriangle, Car, ChevronLeft, ClipboardList, User, Phone,
   CheckCircle2, Clock, RefreshCw, PlusCircle, Edit2, MapPin, FileText,
@@ -97,6 +99,7 @@ interface OperationDetail {
   emergencyContact2Phone: string | null;
   notes: string | null;
   completionRate: number;
+  version: number;
   tourName: string | null;
   customerName: string | null;
   tasks: Task[];
@@ -148,6 +151,8 @@ export default function FieldOperationDetailPage() {
   const id = params?.id;
   const qc = useQueryClient();
   const { toast } = useToast();
+  const { queueAction } = useOfflineQueue();
+  const { isOnline } = useNetworkStatus();
 
   // Dialog states
   const [statusDialog, setStatusDialog] = useState<{ next: string; confirm: string } | null>(null);
@@ -186,18 +191,27 @@ export default function FieldOperationDetailPage() {
   });
 
   const statusMutation = useMutation({
-    mutationFn: ({ status, note }: { status: string; note?: string }) =>
-      customFetch(`${API_BASE}/field/operations/${id}/status`, {
+    mutationFn: async ({ status, note }: { status: string; note?: string }) => {
+      const body = { status, note, expectedVersion: op?.version };
+      if (!isOnline) {
+        await queueAction({
+          url: `${API_BASE}/field/operations/${id}/status`, method: 'PATCH', body,
+          type: 'status_update', label: `OPR-${id} durumunu güncelle`, operationId: op?.id, expectedVersion: op?.version,
+        });
+        return { queued: true };
+      }
+      return customFetch(`${API_BASE}/field/operations/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, note }),
-      }),
-    onSuccess: () => {
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: (data: { queued?: boolean }) => {
       qc.invalidateQueries({ queryKey: ['field-op', id] });
       qc.invalidateQueries({ queryKey: ['field-dashboard'] });
       setStatusDialog(null);
       setStatusNote('');
-      toast({ title: 'Durum güncellendi' });
+      toast({ title: data?.queued ? 'Durum senkronizasyon için bekliyor' : 'Durum güncellendi' });
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });
@@ -223,18 +237,26 @@ export default function FieldOperationDetailPage() {
   });
 
   const noteMutation = useMutation({
-    mutationFn: (body: { noteText: string; category: string }) =>
-      customFetch(`${API_BASE}/field/operations/${id}/notes`, {
+    mutationFn: async (body: { noteText: string; category: string }) => {
+      if (!isOnline) {
+        await queueAction({
+          url: `${API_BASE}/field/operations/${id}/notes`, method: 'POST', body,
+          type: 'field_note', label: `OPR-${id} saha notu`, operationId: op?.id,
+        });
+        return { queued: true };
+      }
+      return customFetch(`${API_BASE}/field/operations/${id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
-      }),
-    onSuccess: () => {
+      });
+    },
+    onSuccess: (data: { queued?: boolean }) => {
       qc.invalidateQueries({ queryKey: ['field-op', id] });
       setNoteDialog(false);
       setNoteText('');
       setNoteCategory('general');
-      toast({ title: 'Not eklendi' });
+      toast({ title: data?.queued ? 'Not senkronizasyon için bekliyor' : 'Not eklendi' });
     },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });
@@ -257,13 +279,25 @@ export default function FieldOperationDetailPage() {
   });
 
   const taskStatusMutation = useMutation({
-    mutationFn: ({ taskId, status }: { taskId: number; status: string }) =>
-      customFetch(`${API_BASE}/field/operations/${id}/tasks/${taskId}`, {
+    mutationFn: async ({ taskId, status }: { taskId: number; status: string }) => {
+      const body = { status, expectedVersion: op?.version };
+      if (!isOnline) {
+        await queueAction({
+          url: `${API_BASE}/field/operations/${id}/tasks/${taskId}`, method: 'PATCH', body,
+          type: 'task_update', label: `OPR-${id} görev durumu`, operationId: op?.id, expectedVersion: op?.version,
+        });
+        return { queued: true };
+      }
+      return customFetch(`${API_BASE}/field/operations/${id}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['field-op', id] }),
+        body: JSON.stringify(body),
+      });
+    },
+    onSuccess: (data: { queued?: boolean }) => {
+      qc.invalidateQueries({ queryKey: ['field-op', id] });
+      if (data?.queued) toast({ title: 'Görev senkronizasyon için bekliyor' });
+    },
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });
 

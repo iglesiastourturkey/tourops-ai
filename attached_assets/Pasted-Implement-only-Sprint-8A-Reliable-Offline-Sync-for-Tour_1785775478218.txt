@@ -1,0 +1,137 @@
+Implement only Sprint 8A: Reliable Offline Sync for TourPilot field workflows.
+
+Goal:
+Allow guide and field_operations users to continue essential operation work when internet access is unavailable and synchronize safely when connectivity returns.
+
+Important:
+- Reuse the existing PWA service worker.
+- Reuse the existing IndexedDB pending-action queue.
+- Do not create a second queue system.
+- Do not implement Web Push in this sprint.
+- Do not modify authentication, Clerk, DNS, SSL, RBAC or accounting logic.
+
+Offline-enabled actions only:
+
+1. Operation tasks
+- mark pending
+- mark in_progress
+- mark completed
+- mark blocked
+- completion note
+
+2. Field notes
+- create text note
+- category
+- timestamp
+
+3. Incident drafts
+- create incident
+- description
+- severity
+- occurredAt
+
+4. Operation status
+- started
+- in_progress
+- delayed
+- completed
+
+Do not queue:
+- user management
+- permission changes
+- accounting approvals
+- financial record deletion
+- AI requests
+- password/authentication actions
+
+Queue requirements:
+
+- Persist actions in IndexedDB.
+- Each action must include:
+  id
+  idempotencyKey
+  userId
+  operationId
+  method
+  url
+  sanitized body
+  createdAt
+  retryCount
+  lastError
+  status
+
+- Use a unique idempotency key.
+- Backend must safely reject duplicate submissions.
+- Retry automatically when connectivity returns.
+- Use exponential backoff.
+- Never retry 400, 401, 403 or 409 automatically.
+- Retry network errors and 5xx responses.
+- Preserve action ordering per operation.
+- Do not silently discard failed actions.
+
+UI:
+
+- Show Çevrimdışı status prominently.
+- Show pending action count.
+- Add a “Bekleyen İşlemler” drawer/page.
+- States:
+  Bekliyor
+  Gönderiliyor
+  Başarılı
+  Hata
+- Allow manual retry.
+- Allow deleting only an unsent draft after confirmation.
+- Clearly mark locally changed task/status values as “Senkronizasyon bekliyor”.
+- Keep form values after network failure.
+- Show Turkish success/error messages.
+
+Conflict handling:
+
+- Compare server updatedAt/version where available.
+- If server data changed after the offline action was created, do not overwrite silently.
+- Mark as “Çakışma” and show both local and server values.
+- User may:
+  - Sunucu verisini kullan
+  - Yerel değişikliği yeniden gönder
+
+Attachments:
+
+- Do not queue large photos or documents yet.
+- Preserve selected file information and explain that upload requires connectivity.
+- Do not store unlimited binary data in IndexedDB.
+
+Backend:
+
+- Add idempotency handling only where required.
+- Validate authorization again when replaying.
+- Audit successful replayed actions.
+- Record whether an action originated offline.
+
+Verification:
+
+- go offline using a real network disconnect
+- complete a task
+- add a field note
+- create an incident
+- change operation status
+- reload the PWA while offline
+- confirm pending actions survive reload
+- restore connection
+- confirm actions sync once only
+- test 403, 409 and 500 behavior
+- test duplicate replay
+- test two pending actions for the same operation
+- mobile viewport
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- production builds
+
+Report only:
+- existing offline infrastructure reused
+- modified files
+- enabled offline actions
+- idempotency and conflict behavior
+- verification results
+- remaining limitations
