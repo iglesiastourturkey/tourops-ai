@@ -28,6 +28,14 @@ declare global {
 /** Roles that must never be auto-downgraded to "guide" by profile sync. */
 const PROTECTED_ROLES: UserRole[] = ["super_admin", "admin"];
 
+/** Raised when an authenticated Clerk identity conflicts with a profile. */
+export class ProfileIdentityMismatchError extends Error {
+  constructor() {
+    super("Authenticated identity does not match the user profile");
+    this.name = "ProfileIdentityMismatchError";
+  }
+}
+
 /**
  * Fetches the user's primary email + full name from Clerk.
  * Returns empty strings/null if the user cannot be found.
@@ -130,10 +138,10 @@ export async function getOrCreateProfile(
     }
   }
 
-  // ── 2b. Check for an existing real profile with the same email ───────
-  // Handles the case where a profile was previously created with a
-  // different Clerk user ID (e.g. after an account merge or re-auth).
-  // Claims the existing profile rather than creating a second guide entry.
+  // ── 2b. Reject an identity collision ─────────────────────────────────
+  // An email match alone is not proof that this Clerk identity owns the
+  // profile. Rebinding the row here could let another Clerk user inherit
+  // the original user's role and permissions.
   if (email) {
     const [existingByEmail] = await db
       .select()
@@ -142,15 +150,7 @@ export async function getOrCreateProfile(
       .limit(1);
 
     if (existingByEmail) {
-      const [claimed] = await db
-        .update(profilesTable)
-        .set({
-          clerkUserId,
-          name: name ?? existingByEmail.name,
-        })
-        .where(eq(profilesTable.id, existingByEmail.id))
-        .returning();
-      return claimed;
+      throw new ProfileIdentityMismatchError();
     }
   }
 
@@ -206,7 +206,11 @@ export async function getProfile(
     const profile = await getOrCreateProfile(userId, email, name);
     res.locals.profile = profile;
     next();
-  } catch {
+  } catch (err) {
+    if (err instanceof ProfileIdentityMismatchError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
     res.status(500).json({ error: "Failed to load profile" });
   }
 }
@@ -240,7 +244,11 @@ export function requireRole(...roles: UserRole[]) {
         return;
       }
       next();
-    } catch {
+    } catch (err) {
+      if (err instanceof ProfileIdentityMismatchError) {
+        res.status(403).json({ error: err.message });
+        return;
+      }
       res.status(500).json({ error: "Failed to load profile" });
     }
   };
@@ -270,7 +278,11 @@ export function requireActive() {
         return;
       }
       next();
-    } catch {
+    } catch (err) {
+      if (err instanceof ProfileIdentityMismatchError) {
+        res.status(403).json({ error: err.message });
+        return;
+      }
       res.status(500).json({ error: "Failed to load profile" });
     }
   };
@@ -307,7 +319,11 @@ export function requirePermission(module: string, action: string) {
         return;
       }
       next();
-    } catch {
+    } catch (err) {
+      if (err instanceof ProfileIdentityMismatchError) {
+        res.status(403).json({ error: err.message });
+        return;
+      }
       res.status(500).json({ error: "Yetki kontrolü başarısız" });
     }
   };

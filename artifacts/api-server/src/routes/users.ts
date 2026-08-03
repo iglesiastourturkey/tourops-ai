@@ -305,6 +305,10 @@ router.post(
         res.status(400).json({ error: "Geçerli bir rol seçiniz" });
         return;
       }
+      if (role === "super_admin" && res.locals.profile.role !== "super_admin") {
+        res.status(403).json({ error: "Süper yönetici daveti yalnızca süper yönetici gönderebilir" });
+        return;
+      }
 
       const trimmedEmail = email.trim().toLowerCase();
       const trimmedName = name?.trim() || null;
@@ -435,9 +439,10 @@ router.post(
       const bytes = randomBytes(16);
       const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join("");
 
-      // Set password and force-change flag in a single Clerk API call
-      await clerkClient.users.updateUser(clerkUserId, {
-        password: tempPassword,
+      // Update the credential and public metadata separately so the metadata
+      // patch cannot overwrite unrelated Clerk metadata.
+      await clerkClient.users.updateUser(clerkUserId, { password: tempPassword });
+      await clerkClient.users.updateUserMetadata(clerkUserId, {
         publicMetadata: { mustChangePassword: true },
       });
 

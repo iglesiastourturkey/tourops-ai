@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSignIn } from '@clerk/react';
+import { useClerk, useSignIn } from '@clerk/react';
 import { Link, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ export default function ForgotPasswordPage() {
   // Clerk v4 future API: returns { signIn, errors, fetchStatus }
   // signIn is null until the Clerk JS bundle loads
   const { signIn } = useSignIn();
+  const clerk = useClerk();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
@@ -30,6 +31,7 @@ export default function ForgotPasswordPage() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [finalizeError, setFinalizeError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // ── Step 1: Identify the user and send reset code ──────────────────────
@@ -110,8 +112,17 @@ export default function ForgotPasswordPage() {
       // Finalise — creates the session and signs the user in
       const { error: finalErr } = await signIn.finalize();
       if (finalErr) {
-        // Finalize failing just means we can't auto-sign-in; password was still changed.
-        // Redirect to sign-in page.
+        setFinalizeError(clerkErrMsg(finalErr));
+      } else if (signIn.createdSessionId) {
+        // The future API finalizes the sign-in resource, but the browser
+        // session is not active until it is explicitly selected.
+        try {
+          await clerk.setActive({ session: signIn.createdSessionId });
+        } catch (err) {
+          setFinalizeError(err instanceof Error ? err.message : 'Otomatik giriş tamamlanamadı');
+        }
+      } else {
+        setFinalizeError('Oturum oluşturulamadı');
       }
       setStep('done');
     } catch (err) {
@@ -132,7 +143,9 @@ export default function ForgotPasswordPage() {
             {step === 'email' && 'Kayıtlı e-posta adresinize doğrulama kodu göndereceğiz.'}
             {step === 'code' && `${email} adresine gönderilen kodu giriniz.`}
             {step === 'password' && 'Yeni şifrenizi belirleyiniz.'}
-            {step === 'done' && 'Şifreniz başarıyla güncellendi.'}
+            {step === 'done' && (finalizeError
+              ? 'Şifreniz güncellendi ancak otomatik giriş tamamlanamadı.'
+              : 'Şifreniz başarıyla güncellendi.')}
           </p>
         </CardHeader>
 
@@ -240,7 +253,9 @@ export default function ForgotPasswordPage() {
             <div className="flex flex-col items-center gap-4 py-4">
               <CheckCircle2 className="w-12 h-12 text-green-500" />
               <p className="text-sm text-center text-muted-foreground">
-                Şifreniz güncellendi. Artık yeni şifrenizle giriş yapabilirsiniz.
+                {finalizeError
+                  ? `Şifreniz güncellendi. Giriş sayfasından yeni şifrenizle giriş yapın. (${finalizeError})`
+                  : 'Şifreniz güncellendi. Artık yeni şifrenizle giriş yapabilirsiniz.'}
               </p>
               <Button className="w-full" onClick={() => navigate('/sign-in')}>
                 Giriş Sayfasına Git

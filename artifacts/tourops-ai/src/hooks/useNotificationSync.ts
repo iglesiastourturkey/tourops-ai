@@ -10,7 +10,8 @@
  *    critical incidents, overdue tasks.
  */
 import { useEffect, useRef } from 'react';
-import { useListNotifications } from '@workspace/api-client-react';
+import { useAuth } from '@clerk/react';
+import { getListNotificationsQueryKey, useListNotifications } from '@workspace/api-client-react';
 import {
   getPermissionStatus,
   notifyGuideAssigned,
@@ -31,7 +32,13 @@ interface AppNotification {
 }
 
 export function useNotificationSync() {
-  const { data: notifications } = useListNotifications();
+  const { isLoaded, userId } = useAuth();
+  const { data: notifications } = useListNotifications(undefined, {
+    query: {
+      queryKey: getListNotificationsQueryKey(),
+      enabled: isLoaded && !!userId,
+    },
+  });
   const seenIds = useRef<Set<number>>(new Set());
 
   useEffect(() => {
