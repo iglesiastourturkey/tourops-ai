@@ -66,8 +66,14 @@ export default function ChangePasswordPage() {
         signOutOfOtherSessions: false,
       });
 
-      // 2. Clear the forced-change flag in Clerk publicMetadata via our API
-      await customFetch(`${API_BASE}/profiles/me/clear-password-change`, { method: 'POST' });
+      // 2. Clear the forced-change flag via our API. The server verifies that
+      // Clerk no longer accepts the original temporary credential; it never
+      // trusts the submitted "new password" value as proof of a change.
+      await customFetch(`${API_BASE}/profiles/me/clear-password-change`, {
+        method: 'POST',
+        headers: { 'x-tourpilot-force-change-proof': currentPw },
+        cache: 'no-store',
+      });
 
       // 3. Invalidate ProfileContext cache so mustChangePassword becomes false
       await refetchProfile();

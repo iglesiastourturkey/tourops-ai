@@ -43,13 +43,63 @@ router.get("/me", requireAuth, requireActive(), async (req, res) => {
 
 // POST /api/profiles/me/clear-password-change
 // Called by the user themselves after successfully changing their temp password.
+//
+// This endpoint intentionally accepts no password or "new password" value.
+// Client-side validation is not proof that a credential changed: a caller
+// could submit the temporary password again.  Instead it proves that Clerk
+// currently rejects the original temporary credential, which is the
+// credential-change signal available from the installed Clerk SDK.
 router.post("/me/clear-password-change", requireAuth, requireActive(), async (req, res) => {
   try {
     const { userId } = getAuth(req);
-    await clerkClient.users.updateUserMetadata(userId!, {
-      publicMetadata: { mustChangePassword: false },
-    });
-    res.json({ ok: true });
+    const user = await clerkClient.users.getUser(userId!);
+    const mustChangePassword = user.publicMetadata?.mustChangePassword === true;
+
+    if (!mustChangePassword) {
+      res.status(409).json({ error: "Şifre değişikliği gerekmiyor" });
+      return;
+    }
+
+    const forceChangeNonce = user.privateMetadata?.mustChangePasswordNonce;
+    if (typeof forceChangeNonce !== "string" || !forceChangeNonce) {
+      res.status(409).json({
+        error: "Geçici şifre durumu doğrulanamadı. Yönetici yeni bir geçici şifre oluşturmalıdır.",
+      });
+      return;
+    }
+
+    const originalTemporaryPassword = req.get("x-tourpilot-force-change-proof");
+    if (!originalTemporaryPassword || originalTemporaryPassword.length > 512) {
+      res.status(400).json({ error: "Geçici şifre doğrulaması gerekli" });
+      return;
+    }
+
+    try {
+      await clerkClient.users.verifyPassword({
+        userId: userId!,
+        password: originalTemporaryPassword,
+      });
+    } catch {
+      // Clerk rejecting the original temporary password is the authoritative
+      // proof that a new credential replaced it.  Do not reveal whether the
+      // supplied value was correct and never log or persist this header.
+      await clerkClient.users.updateUserMetadata(userId!, {
+        publicMetadata: { mustChangePassword: false },
+        privateMetadata: { mustChangePasswordNonce: null },
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.json({ ok: true });
+      return;
+    }
+
+    // The original temporary credential still works.  Keep the account gated.
+    // A successful verifyPassword response can only occur when it matched.
+    if (forceChangeNonce) {
+      res.status(409).json({
+        error: "Yeni şifre geçici şifre ile aynı olamaz.",
+      });
+      return;
+    }
   } catch {
     res.status(500).json({ error: "Şifre değişikliği durumu güncellenemedi" });
   }

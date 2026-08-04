@@ -1,0 +1,165 @@
+Implement Manual User Creation (No Email Required)
+
+Implement a new user onboarding workflow for TourPilot without breaking the existing invitation system.
+
+Background
+
+Currently users can only join through invitation emails.
+
+This does not match our real business workflow.
+
+Many staff members (operations, guides, drivers, field workers, accounting staff) either do not have company email addresses or should be created directly by the administrator.
+
+The system must support both invitation-based onboarding and manual user creation.
+
+New Feature
+Users Page
+
+Add a new button:
+
++ New User
+
+Visible only to Super Admin.
+
+Keep the existing Invite User button.
+
+Both workflows must coexist.
+
+Manual User Creation
+
+When clicking New User, open a modal.
+
+Fields:
+
+Full Name (required)
+Username (required, unique)
+Phone Number (optional)
+Email (optional)
+Role
+Temporary Password (auto-generated with regenerate option)
+
+The email field must NOT be required.
+
+Roles
+
+Allow selecting:
+
+Admin
+Operations
+Accounting
+Guide
+Field Operations
+
+Do NOT allow selecting Super Admin here.
+
+Authentication
+
+Users must be able to login with:
+
+Username + Password
+
+If an email exists:
+
+Email + Password
+
+Both should work.
+
+First Login
+
+Manually created users must be forced to change their password on first login.
+
+Reuse the existing temporary-password flow.
+
+Do not create another implementation.
+
+User Management
+
+Super Admin can later:
+
+Edit user
+Change role
+Disable account
+Enable account
+Reset password
+Add or edit email later
+Add or edit phone later
+Super Admin Protection
+
+Super Admin role must be protected.
+
+It cannot be selected while creating users.
+
+Only an existing Super Admin can promote another user to Super Admin.
+
+Require a confirmation dialog before promotion.
+
+Log this action.
+
+Audit Log
+
+Record:
+
+User created
+User edited
+Role changed
+Password reset
+Account disabled
+Account enabled
+Promoted to Super Admin
+
+Store:
+
+acting user
+target user
+timestamp
+previous value
+new value
+UI
+
+Users page should contain:
+
++ New User
+Invite User
+Compatibility
+
+Do NOT break:
+
+Clerk authentication
+Existing invitation workflow
+Existing permissions
+Existing sessions
+Existing password reset flow
+
+Reuse current services wherever possible.
+
+Avoid duplicate code.
+
+Database
+
+Email must become optional.
+
+Username must remain unique.
+
+Store:
+
+username
+email (nullable)
+phone (nullable)
+Validation
+
+Implement end-to-end.
+
+After implementation verify:
+
+Create user without email
+Login with username
+Force password change
+Role changes
+Disable/Enable
+Password reset
+Invitation flow still works
+Existing users continue working
+
+Fix any issues before finishing.
+
+Goal: TourPilot should support both invitation-based onboarding and direct user creation by Super Admin, making it suitable for tourism companies where many staff members do not use email while keeping the system secure, auditable, and fully backward compatible.

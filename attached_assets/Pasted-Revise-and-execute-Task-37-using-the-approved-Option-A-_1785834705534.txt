@@ -1,0 +1,230 @@
+Revise and execute Task #37 using the approved Option A architecture.
+
+Goal:
+Allow Super Admin to manually create staff accounts without requiring a real email address, while keeping Clerk as the only authentication and session provider.
+
+Do not introduce custom authentication.
+Do not store password hashes.
+Do not make profiles.email nullable in this implementation.
+Do not modify existing invitation users or production accounts.
+
+Architecture:
+- Clerk remains the single source of authentication truth.
+- A manually created user without a real email receives a unique internal placeholder email.
+- The user signs in primarily with username + password.
+- The internal placeholder email is authentication-only and must never be treated as a contact email.
+
+1. Manual user creation
+
+Add a Super Admin-only button on the Users page:
+
+Yeni Kullanıcı
+
+Keep the existing invitation workflow unchanged.
+
+Form fields:
+- Full name: required
+- Username: required
+- Phone: optional
+- Real contact email: optional
+- Role: required
+- Temporary password:
+  - generated server-side
+  - shown once
+  - regenerate option
+
+Allowed creation roles:
+- admin
+- operations
+- accounting
+- guide
+- field_operations
+
+Do not allow selecting super_admin during initial creation.
+
+2. Internal placeholder email
+
+If no real email is supplied:
+
+- Generate the placeholder email server-side.
+- Use an opaque, random, non-guessable identifier.
+- Use a clearly internal dedicated domain or subdomain.
+- Do not derive it only from the username.
+- Enforce uniqueness.
+- Store it only as the required Clerk/profile identity email.
+- Mark the account as using an internal email through safe metadata or an existing suitable field.
+
+The placeholder email must:
+- never appear as a contact email in normal UI
+- never receive invitations
+- never receive notifications
+- never be included in outbound email flows
+- never be exposed in audit descriptions unless technically required and redacted
+
+Before implementation, verify that the current managed Clerk development instance accepts the chosen placeholder email format.
+
+3. Clerk account creation
+
+Create exactly one Clerk user with:
+- username
+- password
+- placeholder or real email
+- first name / last name where available
+- publicMetadata.mustChangePassword = true
+
+Then create exactly one linked TourPilot profile using the returned Clerk user ID.
+
+Do not create:
+- invitation stub
+- duplicate profile
+- duplicate Clerk user
+
+If Clerk creation succeeds but profile creation fails:
+- compensate safely by deleting or disabling the newly created Clerk user
+- report a clear error
+- do not leave an orphan account
+
+4. Contact email behavior
+
+If the user has no real email:
+- display “E-posta yok”
+- never display the placeholder as contact information
+
+If a real email is added later:
+- treat it as the contact/login email
+- preserve the same Clerk user and TourPilot profile
+- do not create another account
+
+Keep identity-email and contact-email handling clearly separated in service logic, even if the current schema still uses the existing email field.
+
+5. Sign-in
+
+Update the existing custom login forms to accept:
+
+- Username
+- Real email, when available
+- Existing invitation-based email accounts
+
+Field label:
+
+Kullanıcı Adı veya E-posta
+
+Do not reintroduce Google sign-in.
+
+Use the existing Clerk identifier + password flow.
+
+Never call finalize/setActive without:
+- status === complete
+- a valid createdSessionId
+
+Preserve role validation after authentication.
+
+6. First login and password management
+
+Reuse the existing mustChangePassword flow.
+
+Manually created users:
+- must change password on first login
+
+For users without a real email:
+- do not offer an email reset message
+- Super Admin may generate a new temporary password
+- show the password once
+- force password change again
+
+Never store or log the temporary password.
+
+7. User management
+
+Super Admin can:
+- edit name
+- edit phone
+- add or update real email
+- change role
+- activate/deactivate
+- generate temporary password
+- revoke sessions
+
+Existing permissions and role rules must remain server-authoritative.
+
+8. Super Admin protection
+
+- super_admin cannot be selected during normal account creation
+- only an existing super_admin may promote another user
+- require explicit confirmation
+- prevent removing or disabling the last active super_admin
+- audit all promotions/demotions
+
+9. Audit logging
+
+Record:
+- manual user created
+- real email added/changed
+- username changed
+- role changed
+- account activated/deactivated
+- temporary password regenerated
+- sessions revoked
+- promoted/demoted as super_admin
+
+Never record:
+- passwords
+- reset tokens
+- JWTs
+- Clerk secrets
+- authorization headers
+- full placeholder email where unnecessary
+
+10. Invitation compatibility
+
+Do not change or break:
+- existing invitation flow
+- pending invitation stubs
+- existing email users
+- forgot-password for users with real email
+- Clerk sessions
+- RBAC
+- Audit Log
+- current production profiles
+
+Manual creation and invitation onboarding must coexist.
+
+11. Verification
+
+Test in Development:
+
+- create guide without real email
+- create operations user without real email
+- create admin with real email
+- login using username
+- login using real email
+- force first password change
+- regenerate temporary password
+- activate/deactivate user
+- change role
+- add real email later without creating a duplicate
+- invitation flow still works
+- duplicate username is rejected
+- duplicate Clerk/profile accounts are not created
+- non-super-admin cannot create users
+- last active super_admin cannot be disabled or demoted
+- placeholder email is never shown as contact information
+- no password/token appears in audit metadata
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- frontend production build
+- API production build
+
+Report only:
+- placeholder email strategy
+- exact Clerk capabilities verified
+- database changes, if any
+- modified files
+- account creation transaction/compensation behavior
+- login behavior
+- Super Admin protections
+- audit events
+- verification results
+- remaining limitations

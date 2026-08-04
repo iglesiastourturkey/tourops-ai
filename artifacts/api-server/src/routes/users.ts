@@ -440,13 +440,19 @@ router.post(
       const tempPassword = Array.from(bytes, b => chars[b % chars.length]).join("");
 
       // Update the credential and public metadata separately so the metadata
-      // patch cannot overwrite unrelated Clerk metadata.
+      // patch cannot overwrite unrelated Clerk metadata.  Record a server
+      // nonce rather than accepting a client-submitted password as proof that
+      // the credential later changed.  The nonce is private Clerk metadata and
+      // is only retained for the duration of the forced-change flow.
       await clerkClient.users.updateUser(clerkUserId, { password: tempPassword });
+      const forceChangeNonce = randomBytes(32).toString("base64url");
       await clerkClient.users.updateUserMetadata(clerkUserId, {
         publicMetadata: { mustChangePassword: true },
+        privateMetadata: { mustChangePasswordNonce: forceChangeNonce },
       });
 
       // Return ONCE — never logged or persisted anywhere
+      res.setHeader("Cache-Control", "no-store");
       res.json({ tempPassword });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
