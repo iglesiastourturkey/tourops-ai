@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useMutation, useQuery, useQueryClient as useTanstackQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Plus, Trash2 } from 'lucide-react';
 import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
+import { reservationApi } from '@/lib/reservation-api';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const EMAIL_TYPES = ['quotation', 'follow_up', 'confirmation', 'cancellation', 'welcome', 'custom'];
@@ -39,6 +41,17 @@ export default function SettingsPage() {
   const deleteRateMutation = useDeleteExchangeRate();
   const updateTemplateMutation = useUpdateEmailTemplate();
   const createTemplateMutation = useCreateEmailTemplate();
+  const googleConnection = useQuery({ queryKey: ['google-connection'], queryFn: reservationApi.googleStatus, enabled: isAdmin || role === 'super_admin' });
+  const connectGoogle = useMutation({
+    mutationFn: reservationApi.authorize,
+    onSuccess: ({ authorizationUrl }) => { window.location.assign(authorizationUrl); },
+    onError: error => toast({ title: 'Google bağlantısı başlatılamadı', description: error.message, variant: 'destructive' }),
+  });
+  const disconnectGoogle = useMutation({
+    mutationFn: reservationApi.disconnect,
+    onSuccess: () => { toast({ title: 'Google Workspace bağlantısı kaldırıldı' }); void googleConnection.refetch(); },
+    onError: error => toast({ title: 'Bağlantı kaldırılamadı', description: error.message, variant: 'destructive' }),
+  });
 
   const [agencyForm, setAgencyForm] = useState({ name: '', address: '', phone: '', email: '', website: '', defaultCurrency: 'TRY', defaultProfitMargin: 20, minProfitWarning: 10, defaultQuotationValidity: 7, cancellationPolicy: '', paymentTerms: '', cruiseSafetyBufferMinutes: 30 });
   const [editRates, setEditRates] = useState<Record<number, number>>({});
@@ -124,6 +137,7 @@ export default function SettingsPage() {
           <TabsTrigger value="rates" data-testid="tab-rates">Kur Tablosu</TabsTrigger>
           <TabsTrigger value="templates" data-testid="tab-templates">E-posta Şablonları</TabsTrigger>
           <TabsTrigger value="account" data-testid="tab-account">Hesap</TabsTrigger>
+          {(isAdmin || role === 'super_admin') && <TabsTrigger value="google" data-testid="tab-google">Google Workspace</TabsTrigger>}
         </TabsList>
 
         {/* AGENCY */}
@@ -242,6 +256,33 @@ export default function SettingsPage() {
             </Card>
           )}
         </TabsContent>
+
+        {(isAdmin || role === 'super_admin') && <TabsContent value="google">
+          <Card className="max-w-2xl">
+            <CardHeader><CardTitle className="text-base">Gmail Rezervasyon Bağlantısı</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              {googleConnection.isLoading ? <Skeleton className="h-20 w-full" /> : !googleConnection.data?.configured ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Google OAuth henüz sunucuda yapılandırılmamış. Google Cloud ayarları tamamlandığında buradan Gmail bağlantısını başlatabilirsiniz.
+                </div>
+              ) : googleConnection.data.connection ? (
+                <>
+                  <div className="rounded-lg bg-muted p-4 text-sm space-y-1">
+                    <p><strong>Bağlı hesap:</strong> {googleConnection.data.connection.googleAccountEmail ?? 'Google hesabı'}</p>
+                    <p><strong>Durum:</strong> {googleConnection.data.connection.status === 'connected' ? 'Bağlı' : 'Hata'}</p>
+                    {googleConnection.data.connection.lastError && <p className="text-destructive">{googleConnection.data.connection.lastError}</p>}
+                  </div>
+                  <Button variant="destructive" onClick={() => disconnectGoogle.mutate()} disabled={disconnectGoogle.isPending}>{disconnectGoogle.isPending ? 'Kaldırılıyor...' : 'Bağlantıyı Kaldır'}</Button>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">TourPilot yalnızca Gmail’deki <strong>TourPilot</strong> etiketi için salt-okunur erişim ister. Otomatik tarama veya e-posta gönderme yapılmaz.</p>
+                  <Button onClick={() => connectGoogle.mutate()} disabled={connectGoogle.isPending} data-testid="button-connect-google">{connectGoogle.isPending ? 'Yönlendiriliyor...' : 'Google Workspace Bağla'}</Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>}
       </Tabs>
 
       {/* Rate Dialog */}

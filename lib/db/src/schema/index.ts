@@ -13,3 +13,4 @@ export * from "./roles";
 export * from "./permissions";
 export * from "./system";
 export * from "./offline";
+export * from "./gmail";

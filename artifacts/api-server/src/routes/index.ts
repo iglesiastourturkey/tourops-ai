@@ -19,6 +19,7 @@ import fieldRouter from "./field";
 import rolesRouter from "./roles";
 import systemRouter from "./system";
 import auditRouter from "./audit";
+import reservationsRouter from "./reservations";
 
 const router: IRouter = Router();
 
@@ -42,5 +43,6 @@ router.use("/field", fieldRouter);
 router.use("/roles", rolesRouter);
 router.use("/system", systemRouter);
 router.use("/audit", auditRouter);
+router.use("/reservations", reservationsRouter);
 
 export default router;

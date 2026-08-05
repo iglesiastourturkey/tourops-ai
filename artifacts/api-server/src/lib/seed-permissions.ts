@@ -156,6 +156,11 @@ const MATRIX: PermRow[] = [
   ["settings", "view",   ["admin","operations"]],
   ["settings", "manage", ["admin"]],
 
+  // Gmail reservation intake
+  ["reservations", "view",   ["admin","operations"]],
+  ["reservations", "create", ["admin","operations"]],
+  ["reservations", "update", ["admin","operations"]],
+
   // system_control — super_admin only
   ["system_control", "view",   []],
   ["system_control", "manage", []],

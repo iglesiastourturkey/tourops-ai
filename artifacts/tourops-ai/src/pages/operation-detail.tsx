@@ -532,6 +532,13 @@ export default function OperationDetailPage() {
                   )}
                 </div>
               </div>
+              {operation.sourceType === 'gmail' && operation.sourceEmailImportId && (
+                <Link href={`/reservations/${operation.sourceEmailImportId}`}>
+                  <Button variant="outline" size="sm" className="gap-1.5">
+                    <FileText className="w-3.5 h-3.5" />Gmail Rezervasyonu{operation.sourceBookingReference ? ` · ${operation.sourceBookingReference}` : ''}
+                  </Button>
+                </Link>
+              )}
               <div className="flex flex-col items-end gap-1 min-w-[120px]">
                 <span className="text-xs text-muted-foreground">Tamamlanma</span>
                 <div className="flex items-center gap-2">

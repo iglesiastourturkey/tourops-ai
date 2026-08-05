@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, date, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { quotationsTable } from "./quotations";
@@ -11,6 +11,8 @@ export const operationsTable = pgTable("operations", {
   quotationId: integer("quotation_id").references(() => quotationsTable.id, { onDelete: "set null" }),
   sourceType: text("source_type").notNull().default("manual"),
   sourceQuoteId: integer("source_quote_id").references(() => quotationsTable.id, { onDelete: "set null" }),
+  sourceEmailImportId: integer("source_email_import_id"),
+  sourceBookingReference: text("source_booking_reference"),
   tourId: integer("tour_id").references(() => toursTable.id, { onDelete: "set null" }),
   customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),
   startDate: date("start_date"),
@@ -36,7 +38,9 @@ export const operationsTable = pgTable("operations", {
   assignedGuideUserId: text("assigned_guide_user_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (table) => ({
+  gmailImportUnique: uniqueIndex("operations_source_email_import_idx").on(table.sourceEmailImportId),
+}));
 
 export const operationTasksTable = pgTable("operation_tasks", {
   id: serial("id").primaryKey(),
