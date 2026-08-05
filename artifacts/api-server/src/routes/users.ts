@@ -11,6 +11,18 @@ import type { UserRole } from "@workspace/db/schema";
 
 const router = Router();
 const PRODUCTION_INVITATION_REDIRECT_URL = "https://tourpilot.com.tr/sign-up";
+const MANUAL_CREATION_ROLES = ["admin", "operations", "accounting", "guide", "field_operations"] as const;
+const INTERNAL_EMAIL_DOMAIN = "users.tourpilot.internal";
+
+function isInternalPlaceholderEmail(email: string | null | undefined): boolean {
+  return !!email && email.endsWith(`@${INTERNAL_EMAIL_DOMAIN}`);
+}
+
+function normalizeUsername(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const username = value.trim().toLowerCase();
+  return /^[a-z0-9_]{3,32}$/.test(username) ? username : null;
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -36,6 +48,8 @@ async function getEnrichedUsers() {
     imageUrl: string;
     username: string | null;
     passwordEnabled: boolean;
+    phoneNumbers?: Array<{ id: string; phoneNumber: string }>;
+    primaryPhoneNumberId?: string | null;
   }> = [];
 
   try {
@@ -63,7 +77,7 @@ async function getEnrichedUsers() {
     return {
       id: profile.id,
       clerkUserId: profile.clerkUserId,
-      email: clerkEmail || profile.email || "",
+      email: isInternalPlaceholderEmail(profile.email) ? "" : clerkEmail || profile.email || "",
       name: clerkName || profile.name || "",
       role: profile.role,
       isActive: profile.isActive,
@@ -72,6 +86,7 @@ async function getEnrichedUsers() {
       imageUrl: cu?.imageUrl ?? null,
       username: cu?.username ?? null,
       passwordEnabled: cu?.passwordEnabled ?? false,
+      phone: cu?.phoneNumbers?.find(phone => phone.id === cu.primaryPhoneNumberId)?.phoneNumber ?? null,
     };
   });
 }
@@ -102,6 +117,124 @@ router.get(
       res.json(users);
     } catch {
       res.status(500).json({ error: "Kullanıcılar listelenemedi" });
+    }
+  },
+);
+
+// ── POST /api/users/manual ────────────────────────────────────────────────────
+// Creates exactly one Clerk user and one linked profile. If profile creation
+// fails, the Clerk user is removed so no orphan credential can remain.
+router.post(
+  "/users/manual",
+  requireAuth,
+  requirePermission("users", "manage"),
+  async (req, res) => {
+    if (res.locals.profile.role !== "super_admin") {
+      res.status(403).json({ error: "Manuel kullanıcı oluşturma yalnızca süper yöneticiye açıktır" });
+      return;
+    }
+
+    let createdClerkUserId: string | null = null;
+    try {
+      const { name, username: rawUsername, phone, email: rawEmail, role, temporaryPassword } = req.body as Record<string, unknown>;
+      const normalizedName = typeof name === "string" ? name.trim() : "";
+      const username = normalizeUsername(rawUsername);
+      const contactEmail = typeof rawEmail === "string" ? rawEmail.trim().toLowerCase() : "";
+      const phoneNumber = typeof phone === "string" ? phone.trim() : "";
+
+      if (!normalizedName) {
+        res.status(400).json({ error: "Ad Soyad zorunludur" });
+        return;
+      }
+      if (!username) {
+        res.status(400).json({ error: "Kullanıcı adı 3-32 karakter, yalnızca harf (a-z), rakam veya alt çizgi içerebilir" });
+        return;
+      }
+      if (!MANUAL_CREATION_ROLES.includes(role as typeof MANUAL_CREATION_ROLES[number])) {
+        res.status(400).json({ error: "Bu oluşturma yöntemi için geçerli bir rol seçiniz" });
+        return;
+      }
+      if (typeof temporaryPassword !== "string" || temporaryPassword.length < 8) {
+        res.status(400).json({ error: "Geçici şifre en az 8 karakter olmalıdır" });
+        return;
+      }
+      if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+        res.status(400).json({ error: "Geçerli bir e-posta adresi giriniz" });
+        return;
+      }
+      if (phoneNumber && !/^[+0-9()\s-]{6,32}$/.test(phoneNumber)) {
+        res.status(400).json({ error: "Geçerli bir telefon numarası giriniz" });
+        return;
+      }
+
+      const profileEmail = contactEmail || `${username}@${INTERNAL_EMAIL_DOMAIN}`;
+      const [existingProfile] = await db.select({ id: profilesTable.id }).from(profilesTable)
+        .where(eq(profilesTable.email, profileEmail)).limit(1);
+      if (existingProfile) {
+        res.status(409).json({ error: "Bu e-posta ile zaten bir profil bulunmaktadır" });
+        return;
+      }
+
+      const nameParts = normalizedName.split(/\s+/);
+      const clerkUser = await clerkClient.users.createUser({
+        username,
+        password: temporaryPassword,
+        emailAddress: [profileEmail],
+        ...(phoneNumber ? { phoneNumber: [phoneNumber] } : {}),
+        firstName: nameParts[0] ?? normalizedName,
+        lastName: nameParts.slice(1).join(" ") || undefined,
+        publicMetadata: { mustChangePassword: true },
+        privateMetadata: { mustChangePasswordNonce: randomBytes(32).toString("base64url") },
+      });
+      createdClerkUserId = clerkUser.id;
+
+      const [profile] = await db.insert(profilesTable).values({
+        clerkUserId: clerkUser.id,
+        email: profileEmail,
+        name: normalizedName,
+        role: role as UserRole,
+        isActive: true,
+      }).returning();
+
+      await createAuditLog({
+        eventType: "manual_user_created",
+        actorProfileId: res.locals.profile.id,
+        targetProfileId: profile.id,
+        module: "users",
+        entityType: "profile",
+        entityId: profile.id,
+        metadata: { role, username, hasContactEmail: Boolean(contactEmail), hasPhone: Boolean(phoneNumber) },
+        result: "success",
+        description: "Manuel kullanıcı oluşturuldu",
+      });
+      res.setHeader("Cache-Control", "no-store");
+      res.status(201).json({
+        id: profile.id,
+        clerkUserId: clerkUser.id,
+        name: profile.name,
+        username,
+        role: profile.role,
+        email: contactEmail || null,
+        phone: phoneNumber || null,
+        temporaryPassword,
+      });
+    } catch (err: unknown) {
+      if (createdClerkUserId) {
+        await clerkClient.users.deleteUser(createdClerkUserId).catch(() => {});
+      }
+      const clerkMessage = err && typeof err === "object" && "errors" in err
+        ? (err as { errors?: Array<{ message?: string }> }).errors?.[0]?.message
+        : undefined;
+      await createAuditLog({
+        eventType: "manual_user_creation_failed",
+        actorProfileId: res.locals.profile.id,
+        module: "users",
+        entityType: "user",
+        metadata: { clerkCleanupAttempted: Boolean(createdClerkUserId) },
+        result: "failure",
+        description: "Manuel kullanıcı oluşturulamadı",
+      });
+      res.status(clerkMessage ? 409 : 500).json({ error: clerkMessage ?? "Kullanıcı oluşturulamadı" });
     }
   },
 );
@@ -160,7 +293,7 @@ router.patch(
         return;
       }
 
-      // Username assignment: only admin and super_admin may receive a username
+      // Usernames are Clerk credentials and can be assigned to any staff role.
       if (username !== undefined) {
         const normalizedUsername = username.trim().toLowerCase();
 
@@ -184,18 +317,13 @@ router.patch(
           res.status(400).json({ error: "Kullanıcı adı 3-32 karakter, yalnızca harf (a-z), rakam veya alt çizgi içerebilir" });
           return;
         }
-        // Fetch target profile to check eligibility
         const [targetCheck] = await db
-          .select({ role: profilesTable.role })
+          .select({ id: profilesTable.id })
           .from(profilesTable)
           .where(eq(profilesTable.clerkUserId, clerkUserId))
           .limit(1);
         if (!targetCheck) {
           res.status(404).json({ error: "Kullanıcı bulunamadı" });
-          return;
-        }
-        if (!["admin", "super_admin"].includes(targetCheck.role)) {
-          res.status(403).json({ error: "Kullanıcı adı yalnızca yönetici rolündeki hesaplara atanabilir" });
           return;
         }
         // If the username is already set to this value on the same Clerk user,

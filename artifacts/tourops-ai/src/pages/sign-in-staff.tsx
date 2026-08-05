@@ -2,7 +2,7 @@
  * Staff sign-in page (custom form).
  *
  * Supports:
- *   • E-posta + şifre  (Clerk email/password)
+ *   • E-posta veya kullanıcı adı + şifre  (Clerk password)
  *   • "Şifremi unuttum" → /forgot-password
  *
  * After sign-in the backend role is fetched via GET /api/profiles/me.
@@ -40,7 +40,7 @@ export default function SignInStaffPage() {
   const clerk                          = useClerk();
   const [, navigate]                   = useLocation();
 
-  const [email,     setEmail]     = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password,  setPassword]  = useState('');
   const [loading,   setLoading]   = useState(false);
   const [mode,      setMode]      = useState<Mode>('form');
@@ -132,7 +132,7 @@ export default function SignInStaffPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!signIn) return;
-    if (!email.trim() || !password) return;
+    if (!identifier.trim() || !password) return;
 
     setLoading(true);
     setFormError(null);
@@ -142,7 +142,7 @@ export default function SignInStaffPage() {
       // The resource is mutated in-place; return value only carries { error }.
       // Do NOT call finalize() — it is for pending-next-factor flows (MFA) only.
       const { error: createErr } = await signIn.create({
-        identifier: email.trim().toLowerCase(),
+        identifier: identifier.trim().toLowerCase(),
         password,
       });
       if (createErr) {
@@ -240,7 +240,7 @@ export default function SignInStaffPage() {
             <CardTitle className="text-xl">Personel Girişi</CardTitle>
           </div>
           <p className="text-sm text-muted-foreground">
-            Kurumsal e-posta adresiniz ve şifreniz ile giriş yapın.
+            E-posta veya kullanıcı adınız ve şifreniz ile giriş yapın.
           </p>
         </CardHeader>
 
@@ -249,13 +249,13 @@ export default function SignInStaffPage() {
           {/* ── E-posta / şifre formu ── */}
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="staff-email">E-posta</Label>
+              <Label htmlFor="staff-email">E-posta veya Kullanıcı Adı</Label>
               <Input
                 id="staff-email"
-                type="email"
-                placeholder="ad@sirket.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
+                type="text"
+                placeholder="ad@sirket.com veya kullanici_adi"
+                value={identifier}
+                onChange={e => setIdentifier(e.target.value)}
                 disabled={loading}
                 autoCapitalize="none"
                 autoCorrect="off"
@@ -284,7 +284,7 @@ export default function SignInStaffPage() {
             <Button
               type="submit"
               className="w-full bg-[#0B1F3A] hover:bg-[#162033]"
-              disabled={loading || !ready || !email.trim() || !password}
+              disabled={loading || !ready || !identifier.trim() || !password}
             >
               {loading ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Giriş yapılıyor…</>

@@ -32,6 +32,7 @@ const BASE = import.meta.env.BASE_URL ?? '/';
 const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
 
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations'];
+const MANUAL_CREATION_ROLES: UserRole[] = ['admin', 'operations', 'guide', 'accounting', 'field_operations'];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ interface EnrichedUser {
   username: string | null;
   /** True when the Clerk account has a password set; false for Google-only or newly invited users. */
   passwordEnabled: boolean;
+  phone: string | null;
 }
 
 interface Invitation {
@@ -95,6 +97,12 @@ export default function UsersPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { userId: myClerkUserId } = useAuth();
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState('');
+  const [manualUsername, setManualUsername] = useState('');
+  const [manualEmail, setManualEmail] = useState('');
+  const [manualPhone, setManualPhone] = useState('');
+  const [manualRole, setManualRole] = useState<UserRole>('guide');
 
   // ── Invite dialog ────────────────────────────────────────────────────────
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -154,6 +162,31 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['invitations'] });
     },
     onError: (err) => toast({ title: 'Davet gönderilemedi', description: apiErrMsg(err), variant: 'destructive' }),
+  });
+
+  const manualUserMutation = useMutation({
+    mutationFn: async () => {
+      const temporaryPassword = crypto.getRandomValues(new Uint32Array(4)).join('').slice(0, 12) + 'aA!';
+      return customFetch<{ temporaryPassword: string }>(`${API_BASE}/users/manual`, {
+        method: 'POST',
+        body: JSON.stringify({
+          name: manualName,
+          username: manualUsername,
+          email: manualEmail,
+          phone: manualPhone,
+          role: manualRole,
+          temporaryPassword,
+        }),
+      });
+    },
+    onSuccess: (data) => {
+      setManualOpen(false);
+      setManualName(''); setManualUsername(''); setManualEmail(''); setManualPhone(''); setManualRole('guide');
+      setTempPassword(data.temporaryPassword);
+      qc.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: 'Kullanıcı oluşturuldu', description: 'Geçici şifreyi şimdi güvenli şekilde paylaşın.' });
+    },
+    onError: (err) => toast({ title: 'Kullanıcı oluşturulamadı', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
   // ── Assign username ──────────────────────────────────────────────────────
@@ -236,6 +269,15 @@ export default function UsersPage() {
     inviteMutation.mutate();
   }
 
+  function handleManualSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!manualName.trim() || manualUsername.length < 3) {
+      toast({ title: 'Hata', description: 'Ad soyad ve en az 3 karakterlik kullanıcı adı zorunludur', variant: 'destructive' });
+      return;
+    }
+    manualUserMutation.mutate();
+  }
+
   return (
     <AppShell title="Kullanıcı Yönetimi">
 
@@ -270,6 +312,54 @@ export default function UsersPage() {
               <Button type="button" variant="outline" onClick={() => setInviteOpen(false)} disabled={inviteMutation.isPending}>İptal</Button>
               <Button type="submit" disabled={inviteMutation.isPending}>
                 {inviteMutation.isPending ? 'Gönderiliyor…' : 'Davet Gönder'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Yeni Kullanıcı Oluştur</DialogTitle></DialogHeader>
+          <form onSubmit={handleManualSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-name">Ad Soyad <span className="text-destructive">*</span></Label>
+              <Input id="manual-name" placeholder="Ahmet Yılmaz" value={manualName}
+                onChange={e => setManualName(e.target.value)} disabled={manualUserMutation.isPending} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-username">Kullanıcı Adı <span className="text-destructive">*</span></Label>
+              <Input id="manual-username" placeholder="ahmet_yilmaz" value={manualUsername}
+                onChange={e => setManualUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32))}
+                disabled={manualUserMutation.isPending} autoCapitalize="none" autoCorrect="off" required />
+              <p className="text-xs text-muted-foreground">3–32 karakter: a-z, 0-9 ve alt çizgi.</p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-email">E-posta <span className="text-muted-foreground">(opsiyonel)</span></Label>
+              <Input id="manual-email" type="email" placeholder="ornek@sirket.com" value={manualEmail}
+                onChange={e => setManualEmail(e.target.value)} disabled={manualUserMutation.isPending} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-phone">Telefon <span className="text-muted-foreground">(opsiyonel)</span></Label>
+              <Input id="manual-phone" type="tel" placeholder="+90 555 555 55 55" value={manualPhone}
+                onChange={e => setManualPhone(e.target.value)} disabled={manualUserMutation.isPending} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="manual-role">Rol <span className="text-destructive">*</span></Label>
+              <Select value={manualRole} onValueChange={v => setManualRole(v as UserRole)} disabled={manualUserMutation.isPending}>
+                <SelectTrigger id="manual-role"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MANUAL_CREATION_ROLES.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Geçici şifre oluşturulacak ve kullanıcı ilk girişinde değiştirmek zorunda olacaktır.
+            </p>
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={() => setManualOpen(false)} disabled={manualUserMutation.isPending}>İptal</Button>
+              <Button type="submit" disabled={manualUserMutation.isPending}>
+                {manualUserMutation.isPending ? 'Oluşturuluyor…' : 'Kullanıcı Oluştur'}
               </Button>
             </DialogFooter>
           </form>
@@ -390,10 +480,16 @@ export default function UsersPage() {
             <TabsTrigger value="users">Kullanıcılar</TabsTrigger>
             <TabsTrigger value="invitations">Davetler</TabsTrigger>
           </TabsList>
-          <Button size="sm" className="gap-1.5" onClick={() => setInviteOpen(true)}>
-            <UserPlus className="w-4 h-4" />
-            Kullanıcı Davet Et
-          </Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setInviteOpen(true)}>
+              <UserPlus className="w-4 h-4" />
+              Kullanıcı Davet Et
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={() => setManualOpen(true)}>
+              <UserPlus className="w-4 h-4" />
+              Yeni Kullanıcı Oluştur
+            </Button>
+          </div>
         </div>
 
         {/* ── Users tab ─────────────────────────────────────────── */}
@@ -416,6 +512,7 @@ export default function UsersPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Kullanıcı</TableHead>
+                        <TableHead>İletişim</TableHead>
                         <TableHead>Rol</TableHead>
                         <TableHead>Durum</TableHead>
                         <TableHead>Son Giriş</TableHead>
@@ -425,7 +522,7 @@ export default function UsersPage() {
                     <TableBody>
                       {users.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">Kullanıcı bulunamadı</TableCell>
+                          <TableCell colSpan={6} className="text-center text-muted-foreground py-8">Kullanıcı bulunamadı</TableCell>
                         </TableRow>
                       )}
                       {users.map(user => {
@@ -446,12 +543,15 @@ export default function UsersPage() {
                                     {user.name || '—'}
                                     {isSelf && <span className="ml-1.5 text-xs text-muted-foreground">(Siz)</span>}
                                   </div>
-                                  <div className="text-xs text-muted-foreground truncate">{user.email || '—'}</div>
                                   {user.username && (
                                     <div className="text-[10px] text-muted-foreground/60 truncate">@{user.username}</div>
                                   )}
                                 </div>
                               </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground">
+                              <div>{user.email || 'E-posta yok'}</div>
+                              {user.phone && <div className="mt-0.5 text-muted-foreground/75">{user.phone}</div>}
                             </TableCell>
 
                             {/* ── Role dropdown ── */}
