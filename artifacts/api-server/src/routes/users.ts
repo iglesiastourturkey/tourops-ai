@@ -10,6 +10,7 @@ import { createAuditLog } from "../lib/audit";
 import type { UserRole } from "@workspace/db/schema";
 
 const router = Router();
+const PRODUCTION_INVITATION_REDIRECT_URL = "https://tourpilot.com.tr/sign-up";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -319,6 +320,7 @@ router.post(
           emailAddress: trimmedEmail,
           publicMetadata: { pendingRole: role },
           ignoreExisting: true,
+          redirectUrl: PRODUCTION_INVITATION_REDIRECT_URL,
         });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
@@ -560,6 +562,7 @@ router.post(
         emailAddress: inv.emailAddress,
         publicMetadata: { pendingRole: role },
         ignoreExisting: true,
+        redirectUrl: PRODUCTION_INVITATION_REDIRECT_URL,
       });
 
       res.json({ ok: true });

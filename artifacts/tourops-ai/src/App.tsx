@@ -256,9 +256,16 @@ function ProfileError() {
 }
 
 function SignUpPage() {
+  const afterSignUpUrl = `${basePath}/dashboard`;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
-      <SignUp routing="path" path={`${basePath}/sign-up`} signInUrl={`${basePath}/sign-in`} appearance={clerkAppearance} />
+      <SignUp
+        routing="path"
+        path={`${basePath}/sign-up`}
+        signInUrl={`${basePath}/sign-in`}
+        afterSignUpUrl={afterSignUpUrl}
+        appearance={clerkAppearance}
+      />
     </div>
   );
 }
