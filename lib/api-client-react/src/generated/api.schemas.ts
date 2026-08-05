@@ -455,6 +455,10 @@ export interface Quotation {
   /** @nullable */
   notes?: string | null;
   status: string;
+  /** @nullable */
+  convertedOperationId?: number | null;
+  /** @nullable */
+  convertedAt?: string | null;
   updatedAt: string;
 }
 
@@ -482,6 +486,10 @@ export interface QuotationDetail {
   /** @nullable */
   notes?: string | null;
   status: string;
+  /** @nullable */
+  convertedOperationId?: number | null;
+  /** @nullable */
+  convertedAt?: string | null;
   customer: Customer;
   tour?: Tour;
   updatedAt: string;
@@ -527,6 +535,9 @@ export interface Operation {
   id: number;
   /** @nullable */
   quotationId?: number | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceQuoteId?: number | null;
   /** @nullable */
   tourId?: number | null;
   /** @nullable */
@@ -584,6 +595,9 @@ export interface OperationDetail {
   id: number;
   /** @nullable */
   quotationId?: number | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceQuoteId?: number | null;
   /** @nullable */
   tourId?: number | null;
   /** @nullable */

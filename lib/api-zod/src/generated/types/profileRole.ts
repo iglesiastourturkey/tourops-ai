@@ -10,10 +10,8 @@ export type ProfileRole = typeof ProfileRole[keyof typeof ProfileRole];
 
 
 export const ProfileRole = {
-  super_admin:      'super_admin',
-  admin:            'admin',
-  operations:       'operations',
-  guide:            'guide',
-  accounting:       'accounting',
-  field_operations: 'field_operations',
+  admin: 'admin',
+  operations: 'operations',
+  guide: 'guide',
+  accounting: 'accounting',
 } as const;

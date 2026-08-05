@@ -32,6 +32,10 @@ export interface QuotationDetail {
   /** @nullable */
   notes?: string | null;
   status: string;
+  /** @nullable */
+  convertedOperationId?: number | null;
+  /** @nullable */
+  convertedAt?: Date | null;
   customer: Customer;
   tour?: Tour;
   updatedAt: Date;

@@ -1,0 +1,94 @@
+Execute Task #37 now using the approved Option A architecture.
+
+Current issue:
+The User Management page still shows only “Kullanıcı Davet Et”.
+There is no “Yeni Kullanıcı Oluştur” button or manual staff creation flow.
+
+Requirements:
+
+1. User Management UI
+Add two separate buttons in the top-right area:
+
+- Yeni Kullanıcı Oluştur
+- Kullanıcı Davet Et
+
+“Yeni Kullanıcı Oluştur” must be visible only to super_admin.
+“Davet Et” keeps the existing email invitation flow.
+
+2. Manual user creation dialog
+Clicking “Yeni Kullanıcı Oluştur” must open a form with:
+
+- Ad Soyad
+- Kullanıcı Adı
+- Telefon (optional)
+- Gerçek E-posta (optional)
+- Rol
+- Geçici Şifre
+
+Allowed roles:
+- admin
+- operations
+- accounting
+- guide
+- field_operations
+
+Do not allow super_admin during normal creation.
+
+3. No-email users
+If no real email is entered:
+- generate a unique internal placeholder email server-side
+- keep Clerk as the authentication provider
+- never show the placeholder email as contact information
+- display “E-posta yok” in the UI
+- allow login using username + password
+
+4. First login
+- force password change
+- reuse the existing mustChangePassword flow
+- temporary password must be shown once only
+- never store or log the password
+
+5. Backend
+Create exactly one Clerk user and one linked TourPilot profile.
+If profile creation fails after Clerk user creation, clean up the Clerk user safely.
+Prevent duplicate usernames and duplicate profiles.
+
+6. Existing workflows
+Do not break:
+- invitation flow
+- existing users
+- RBAC
+- password reset
+- sessions
+- audit logs
+
+7. User Management list
+For manually created users show:
+- name
+- username
+- contact email or “E-posta yok”
+- phone
+- role
+- status
+
+8. Verification
+Test:
+- create guide without email
+- create operations user without email
+- create admin with real email
+- login with username
+- first-login password change
+- duplicate username rejection
+- invitation flow still works
+- non-super-admin cannot see or use the button
+
+Run frontend/API TypeScript and production builds.
+
+Report only:
+- modified files
+- button placement
+- placeholder email strategy
+- creation flow
+- login behavior
+- verification results
+- build results

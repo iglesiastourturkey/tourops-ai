@@ -9,6 +9,8 @@ import { profilesTable } from "./profiles";
 export const operationsTable = pgTable("operations", {
   id: serial("id").primaryKey(),
   quotationId: integer("quotation_id").references(() => quotationsTable.id, { onDelete: "set null" }),
+  sourceType: text("source_type").notNull().default("manual"),
+  sourceQuoteId: integer("source_quote_id").references(() => quotationsTable.id, { onDelete: "set null" }),
   tourId: integer("tour_id").references(() => toursTable.id, { onDelete: "set null" }),
   customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),
   startDate: date("start_date"),

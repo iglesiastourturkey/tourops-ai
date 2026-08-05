@@ -24,7 +24,7 @@ export const GetMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -43,7 +43,7 @@ export const UpdateMyProfileResponse = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -62,7 +62,7 @@ export const ListProfilesResponseItem = zod.object({
   "clerkUserId": zod.string(),
   "email": zod.string(),
   "name": zod.string().nullish(),
-  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
+  "role": zod.enum(['admin', 'operations', 'guide', 'accounting']),
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
@@ -932,6 +932,8 @@ export const ListQuotationsResponseItem = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 export const ListQuotationsResponse = zod.array(ListQuotationsResponseItem)
@@ -973,6 +975,8 @@ export const CreateQuotationResponse = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -1001,6 +1005,8 @@ export const GetQuotationResponse = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "customer": zod.object({
   "id": zod.number(),
   "name": zod.string(),
@@ -1093,6 +1099,8 @@ export const UpdateQuotationResponse = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -1135,6 +1143,8 @@ export const UpdateQuotationStatusResponse = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -1163,6 +1173,8 @@ export const DuplicateQuotationResponse = zod.object({
   "excludedServices": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "status": zod.string(),
+  "convertedOperationId": zod.number().nullish(),
+  "convertedAt": zod.coerce.date().nullish(),
   "updatedAt": zod.coerce.date()
 })
 
@@ -1177,6 +1189,8 @@ export const ConvertQuotationToOperationParams = zod.object({
 export const ConvertQuotationToOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1210,6 +1224,8 @@ export const ListOperationsQueryParams = zod.object({
 export const ListOperationsResponseItem = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1259,6 +1275,8 @@ export const CreateOperationBody = zod.object({
 export const CreateOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1301,6 +1319,8 @@ export const GetOperationParams = zod.object({
 export const GetOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1318,6 +1338,7 @@ export const GetOperationResponse = zod.object({
   "emergencyContact1Phone": zod.string().nullish(),
   "emergencyContact2Name": zod.string().nullish(),
   "emergencyContact2Phone": zod.string().nullish(),
+  "assignedGuideUserId": zod.string().nullish(),
   "tasks": zod.array(zod.object({
   "id": zod.number(),
   "operationId": zod.number(),
@@ -1381,6 +1402,8 @@ export const UpdateOperationBody = zod.object({
 export const UpdateOperationResponse = zod.object({
   "id": zod.number(),
   "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),

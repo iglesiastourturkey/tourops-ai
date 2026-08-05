@@ -12,7 +12,7 @@ import { useListQuotations, useDeleteQuotation, useUpdateQuotation } from '@work
 import { getListQuotationsQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, ExternalLink, MoreHorizontal, Archive, Trash2 } from 'lucide-react';
+import { Plus, Search, ExternalLink, MoreHorizontal, Archive, Trash2, GitBranch } from 'lucide-react';
 import { QUOTATION_STATUS_LABELS, QUOTATION_STATUS_COLORS, formatCurrency, formatDate } from '@/lib/labels';
 
 export default function QuotationsPage() {
@@ -27,7 +27,7 @@ export default function QuotationsPage() {
   const deleteMutation = useDeleteQuotation();
   const archiveMutation = useUpdateQuotation();
 
-  const ACTIVE_STATUSES = ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised'];
+  const ACTIVE_STATUSES = ['draft', 'sent', 'viewed', 'accepted', 'rejected', 'expired', 'revised', 'converted'];
 
   const filtered = (quotations ?? []).filter(q => {
     const isArchived = q.status === 'archived';
@@ -103,14 +103,15 @@ export default function QuotationsPage() {
               <TableHead className="hidden md:table-cell">Son Geçerlilik</TableHead>
               <TableHead>Tutar</TableHead>
               <TableHead>Durum</TableHead>
+              <TableHead className="hidden lg:table-cell">Bağlı Operasyon</TableHead>
               <TableHead className="w-12">İşlem</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
-              <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+              <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
             )) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                 {showArchived ? 'Arşivlenmiş teklif bulunamadı' : 'Teklif bulunamadı'}
               </TableCell></TableRow>
             ) : filtered.map(q => (
@@ -119,6 +120,13 @@ export default function QuotationsPage() {
                 <TableCell className="hidden md:table-cell text-muted-foreground">{formatDate(q.expiresAt)}</TableCell>
                 <TableCell className="font-semibold">{formatCurrency(q.finalPrice, q.currency)}</TableCell>
                 <TableCell><span className={`text-xs px-2 py-0.5 rounded-full font-medium ${QUOTATION_STATUS_COLORS[q.status] ?? 'bg-gray-100 text-gray-600'}`}>{QUOTATION_STATUS_LABELS[q.status] ?? q.status}</span></TableCell>
+                <TableCell className="hidden lg:table-cell">
+                  {q.convertedOperationId ? (
+                    <Link href={`/operations/${q.convertedOperationId}`} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+                      <GitBranch className="w-3.5 h-3.5" />OP-{q.convertedOperationId}
+                    </Link>
+                  ) : '—'}
+                </TableCell>
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

@@ -62,7 +62,13 @@ router.get("/", requirePermission("operations", "view"), async (req, res) => {
 
 router.post("/", requirePermission("operations", "create"), async (req, res) => {
   try {
-    const [row] = await db.insert(operationsTable).values(req.body).returning();
+    const { quotationId: _quotationId, sourceQuoteId: _sourceQuoteId, sourceType: _sourceType, ...manualInput } = req.body;
+    const [row] = await db.insert(operationsTable).values({
+      ...manualInput,
+      sourceType: "manual",
+      sourceQuoteId: null,
+      quotationId: null,
+    }).returning();
     await createAuditLog({
       eventType: "operation_created",
       actorProfileId: res.locals.profile.id,

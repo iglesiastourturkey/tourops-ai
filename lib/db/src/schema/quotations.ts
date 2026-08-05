@@ -20,6 +20,8 @@ export const quotationsTable = pgTable("quotations", {
   excludedServices: text("excluded_services"),
   notes: text("notes"),
   status: text("status").notNull().default("draft"),
+  convertedOperationId: integer("converted_operation_id"),
+  convertedAt: timestamp("converted_at", { withTimezone: true }),
   sentAt: timestamp("sent_at", { withTimezone: true }),
   viewedAt: timestamp("viewed_at", { withTimezone: true }),
   respondedAt: timestamp("responded_at", { withTimezone: true }),

@@ -10,6 +10,9 @@ export interface Operation {
   id: number;
   /** @nullable */
   quotationId?: number | null;
+  sourceType?: string;
+  /** @nullable */
+  sourceQuoteId?: number | null;
   /** @nullable */
   tourId?: number | null;
   /** @nullable */

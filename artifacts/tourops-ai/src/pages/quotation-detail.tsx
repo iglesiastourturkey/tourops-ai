@@ -15,6 +15,7 @@ import {
 } from '@workspace/api-client-react';
 import {
   getGetQuotationQueryKey,
+  getListQuotationsQueryKey,
   getGetCustomerQueryKey,
   getGetTourQueryKey,
   getListTourDaysQueryKey,
@@ -99,8 +100,21 @@ export default function QuotationDetailPage() {
   function handleConvert() {
     if (!confirm('Bu teklifi operasyona dönüştürmek istiyor musunuz?')) return;
     convertMutation.mutate({ id }, {
-      onSuccess: (op) => { toast({ title: 'Operasyon oluşturuldu' }); setLocation(`/operations/${op.id}`); },
-      onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+      onSuccess: (op) => {
+        toast({ title: 'Operasyon oluşturuldu' });
+        qc.invalidateQueries({ queryKey: getGetQuotationQueryKey(id) });
+        qc.invalidateQueries({ queryKey: getListQuotationsQueryKey() });
+        setLocation(`/operations/${op.id}`);
+      },
+      onError: (error) => {
+        const operationId = (error as { data?: { operationId?: number } })?.data?.operationId;
+        toast({
+          title: operationId ? 'Teklif zaten dönüştürülmüş' : 'Dönüştürme başarısız',
+          description: operationId ? `Bağlı operasyon: OP-${operationId}` : undefined,
+          variant: 'destructive',
+        });
+        if (operationId) setLocation(`/operations/${operationId}`);
+      },
     });
   }
 
@@ -150,7 +164,7 @@ export default function QuotationDetailPage() {
           </Button>
         </Link>
         <div className="flex items-center gap-2 flex-wrap">
-          <Select value={quotation.status} onValueChange={handleStatusChange}>
+          <Select value={quotation.status} onValueChange={handleStatusChange} disabled={quotation.status === 'converted'}>
             <SelectTrigger className="w-44 h-8 text-xs" data-testid="select-quotation-status">
               <SelectValue />
             </SelectTrigger>
@@ -175,9 +189,17 @@ export default function QuotationDetailPage() {
           <Button size="sm" variant="outline" onClick={handleDuplicate} disabled={duplicateMutation.isPending} className="gap-1.5 h-8" data-testid="button-duplicate-quotation">
             <Copy className="w-3.5 h-3.5" />Kopyala
           </Button>
-          <Button size="sm" onClick={handleConvert} disabled={convertMutation.isPending} className="gap-1.5 h-8" data-testid="button-convert-to-operation">
-            <GitBranch className="w-3.5 h-3.5" />Operasyona Dönüştür
-          </Button>
+          {quotation.convertedOperationId ? (
+            <Link href={`/operations/${quotation.convertedOperationId}`}>
+              <Button size="sm" variant="outline" className="gap-1.5 h-8" data-testid="button-open-converted-operation">
+                <GitBranch className="w-3.5 h-3.5" />OP-{quotation.convertedOperationId} Aç
+              </Button>
+            </Link>
+          ) : (
+            <Button size="sm" onClick={handleConvert} disabled={convertMutation.isPending || quotation.status === 'converted'} className="gap-1.5 h-8" data-testid="button-convert-to-operation">
+              <GitBranch className="w-3.5 h-3.5" />Operasyona Dönüştür
+            </Button>
+          )}
         </div>
       </div>
 
@@ -187,6 +209,7 @@ export default function QuotationDetailPage() {
           <CardContent className="space-y-2 text-sm">
             <Row label="Teklif No" value={quotation.number} />
             <Row label="Durum" value={<span className={`text-xs px-2 py-0.5 rounded-full font-medium ${QUOTATION_STATUS_COLORS[quotation.status]}`}>{QUOTATION_STATUS_LABELS[quotation.status]}</span>} />
+            {quotation.convertedOperationId && <Row label="Bağlı Operasyon" value={<Link href={`/operations/${quotation.convertedOperationId}`} className="text-primary hover:underline">OP-{quotation.convertedOperationId} Aç</Link>} />}
             <Row label="Son Geçerlilik" value={formatDate(quotation.expiresAt)} />
             <Row label="Para Birimi" value={quotation.currency} />
           </CardContent>

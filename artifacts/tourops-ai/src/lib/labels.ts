@@ -70,6 +70,7 @@ export const QUOTATION_STATUS_LABELS: Record<string, string> = {
   rejected: 'Reddedildi',
   expired: 'Süresi Doldu',
   revised: 'Revize',
+  converted: 'Operasyona Dönüştürüldü',
   archived: 'Arşivlendi',
 };
 
@@ -81,6 +82,7 @@ export const QUOTATION_STATUS_COLORS: Record<string, string> = {
   rejected: 'bg-red-100 text-red-700',
   expired: 'bg-orange-100 text-orange-700',
   revised: 'bg-yellow-100 text-yellow-700',
+  converted: 'bg-emerald-100 text-emerald-700',
   archived: 'bg-orange-100 text-orange-700',
 };
 

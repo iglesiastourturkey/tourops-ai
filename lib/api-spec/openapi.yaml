@@ -1736,6 +1736,8 @@ components:
         excludedServices: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         status: { type: string }
+        convertedOperationId: { type: ["number", "null"] }
+        convertedAt: { type: ["string", "null"], format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, number, customerId, currency, subtotal, discount, finalPrice, status, createdAt, updatedAt]
     QuotationDetail:
@@ -1757,6 +1759,8 @@ components:
         excludedServices: { type: ["string", "null"] }
         notes: { type: ["string", "null"] }
         status: { type: string }
+        convertedOperationId: { type: ["number", "null"] }
+        convertedAt: { type: ["string", "null"], format: date-time }
         customer: { $ref: "#/components/schemas/Customer" }
         tour: { $ref: "#/components/schemas/Tour" }
         updatedAt: { type: string, format: date-time }
@@ -1806,6 +1810,8 @@ components:
       properties:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
+        sourceType: { type: string }
+        sourceQuoteId: { type: ["number", "null"] }
         tourId: { type: ["number", "null"] }
         customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
@@ -1831,6 +1837,8 @@ components:
       properties:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
+        sourceType: { type: string }
+        sourceQuoteId: { type: ["number", "null"] }
         tourId: { type: ["number", "null"] }
         customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
@@ -1848,6 +1856,7 @@ components:
         emergencyContact1Phone: { type: ["string", "null"] }
         emergencyContact2Name: { type: ["string", "null"] }
         emergencyContact2Phone: { type: ["string", "null"] }
+        assignedGuideUserId: { type: ["string", "null"] }
         tasks: { type: array, items: { $ref: "#/components/schemas/OperationTask" } }
         customer: { $ref: "#/components/schemas/Customer" }
         createdAt: { type: string, format: date-time }

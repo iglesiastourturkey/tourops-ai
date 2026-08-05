@@ -16,7 +16,7 @@ import {
   useGetOperation, useUpdateOperation,
   useListOperationTasks, useUpdateOperationTask, useCreateOperationTask, useDeleteOperationTask,
   useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
-  useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer,
+  useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer, useGetQuotation,
   useListProfiles,
 } from '@workspace/api-client-react';
 import {
@@ -168,6 +168,8 @@ export default function OperationDetailPage() {
   const { data: tour } = useGetTour(tourId!, { query: { enabled: !!tourId, queryKey: getGetTourQueryKey(tourId!) } });
   const { data: tourDays } = useListTourDays(tourId!, { query: { enabled: !!tourId, queryKey: getListTourDaysQueryKey(tourId!) } });
   const { data: customer } = useGetCustomer(customerId!, { query: { enabled: !!customerId, queryKey: getGetCustomerQueryKey(customerId!) } });
+  const sourceQuoteId = operation?.sourceQuoteId ?? operation?.quotationId ?? null;
+  const { data: sourceQuotation } = useGetQuotation(sourceQuoteId!, { query: { enabled: !!sourceQuoteId, queryKey: ['sourceQuotation', sourceQuoteId] } });
 
   // ── Delete receipt state ──────────────────────────────────────────────────
   const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<number | null>(null);
@@ -523,6 +525,11 @@ export default function OperationDetailPage() {
                   )}
                   {customer && <p>👤 {customer.name}{customer.phone ? ` · ${customer.phone}` : ''}</p>}
                   {tour && <p>🗺️ {tour.name}</p>}
+                  {operation.sourceType === 'quotation' && sourceQuoteId ? (
+                    <p>🔗 Kaynak: <Link href={`/quotations/${sourceQuoteId}`} className="text-primary hover:underline">Teklif {sourceQuotation?.number ?? `#${sourceQuoteId}`}</Link></p>
+                  ) : (
+                    <p>✦ Kaynak: Manuel Operasyon</p>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-1 min-w-[120px]">

@@ -263,7 +263,7 @@ function SignUpPage() {
         routing="path"
         path={`${basePath}/sign-up`}
         signInUrl={`${basePath}/sign-in`}
-        afterSignUpUrl={afterSignUpUrl}
+        fallbackRedirectUrl={afterSignUpUrl}
         appearance={clerkAppearance}
       />
     </div>

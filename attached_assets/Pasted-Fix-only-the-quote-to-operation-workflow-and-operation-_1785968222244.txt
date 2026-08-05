@@ -1,0 +1,162 @@
+Fix only the quote-to-operation workflow and operation creation UX.
+
+Observed problems:
+
+1. After creating a quote and clicking “Operasyona Dönüştür”, the operation is created successfully, but the quote disappears from the Teklifler list when the user returns to that section.
+
+2. Users cannot clearly create a new operation directly from the Operation Planning / Operation Center pages. The current workflow makes it appear that an operation can only be created by first creating a quote.
+
+Do not modify authentication, RBAC, accounting, offline sync, Clerk, DNS, or unrelated modules.
+
+1. Preserve converted quotes
+
+A quote must never disappear simply because it was converted into an operation.
+
+After successful conversion:
+
+- Keep the quote record.
+- Update its status to:
+  Operasyona Dönüştürüldü
+- Store the linked operation ID.
+- Show the linked operation number/code in the quote list and detail page.
+- Add an action:
+  Operasyonu Görüntüle
+- Prevent converting the same quote more than once.
+- If the quote is already converted, replace or disable the “Operasyona Dönüştür” button.
+- Do not delete, archive invisibly, or exclude the quote from the default list.
+
+Review the Teklifler list filters.
+
+The default list must include:
+- Taslak
+- Gönderildi
+- Kabul Edildi
+- Reddedildi
+- Süresi Doldu
+- Operasyona Dönüştürüldü
+
+If an archive filter exists, converted quotes must not be moved there automatically.
+
+2. Make conversion atomic
+
+Quote conversion must:
+
+- create exactly one operation
+- update the quote with the linked operation ID
+- update the quote status
+- complete as one safe transaction where possible
+
+If operation creation fails:
+- do not mark the quote as converted
+
+If the operation is created but quote update fails:
+- recover safely
+- do not allow duplicate operation creation on retry
+- return a clear error
+
+3. Direct operation creation
+
+Add a visible button:
+
++ Yeni Operasyon Oluştur
+
+Place it on:
+- Operasyon Planlama
+- Operasyon Merkezi, where appropriate
+
+The direct-create workflow must:
+- open a blank operation form
+- not require a quote
+- not reuse the last selected operation
+- use POST /api/operations
+- navigate to the newly created operation using the ID returned by the server
+
+A directly created operation may have:
+- sourceType = manual
+- sourceQuoteId = null
+
+An operation created from a quote should have:
+- sourceType = quote
+- sourceQuoteId = quote ID
+
+4. Operation detail source information
+
+On the operation detail page, show:
+
+If created from a quote:
+- Kaynak: Teklif
+- Teklif No
+- Teklifi Görüntüle
+
+If created manually:
+- Kaynak: Manuel Operasyon
+
+5. UI and status
+
+On the quote list, add a clearly visible status badge:
+
+Operasyona Dönüştürüldü
+
+For converted quotes, show:
+- quote number
+- customer
+- total price
+- conversion date
+- linked operation code
+- Operasyonu Görüntüle action
+
+Do not hide converted quotes from search or pagination.
+
+6. Audit logging
+
+Record:
+- quote converted to operation
+- direct operation created
+- attempted duplicate conversion
+- conversion failure
+
+Include quote ID and operation ID where applicable.
+Do not include sensitive customer data unnecessarily.
+
+7. Verification
+
+Test:
+
+A. Quote conversion
+- create quote A
+- return to quote list
+- confirm quote A is visible
+- convert quote A to operation
+- return to quote list
+- confirm quote A is still visible
+- confirm status is “Operasyona Dönüştürüldü”
+- confirm linked operation opens
+- confirm second conversion is blocked
+
+B. Direct operation
+- open Operation Planning
+- click “Yeni Operasyon Oluştur”
+- confirm blank form
+- create operation B without a quote
+- confirm operation B opens
+- confirm source is “Manuel Operasyon”
+
+C. Failure behavior
+- simulate operation creation failure
+- quote must remain unconverted
+- retry must not create duplicate operations
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- frontend production build
+- API production build
+
+Report only:
+- root causes
+- modified files
+- quote persistence behavior
+- conversion transaction/idempotency behavior
+- direct operation creation behavior
+- verification results
+- build results

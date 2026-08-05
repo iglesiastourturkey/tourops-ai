@@ -3,6 +3,7 @@ import { db } from "@workspace/db";
 import { quotationsTable, operationsTable } from "@workspace/db/schema";
 import { eq, desc, and, inArray } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
+import { createAuditLog } from "../lib/audit";
 
 const router = Router();
 router.use(requireAuth);
@@ -81,7 +82,7 @@ router.post("/:id/duplicate", requirePermission("quotations", "create"), async (
   try {
     const [orig] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id as string)));
     if (!orig) { res.status(404).json({ error: "Not found" }); return; }
-    const { id, createdAt, updatedAt, number, sentAt, viewedAt, respondedAt, ...rest } = orig;
+    const { id, createdAt, updatedAt, number, sentAt, viewedAt, respondedAt, convertedOperationId, convertedAt, ...rest } = orig;
     const [row] = await db.insert(quotationsTable).values({ ...rest, number: genQuotationNumber(), status: "draft" }).returning();
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to duplicate quotation" }); }
@@ -89,19 +90,71 @@ router.post("/:id/duplicate", requirePermission("quotations", "create"), async (
 
 // POST /quotations/:id/convert-to-operation
 router.post("/:id/convert-to-operation", requirePermission("quotations", "manage"), async (req, res) => {
+  const quotationId = parseInt(req.params.id as string);
   try {
-    const [quot] = await db.select().from(quotationsTable).where(eq(quotationsTable.id, parseInt(req.params.id as string)));
-    if (!quot) { res.status(404).json({ error: "Not found" }); return; }
-    const [op] = await db.insert(operationsTable).values({
-      quotationId: quot.id,
-      tourId: quot.tourId ?? undefined,
-      customerId: quot.customerId,
-      status: "active",
-      completionRate: 0,
-    }).returning();
-    await db.update(quotationsTable).set({ status: "accepted" }).where(eq(quotationsTable.id, quot.id));
+    const result = await db.transaction(async (tx) => {
+      const [quot] = await tx.select().from(quotationsTable).where(eq(quotationsTable.id, quotationId)).for("update");
+      if (!quot) return { kind: "not_found" as const };
+      if (quot.convertedOperationId || quot.status === "converted") {
+        return { kind: "already_converted" as const, operationId: quot.convertedOperationId };
+      }
+      const [op] = await tx.insert(operationsTable).values({
+        quotationId: quot.id,
+        sourceType: "quotation",
+        sourceQuoteId: quot.id,
+        tourId: quot.tourId ?? undefined,
+        customerId: quot.customerId,
+        status: "active",
+        completionRate: 0,
+      }).returning();
+      await tx.update(quotationsTable).set({
+        status: "converted",
+        convertedOperationId: op.id,
+        convertedAt: new Date(),
+      }).where(eq(quotationsTable.id, quot.id));
+      return { kind: "converted" as const, op };
+    });
+
+    if (result.kind === "not_found") { res.status(404).json({ error: "Not found" }); return; }
+    if (result.kind === "already_converted") {
+      await createAuditLog({
+        eventType: "quotation_conversion_duplicate_blocked",
+        actorProfileId: res.locals.profile.id,
+        module: "quotations",
+        entityType: "quotation",
+        entityId: quotationId,
+        metadata: { operationId: result.operationId ?? null },
+        result: "denied",
+        description: "Teklif zaten operasyona dönüştürülmüş",
+      });
+      res.status(409).json({ error: "Bu teklif zaten operasyona dönüştürüldü.", operationId: result.operationId ?? null });
+      return;
+    }
+
+    const op = result.op;
+    await createAuditLog({
+      eventType: "quotation_converted_to_operation",
+      actorProfileId: res.locals.profile.id,
+      module: "quotations",
+      entityType: "quotation",
+      entityId: quotationId,
+      metadata: { operationId: op.id },
+      result: "success",
+      description: "Teklif operasyona dönüştürüldü",
+    });
     res.status(201).json(op);
-  } catch { res.status(500).json({ error: "Failed to convert to operation" }); }
+  } catch {
+    await createAuditLog({
+      eventType: "quotation_conversion_failed",
+      actorProfileId: res.locals.profile.id,
+      module: "quotations",
+      entityType: "quotation",
+      entityId: quotationId,
+      result: "failure",
+      description: "Teklif operasyon dönüşümü başarısız oldu",
+    });
+    res.status(500).json({ error: "Failed to convert to operation" });
+  }
 });
 
 export default router;
