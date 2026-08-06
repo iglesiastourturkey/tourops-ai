@@ -1,0 +1,143 @@
+Fix only the invitation acceptance flow that ends on “Yetkisiz Erişim”.
+
+Observed production behavior:
+- A new invitation link opens /sign-up correctly.
+- The invited user completes Clerk signup/password creation.
+- Instead of entering the correct role dashboard, the user is sent to the “Yetkisiz Erişim” page.
+
+Do not modify DNS, SSL, Clerk instance, existing roles, unrelated login pages, or database schema unless an existing linking defect strictly requires a minimal data fix.
+
+1. Public invitation route
+
+Ensure /sign-up is fully public.
+
+It must not be wrapped by:
+- AuthGate requiring an existing profile
+- ProtectedRoute
+- ProtectedRoleRoute
+- MustChangePasswordGuard
+- HomeRedirect
+- any profile or permission gate
+
+The invitation signup page must render before a TourPilot profile exists.
+
+2. Invitation completion sequence
+
+After Clerk reports signup status === complete and provides a valid createdSessionId:
+
+- call setActive exactly once
+- wait until the Clerk session/token is available
+- call the backend invitation/profile completion endpoint
+- claim the existing pending invitation/profile using the invitation email and Clerk user ID
+- preserve the role assigned by the Super Admin
+- mark the invitation as accepted
+- load /api/profiles/me successfully
+- only then redirect to the correct role landing page
+
+Do not redirect directly to /dashboard before profile linking finishes.
+
+3. Pending invitation linking
+
+Review the existing pending invitation/profile flow.
+
+The invited Clerk user must be linked only to the matching pending invitation record.
+
+Requirements:
+- email comparison must be normalized
+- do not create a second duplicate profile
+- do not rebind an existing active profile
+- do not fall back to a default role
+- preserve the invited role exactly
+- prevent two invitations from claiming the same Clerk user
+- prevent one invitation from being accepted twice
+
+4. Post-signup redirect
+
+Replace the unconditional post-signup /dashboard redirect with a deterministic completion state.
+
+Suggested flow:
+
+/sign-up
+→ Clerk signup complete
+→ “Hesabınız hazırlanıyor…”
+→ backend invitation completion
+→ profile query succeeds
+→ role-aware redirect
+
+Role redirects must use the existing authoritative application mapping for:
+- super_admin
+- admin
+- operations
+- accounting
+- guide
+- field_operations
+
+5. Loading and error behavior
+
+While linking:
+- show “Hesabınız hazırlanıyor…”
+- do not show “Yetkisiz Erişim”
+- prevent duplicate requests and rerenders
+
+If linking fails:
+- show a specific recoverable error
+- keep the active Clerk session
+- provide “Tekrar Dene”
+- log the safe internal invitation ID and error type
+- do not expose Clerk tickets, JWTs or passwords
+
+Only show “Yetkisiz Erişim” after the backend has definitively confirmed that no valid invitation/profile/role exists.
+
+6. Guards
+
+Review:
+- AuthGate
+- ProfileContext
+- ProtectedRoute
+- ProtectedRoleRoute
+- HomeRedirect
+- MustChangePasswordGuard
+
+Confirm that the signup/invitation completion route bypasses them until profile linking is complete.
+
+7. Verification
+
+Use a brand-new invitation, not an old link.
+
+Test:
+- invite guide
+- accept invite in incognito browser
+- create password
+- session becomes active
+- pending invitation is claimed
+- assigned guide role is preserved
+- user lands on guide dashboard
+- refresh preserves access
+
+Repeat for:
+- admin
+- operations
+- accounting
+- field_operations
+
+Also verify:
+- expired invitation
+- already accepted invitation
+- mismatched email
+- duplicate click
+- ordinary unauthorized user still reaches /forbidden
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- frontend production build
+- API production build
+
+Report only:
+- exact root cause
+- modified files
+- signup route guard behavior
+- invitation/profile linking sequence
+- role redirect behavior
+- production verification results
+- build results

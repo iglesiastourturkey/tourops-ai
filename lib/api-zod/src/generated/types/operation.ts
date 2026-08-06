@@ -14,6 +14,10 @@ export interface Operation {
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */
+  sourceEmailImportId?: number | null;
+  /** @nullable */
+  sourceBookingReference?: string | null;
+  /** @nullable */
   tourId?: number | null;
   /** @nullable */
   customerId?: number | null;

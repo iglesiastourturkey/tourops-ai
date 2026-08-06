@@ -27,7 +27,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, User, Car, AlertTriangle,
-  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2,
+  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2, FileText,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';

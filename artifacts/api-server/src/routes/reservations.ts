@@ -16,7 +16,6 @@ import {
 } from "../lib/gmail-provider";
 
 const router = Router();
-router.use(requireAuth, requireActive());
 
 const reservationFields = z.object({
   agencyName: z.string().nullable().default(null), bookingReference: z.string().nullable().default(null),
@@ -68,20 +67,8 @@ async function activeAccessToken(connection: typeof googleConnectionsTable.$infe
   return token;
 }
 
-router.get("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {
-  const [connection] = await db.select({
-    id: googleConnectionsTable.id, googleAccountEmail: googleConnectionsTable.googleAccountEmail,
-    status: googleConnectionsTable.status, lastError: googleConnectionsTable.lastError,
-    updatedAt: googleConnectionsTable.updatedAt,
-  }).from(googleConnectionsTable).orderBy(desc(googleConnectionsTable.updatedAt)).limit(1);
-  res.json({ configured: isGoogleOAuthConfigured(), connection: connection ?? null });
-});
-
-router.post("/google-connection/authorize", requirePermission("settings", "manage"), async (_req, res) => {
-  if (!isGoogleOAuthConfigured()) { res.status(503).json({ error: "Google OAuth yapılandırılmamış" }); return; }
-  res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id)) });
-});
-
+// Google redirects outside the authenticated SPA context. The signed, short-lived
+// OAuth state below is the authorization boundary for this one callback.
 router.get("/google-connection/callback", async (req, res) => {
   try {
     const parsedState = parseOauthState(String(req.query.state ?? ""));
@@ -103,6 +90,22 @@ router.get("/google-connection/callback", async (req, res) => {
   } catch {
     res.status(502).send("Google bağlantısı tamamlanamadı. Ayarları kontrol edip tekrar deneyin.");
   }
+});
+
+router.use(requireAuth, requireActive());
+
+router.get("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {
+  const [connection] = await db.select({
+    id: googleConnectionsTable.id, googleAccountEmail: googleConnectionsTable.googleAccountEmail,
+    status: googleConnectionsTable.status, lastError: googleConnectionsTable.lastError,
+    updatedAt: googleConnectionsTable.updatedAt,
+  }).from(googleConnectionsTable).orderBy(desc(googleConnectionsTable.updatedAt)).limit(1);
+  res.json({ configured: isGoogleOAuthConfigured(), connection: connection ?? null });
+});
+
+router.post("/google-connection/authorize", requirePermission("settings", "manage"), async (_req, res) => {
+  if (!isGoogleOAuthConfigured()) { res.status(503).json({ error: "Google OAuth yapılandırılmamış" }); return; }
+  res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id)) });
 });
 
 router.delete("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {

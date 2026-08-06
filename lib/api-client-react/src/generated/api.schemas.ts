@@ -539,6 +539,10 @@ export interface Operation {
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */
+  sourceEmailImportId?: number | null;
+  /** @nullable */
+  sourceBookingReference?: string | null;
+  /** @nullable */
   tourId?: number | null;
   /** @nullable */
   customerId?: number | null;
@@ -599,6 +603,10 @@ export interface OperationDetail {
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */
+  sourceEmailImportId?: number | null;
+  /** @nullable */
+  sourceBookingReference?: string | null;
+  /** @nullable */
   tourId?: number | null;
   /** @nullable */
   customerId?: number | null;
@@ -636,6 +644,162 @@ export interface OperationDetail {
   customer: Customer;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface GoogleConnection {
+  /** @nullable */
+  googleAccountEmail?: string | null;
+  status: string;
+  /** @nullable */
+  lastError?: string | null;
+}
+
+export interface GoogleConnectionStatus {
+  configured: boolean;
+  connection: GoogleConnection | null;
+}
+
+export interface GoogleAuthorization {
+  authorizationUrl: string;
+}
+
+export interface ReservationData {
+  /** @nullable */
+  agencyName?: string | null;
+  /** @nullable */
+  bookingReference?: string | null;
+  /** @nullable */
+  customerName?: string | null;
+  /** @nullable */
+  customerEmail?: string | null;
+  /** @nullable */
+  customerPhone?: string | null;
+  /** @nullable */
+  tourName?: string | null;
+  /** @nullable */
+  tourDate?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  guestCount?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  adultCount?: number | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  childCount?: number | null;
+  /** @nullable */
+  hotelName?: string | null;
+  /** @nullable */
+  pickupLocation?: string | null;
+  /** @nullable */
+  pickupTime?: string | null;
+  /** @nullable */
+  dropoffLocation?: string | null;
+  /** @nullable */
+  flightNumber?: string | null;
+  /** @nullable */
+  transferRequired?: boolean | null;
+  /** @nullable */
+  guideLanguage?: string | null;
+  /** @nullable */
+  vehicleType?: string | null;
+  /** @nullable */
+  specialRequests?: string | null;
+  /**
+     * @minimum 0
+     * @nullable
+     */
+  amount?: number | null;
+  /**
+     * @maxLength 10
+     * @nullable
+     */
+  currency?: string | null;
+  /** @nullable */
+  internalNotes?: string | null;
+}
+
+export interface ReservationEvidence {[key: string]: string}
+
+export interface ReservationAnalysis {
+  data: ReservationData;
+  /**
+     * @minimum 0
+     * @maximum 100
+     */
+  confidenceScore: number;
+  missingFields: string[];
+  uncertainFields: string[];
+  summaryTr: string;
+  evidence: ReservationEvidence;
+}
+
+export interface ReservationExtraction {
+  id: number;
+  importId: number;
+  extractedData?: ReservationData | null;
+  approvedData?: ReservationData | null;
+  /** @nullable */
+  confidenceScore?: number | null;
+  missingFields: string[];
+  uncertainFields: string[];
+  /** @nullable */
+  summaryTr?: string | null;
+  evidence?: ReservationEvidence | null;
+}
+
+export interface ReservationAttachment {
+  name: string;
+  mimeType: string;
+  size: number;
+}
+
+export interface ReservationImport {
+  id: number;
+  /** @nullable */
+  sender?: string | null;
+  /** @nullable */
+  recipients?: string | null;
+  /** @nullable */
+  subject?: string | null;
+  /** @nullable */
+  receivedAt?: string | null;
+  status: string;
+  /** @nullable */
+  processingError?: string | null;
+  /** @nullable */
+  operationId?: number | null;
+  attachments: ReservationAttachment[];
+}
+
+export type ReservationImportDetail = ReservationImport & ({
+  /** @nullable */
+  plainTextBody?: string | null;
+  /** @nullable */
+  sanitizedHtmlBody?: string | null;
+  extraction: ReservationExtraction | null;
+});
+
+export interface ReservationReview {
+  data: ReservationData;
+}
+
+export interface ReservationScanResult {
+  /** @minimum 0 */
+  scanned: number;
+  /** @minimum 0 */
+  imported: number;
+}
+
+export interface ReservationDraftResult {
+  operation: Operation;
+  duplicate: boolean;
 }
 
 export interface OperationInput {
@@ -1015,6 +1179,16 @@ customerId?: number;
 };
 
 export type ListOperationsParams = {
+search?: string;
+status?: string;
+};
+
+export type CompleteGoogleReservationAuthorizationParams = {
+code: string;
+state: string;
+};
+
+export type ListReservationImportsParams = {
 search?: string;
 status?: string;
 };

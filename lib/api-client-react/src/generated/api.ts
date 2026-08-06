@@ -24,6 +24,7 @@ import type {
   AIAssistResult,
   AgencySettings,
   AgencySettingsUpdate,
+  CompleteGoogleReservationAuthorizationParams,
   Customer,
   CustomerInput,
   CustomerUpdate,
@@ -38,6 +39,8 @@ import type {
   ExchangeRate,
   ExchangeRateInput,
   ExchangeRateUpdate,
+  GoogleAuthorization,
+  GoogleConnectionStatus,
   HealthStatus,
   ItineraryInput,
   ItineraryResult,
@@ -46,6 +49,7 @@ import type {
   ListOperationsParams,
   ListProfilesParams,
   ListQuotationsParams,
+  ListReservationImportsParams,
   ListSuppliersParams,
   ListToursParams,
   Notification,
@@ -67,6 +71,13 @@ import type {
   QuotationUpdate,
   RequestAnalysis,
   RequestAnalysisInput,
+  ReservationAnalysis,
+  ReservationDraftResult,
+  ReservationExtraction,
+  ReservationImport,
+  ReservationImportDetail,
+  ReservationReview,
+  ReservationScanResult,
   SuccessResponse,
   Supplier,
   SupplierInput,
@@ -3696,6 +3707,826 @@ export const useDeleteOperationReceipt = <TError = ErrorType<void>,
         TContext
       > => {
       return useMutation(getDeleteOperationReceiptMutationOptions(options));
+    }
+
+export const getGetGoogleReservationConnectionUrl = () => {
+
+
+
+
+  return `/api/reservations/google-connection`
+}
+
+/**
+ * @summary Get Google Workspace Gmail connection status
+ */
+export const getGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleConnectionStatus> => {
+
+  return customFetch<GoogleConnectionStatus>(getGetGoogleReservationConnectionUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetGoogleReservationConnectionQueryKey = () => {
+    return [
+    `/api/reservations/google-connection`
+    ] as const;
+    }
+
+
+export const getGetGoogleReservationConnectionQueryOptions = <TData = Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetGoogleReservationConnectionQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getGoogleReservationConnection>>> = ({ signal }) => getGoogleReservationConnection({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetGoogleReservationConnectionQueryResult = NonNullable<Awaited<ReturnType<typeof getGoogleReservationConnection>>>
+export type GetGoogleReservationConnectionQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Get Google Workspace Gmail connection status
+ */
+
+export function useGetGoogleReservationConnection<TData = Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetGoogleReservationConnectionQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getDisconnectGoogleReservationConnectionUrl = () => {
+
+
+
+
+  return `/api/reservations/google-connection`
+}
+
+/**
+ * @summary Disconnect the Google Workspace Gmail account
+ */
+export const disconnectGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectGoogleReservationConnectionUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectGoogleReservationConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext> => {
+
+const mutationKey = ['disconnectGoogleReservationConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, void> = () => {
+
+
+          return  disconnectGoogleReservationConnection(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectGoogleReservationConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>>
+
+    export type DisconnectGoogleReservationConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Disconnect the Google Workspace Gmail account
+ */
+export const useDisconnectGoogleReservationConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDisconnectGoogleReservationConnectionMutationOptions(options));
+    }
+
+export const getAuthorizeGoogleReservationConnectionUrl = () => {
+
+
+
+
+  return `/api/reservations/google-connection/authorize`
+}
+
+/**
+ * @summary Create a Google OAuth authorization URL
+ */
+export const authorizeGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleAuthorization> => {
+
+  return customFetch<GoogleAuthorization>(getAuthorizeGoogleReservationConnectionUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAuthorizeGoogleReservationConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext> => {
+
+const mutationKey = ['authorizeGoogleReservationConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, void> = () => {
+
+
+          return  authorizeGoogleReservationConnection(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AuthorizeGoogleReservationConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>>
+
+    export type AuthorizeGoogleReservationConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create a Google OAuth authorization URL
+ */
+export const useAuthorizeGoogleReservationConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getAuthorizeGoogleReservationConnectionMutationOptions(options));
+    }
+
+export const getCompleteGoogleReservationAuthorizationUrl = (params: CompleteGoogleReservationAuthorizationParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reservations/google-connection/callback?${stringifiedParams}` : `/api/reservations/google-connection/callback`
+}
+
+/**
+ * @summary Google OAuth callback
+ */
+export const completeGoogleReservationAuthorization = async (params: CompleteGoogleReservationAuthorizationParams, options?: Parameters<typeof customFetch>[1]): Promise<unknown> => {
+
+  return customFetch<unknown>(getCompleteGoogleReservationAuthorizationUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteGoogleReservationAuthorizationQueryKey = (params?: CompleteGoogleReservationAuthorizationParams,) => {
+    return [
+    `/api/reservations/google-connection/callback`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getCompleteGoogleReservationAuthorizationQueryOptions = <TData = Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>, TError = ErrorType<void>>(params: CompleteGoogleReservationAuthorizationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getCompleteGoogleReservationAuthorizationQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>> = ({ signal }) => completeGoogleReservationAuthorization(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type CompleteGoogleReservationAuthorizationQueryResult = NonNullable<Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>>
+export type CompleteGoogleReservationAuthorizationQueryError = ErrorType<void>
+
+
+/**
+ * @summary Google OAuth callback
+ */
+
+export function useCompleteGoogleReservationAuthorization<TData = Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>, TError = ErrorType<void>>(
+ params: CompleteGoogleReservationAuthorizationParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof completeGoogleReservationAuthorization>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getCompleteGoogleReservationAuthorizationQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getScanReservationMailboxUrl = () => {
+
+
+
+
+  return `/api/reservations/scan`
+}
+
+/**
+ * @summary Manually scan messages marked with the TourPilot Gmail label
+ */
+export const scanReservationMailbox = async ( options?: Parameters<typeof customFetch>[1]): Promise<ReservationScanResult> => {
+
+  return customFetch<ReservationScanResult>(getScanReservationMailboxUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getScanReservationMailboxMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanReservationMailbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof scanReservationMailbox>>, TError,void, TContext> => {
+
+const mutationKey = ['scanReservationMailbox'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof scanReservationMailbox>>, void> = () => {
+
+
+          return  scanReservationMailbox(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ScanReservationMailboxMutationResult = NonNullable<Awaited<ReturnType<typeof scanReservationMailbox>>>
+
+    export type ScanReservationMailboxMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Manually scan messages marked with the TourPilot Gmail label
+ */
+export const useScanReservationMailbox = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof scanReservationMailbox>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof scanReservationMailbox>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getScanReservationMailboxMutationOptions(options));
+    }
+
+export const getListReservationImportsUrl = (params?: ListReservationImportsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/reservations?${stringifiedParams}` : `/api/reservations`
+}
+
+/**
+ * @summary List imported reservation emails
+ */
+export const listReservationImports = async (params?: ListReservationImportsParams, options?: Parameters<typeof customFetch>[1]): Promise<ReservationImport[]> => {
+
+  return customFetch<ReservationImport[]>(getListReservationImportsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListReservationImportsQueryKey = (params?: ListReservationImportsParams,) => {
+    return [
+    `/api/reservations`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListReservationImportsQueryOptions = <TData = Awaited<ReturnType<typeof listReservationImports>>, TError = ErrorType<unknown>>(params?: ListReservationImportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReservationImports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListReservationImportsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listReservationImports>>> = ({ signal }) => listReservationImports(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listReservationImports>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListReservationImportsQueryResult = NonNullable<Awaited<ReturnType<typeof listReservationImports>>>
+export type ListReservationImportsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List imported reservation emails
+ */
+
+export function useListReservationImports<TData = Awaited<ReturnType<typeof listReservationImports>>, TError = ErrorType<unknown>>(
+ params?: ListReservationImportsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listReservationImports>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListReservationImportsQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getGetReservationImportUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}`
+}
+
+/**
+ * @summary Get an imported email and its extraction
+ */
+export const getReservationImport = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationImportDetail> => {
+
+  return customFetch<ReservationImportDetail>(getGetReservationImportUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetReservationImportQueryKey = (id: number,) => {
+    return [
+    `/api/reservations/${id}`
+    ] as const;
+    }
+
+
+export const getGetReservationImportQueryOptions = <TData = Awaited<ReturnType<typeof getReservationImport>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservationImport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetReservationImportQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getReservationImport>>> = ({ signal }) => getReservationImport(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getReservationImport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetReservationImportQueryResult = NonNullable<Awaited<ReturnType<typeof getReservationImport>>>
+export type GetReservationImportQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get an imported email and its extraction
+ */
+
+export function useGetReservationImport<TData = Awaited<ReturnType<typeof getReservationImport>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getReservationImport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetReservationImportQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getAnalyzeReservationImportUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}/analyze`
+}
+
+/**
+ * @summary Extract structured reservation data with AI
+ */
+export const analyzeReservationImport = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationAnalysis> => {
+
+  return customFetch<ReservationAnalysis>(getAnalyzeReservationImportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getAnalyzeReservationImportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeReservationImport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof analyzeReservationImport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['analyzeReservationImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof analyzeReservationImport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  analyzeReservationImport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type AnalyzeReservationImportMutationResult = NonNullable<Awaited<ReturnType<typeof analyzeReservationImport>>>
+
+    export type AnalyzeReservationImportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Extract structured reservation data with AI
+ */
+export const useAnalyzeReservationImport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof analyzeReservationImport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof analyzeReservationImport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getAnalyzeReservationImportMutationOptions(options));
+    }
+
+export const getReviewReservationImportUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}/review`
+}
+
+/**
+ * @summary Save reviewed reservation fields
+ */
+export const reviewReservationImport = async (id: number,
+    reservationReview: ReservationReview, options?: Parameters<typeof customFetch>[1]): Promise<ReservationExtraction> => {
+
+  return customFetch<ReservationExtraction>(getReviewReservationImportUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(reservationReview)
+  }
+);}
+
+
+
+
+
+export const getReviewReservationImportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewReservationImport>>, TError,{id: number;data: BodyType<ReservationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof reviewReservationImport>>, TError,{id: number;data: BodyType<ReservationReview>}, TContext> => {
+
+const mutationKey = ['reviewReservationImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof reviewReservationImport>>, {id: number;data: BodyType<ReservationReview>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  reviewReservationImport(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ReviewReservationImportMutationResult = NonNullable<Awaited<ReturnType<typeof reviewReservationImport>>>
+    export type ReviewReservationImportMutationBody = BodyType<ReservationReview>
+    export type ReviewReservationImportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Save reviewed reservation fields
+ */
+export const useReviewReservationImport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof reviewReservationImport>>, TError,{id: number;data: BodyType<ReservationReview>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof reviewReservationImport>>,
+        TError,
+        {id: number;data: BodyType<ReservationReview>},
+        TContext
+      > => {
+      return useMutation(getReviewReservationImportMutationOptions(options));
+    }
+
+export const getRejectReservationImportUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}/reject`
+}
+
+/**
+ * @summary Reject an imported reservation email
+ */
+export const rejectReservationImport = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getRejectReservationImportUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getRejectReservationImportMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectReservationImport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof rejectReservationImport>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['rejectReservationImport'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof rejectReservationImport>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  rejectReservationImport(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type RejectReservationImportMutationResult = NonNullable<Awaited<ReturnType<typeof rejectReservationImport>>>
+
+    export type RejectReservationImportMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Reject an imported reservation email
+ */
+export const useRejectReservationImport = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof rejectReservationImport>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof rejectReservationImport>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getRejectReservationImportMutationOptions(options));
+    }
+
+export const getCreateReservationDraftOperationUrl = (id: number,) => {
+
+
+
+
+  return `/api/reservations/${id}/create-draft`
+}
+
+/**
+ * @summary Create the one allowed draft operation for a reviewed import
+ */
+export const createReservationDraftOperation = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ReservationDraftResult> => {
+
+  return customFetch<ReservationDraftResult>(getCreateReservationDraftOperationUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCreateReservationDraftOperationMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReservationDraftOperation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createReservationDraftOperation>>, TError,{id: number}, TContext> => {
+
+const mutationKey = ['createReservationDraftOperation'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createReservationDraftOperation>>, {id: number}> = (props) => {
+          const {id} = props ?? {};
+
+          return  createReservationDraftOperation(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateReservationDraftOperationMutationResult = NonNullable<Awaited<ReturnType<typeof createReservationDraftOperation>>>
+
+    export type CreateReservationDraftOperationMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Create the one allowed draft operation for a reviewed import
+ */
+export const useCreateReservationDraftOperation = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createReservationDraftOperation>>, TError,{id: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createReservationDraftOperation>>,
+        TError,
+        {id: number},
+        TContext
+      > => {
+      return useMutation(getCreateReservationDraftOperationMutationOptions(options));
     }
 
 export const getRequestUploadUrlUrl = () => {

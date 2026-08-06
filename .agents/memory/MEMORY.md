@@ -21,3 +21,6 @@
 - [PWA and offline foundation](pwa-offline.md) — Sprint 6.1: vite-plugin-pwa (generateSW), IndexedDB offline queue, location sharing, browser notifications; operationLocationsTable added to DB
 - [Separate sign-in paths](sign-in-paths.md) — /sign-in=selection, /sign-in/staff/*?=Clerk <SignIn>, /sign-in/admin=custom form; clerkAppearance shared via lib/clerk-appearance.ts; username assignment in PATCH /api/users/:clerkUserId
 - [Sprint 7.2 Enterprise Administration](sprint72-enterprise-admin.md) — permission matrix, system mode, /roles + /system-control pages; DB dist & api-zod dist must be rebuilt after schema/generated-type changes
+- [Path-less router mounts leak middleware](pathless-router-mounts.md) — routers mounted without a prefix apply their router-level middleware to ALL later routes; guard per-route instead
+- [Gmail reservation intake](gmail-reservation-intake.md) — manual TourPilot-label scan → AI extraction → human-approved draft op; OAuth callback is public, authorized by HMAC-signed state; config-gated on GOOGLE_OAUTH_* secrets
+- [Permission seed synchronization](permission-seed-synchronization.md) — role defaults must update existing permission rows when modules introduce new grants

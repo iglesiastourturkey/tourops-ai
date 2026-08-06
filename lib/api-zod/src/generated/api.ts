@@ -1191,6 +1191,8 @@ export const ConvertQuotationToOperationResponse = zod.object({
   "quotationId": zod.number().nullish(),
   "sourceType": zod.string().optional(),
   "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1226,6 +1228,8 @@ export const ListOperationsResponseItem = zod.object({
   "quotationId": zod.number().nullish(),
   "sourceType": zod.string().optional(),
   "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1277,6 +1281,8 @@ export const CreateOperationResponse = zod.object({
   "quotationId": zod.number().nullish(),
   "sourceType": zod.string().optional(),
   "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1321,6 +1327,8 @@ export const GetOperationResponse = zod.object({
   "quotationId": zod.number().nullish(),
   "sourceType": zod.string().optional(),
   "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1404,6 +1412,8 @@ export const UpdateOperationResponse = zod.object({
   "quotationId": zod.number().nullish(),
   "sourceType": zod.string().optional(),
   "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
   "tourId": zod.number().nullish(),
   "customerId": zod.number().nullish(),
   "startDate": zod.string().nullish(),
@@ -1585,6 +1595,422 @@ export const DeleteOperationReceiptParams = zod.object({
 })
 
 export const DeleteOperationReceiptResponse = zod.void()
+
+
+/**
+ * @summary Get Google Workspace Gmail connection status
+ */
+export const GetGoogleReservationConnectionResponse = zod.object({
+  "configured": zod.boolean(),
+  "connection": zod.union([zod.object({
+  "googleAccountEmail": zod.string().nullish(),
+  "status": zod.string(),
+  "lastError": zod.string().nullish()
+}),zod.null()])
+})
+
+
+/**
+ * @summary Disconnect the Google Workspace Gmail account
+ */
+export const DisconnectGoogleReservationConnectionResponse = zod.void()
+
+
+/**
+ * @summary Create a Google OAuth authorization URL
+ */
+export const AuthorizeGoogleReservationConnectionResponse = zod.object({
+  "authorizationUrl": zod.string()
+})
+
+
+/**
+ * @summary Google OAuth callback
+ */
+export const CompleteGoogleReservationAuthorizationQueryParams = zod.object({
+  "code": zod.coerce.string(),
+  "state": zod.coerce.string()
+})
+
+export const CompleteGoogleReservationAuthorizationResponse = zod.void()
+
+
+/**
+ * @summary Manually scan messages marked with the TourPilot Gmail label
+ */
+export const scanReservationMailboxResponseScannedMin = 0;
+
+export const scanReservationMailboxResponseImportedMin = 0;
+
+
+
+export const ScanReservationMailboxResponse = zod.object({
+  "scanned": zod.number().min(scanReservationMailboxResponseScannedMin),
+  "imported": zod.number().min(scanReservationMailboxResponseImportedMin)
+})
+
+
+/**
+ * @summary List imported reservation emails
+ */
+export const ListReservationImportsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "status": zod.coerce.string().optional()
+})
+
+export const ListReservationImportsResponseItem = zod.object({
+  "id": zod.number(),
+  "sender": zod.string().nullish(),
+  "recipients": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "receivedAt": zod.coerce.date().nullish(),
+  "status": zod.string(),
+  "processingError": zod.string().nullish(),
+  "operationId": zod.number().nullish(),
+  "attachments": zod.array(zod.object({
+  "name": zod.string(),
+  "mimeType": zod.string(),
+  "size": zod.number()
+}))
+})
+export const ListReservationImportsResponse = zod.array(ListReservationImportsResponseItem)
+
+
+/**
+ * @summary Get an imported email and its extraction
+ */
+export const GetReservationImportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const getReservationImportResponseTwoExtractionOneExtractedDataOneGuestCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneExtractedDataOneAdultCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneExtractedDataOneChildCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneExtractedDataOneAmountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneExtractedDataOneCurrencyMax = 10;
+
+export const getReservationImportResponseTwoExtractionOneApprovedDataOneGuestCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneApprovedDataOneAdultCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneApprovedDataOneChildCountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneApprovedDataOneAmountMin = 0;
+
+export const getReservationImportResponseTwoExtractionOneApprovedDataOneCurrencyMax = 10;
+
+
+
+export const GetReservationImportResponse = zod.object({
+  "id": zod.number(),
+  "sender": zod.string().nullish(),
+  "recipients": zod.string().nullish(),
+  "subject": zod.string().nullish(),
+  "receivedAt": zod.coerce.date().nullish(),
+  "status": zod.string(),
+  "processingError": zod.string().nullish(),
+  "operationId": zod.number().nullish(),
+  "attachments": zod.array(zod.object({
+  "name": zod.string(),
+  "mimeType": zod.string(),
+  "size": zod.number()
+}))
+}).and(zod.object({
+  "plainTextBody": zod.string().nullish(),
+  "sanitizedHtmlBody": zod.string().nullish(),
+  "extraction": zod.union([zod.object({
+  "id": zod.number(),
+  "importId": zod.number(),
+  "extractedData": zod.union([zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(getReservationImportResponseTwoExtractionOneExtractedDataOneGuestCountMin).nullish(),
+  "adultCount": zod.number().min(getReservationImportResponseTwoExtractionOneExtractedDataOneAdultCountMin).nullish(),
+  "childCount": zod.number().min(getReservationImportResponseTwoExtractionOneExtractedDataOneChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(getReservationImportResponseTwoExtractionOneExtractedDataOneAmountMin).nullish(),
+  "currency": zod.string().max(getReservationImportResponseTwoExtractionOneExtractedDataOneCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "approvedData": zod.union([zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(getReservationImportResponseTwoExtractionOneApprovedDataOneGuestCountMin).nullish(),
+  "adultCount": zod.number().min(getReservationImportResponseTwoExtractionOneApprovedDataOneAdultCountMin).nullish(),
+  "childCount": zod.number().min(getReservationImportResponseTwoExtractionOneApprovedDataOneChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(getReservationImportResponseTwoExtractionOneApprovedDataOneAmountMin).nullish(),
+  "currency": zod.string().max(getReservationImportResponseTwoExtractionOneApprovedDataOneCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "confidenceScore": zod.number().nullish(),
+  "missingFields": zod.array(zod.string()),
+  "uncertainFields": zod.array(zod.string()),
+  "summaryTr": zod.string().nullish(),
+  "evidence": zod.union([zod.record(zod.string(), zod.string()),zod.null()]).optional()
+}),zod.null()])
+}))
+
+
+/**
+ * @summary Extract structured reservation data with AI
+ */
+export const AnalyzeReservationImportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const analyzeReservationImportResponseDataGuestCountMin = 0;
+
+export const analyzeReservationImportResponseDataAdultCountMin = 0;
+
+export const analyzeReservationImportResponseDataChildCountMin = 0;
+
+export const analyzeReservationImportResponseDataAmountMin = 0;
+
+export const analyzeReservationImportResponseDataCurrencyMax = 10;
+
+export const analyzeReservationImportResponseConfidenceScoreMin = 0;
+export const analyzeReservationImportResponseConfidenceScoreMax = 100;
+
+
+
+export const AnalyzeReservationImportResponse = zod.object({
+  "data": zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(analyzeReservationImportResponseDataGuestCountMin).nullish(),
+  "adultCount": zod.number().min(analyzeReservationImportResponseDataAdultCountMin).nullish(),
+  "childCount": zod.number().min(analyzeReservationImportResponseDataChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(analyzeReservationImportResponseDataAmountMin).nullish(),
+  "currency": zod.string().max(analyzeReservationImportResponseDataCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+}),
+  "confidenceScore": zod.number().min(analyzeReservationImportResponseConfidenceScoreMin).max(analyzeReservationImportResponseConfidenceScoreMax),
+  "missingFields": zod.array(zod.string()),
+  "uncertainFields": zod.array(zod.string()),
+  "summaryTr": zod.string(),
+  "evidence": zod.record(zod.string(), zod.string())
+})
+
+
+/**
+ * @summary Save reviewed reservation fields
+ */
+export const ReviewReservationImportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const reviewReservationImportBodyDataGuestCountMin = 0;
+
+export const reviewReservationImportBodyDataAdultCountMin = 0;
+
+export const reviewReservationImportBodyDataChildCountMin = 0;
+
+export const reviewReservationImportBodyDataAmountMin = 0;
+
+export const reviewReservationImportBodyDataCurrencyMax = 10;
+
+
+
+export const ReviewReservationImportBody = zod.object({
+  "data": zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(reviewReservationImportBodyDataGuestCountMin).nullish(),
+  "adultCount": zod.number().min(reviewReservationImportBodyDataAdultCountMin).nullish(),
+  "childCount": zod.number().min(reviewReservationImportBodyDataChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(reviewReservationImportBodyDataAmountMin).nullish(),
+  "currency": zod.string().max(reviewReservationImportBodyDataCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+})
+})
+
+export const reviewReservationImportResponseExtractedDataOneGuestCountMin = 0;
+
+export const reviewReservationImportResponseExtractedDataOneAdultCountMin = 0;
+
+export const reviewReservationImportResponseExtractedDataOneChildCountMin = 0;
+
+export const reviewReservationImportResponseExtractedDataOneAmountMin = 0;
+
+export const reviewReservationImportResponseExtractedDataOneCurrencyMax = 10;
+
+export const reviewReservationImportResponseApprovedDataOneGuestCountMin = 0;
+
+export const reviewReservationImportResponseApprovedDataOneAdultCountMin = 0;
+
+export const reviewReservationImportResponseApprovedDataOneChildCountMin = 0;
+
+export const reviewReservationImportResponseApprovedDataOneAmountMin = 0;
+
+export const reviewReservationImportResponseApprovedDataOneCurrencyMax = 10;
+
+
+
+export const ReviewReservationImportResponse = zod.object({
+  "id": zod.number(),
+  "importId": zod.number(),
+  "extractedData": zod.union([zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(reviewReservationImportResponseExtractedDataOneGuestCountMin).nullish(),
+  "adultCount": zod.number().min(reviewReservationImportResponseExtractedDataOneAdultCountMin).nullish(),
+  "childCount": zod.number().min(reviewReservationImportResponseExtractedDataOneChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(reviewReservationImportResponseExtractedDataOneAmountMin).nullish(),
+  "currency": zod.string().max(reviewReservationImportResponseExtractedDataOneCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "approvedData": zod.union([zod.object({
+  "agencyName": zod.string().nullish(),
+  "bookingReference": zod.string().nullish(),
+  "customerName": zod.string().nullish(),
+  "customerEmail": zod.string().nullish(),
+  "customerPhone": zod.string().nullish(),
+  "tourName": zod.string().nullish(),
+  "tourDate": zod.coerce.date().nullish(),
+  "guestCount": zod.number().min(reviewReservationImportResponseApprovedDataOneGuestCountMin).nullish(),
+  "adultCount": zod.number().min(reviewReservationImportResponseApprovedDataOneAdultCountMin).nullish(),
+  "childCount": zod.number().min(reviewReservationImportResponseApprovedDataOneChildCountMin).nullish(),
+  "hotelName": zod.string().nullish(),
+  "pickupLocation": zod.string().nullish(),
+  "pickupTime": zod.string().nullish(),
+  "dropoffLocation": zod.string().nullish(),
+  "flightNumber": zod.string().nullish(),
+  "transferRequired": zod.boolean().nullish(),
+  "guideLanguage": zod.string().nullish(),
+  "vehicleType": zod.string().nullish(),
+  "specialRequests": zod.string().nullish(),
+  "amount": zod.number().min(reviewReservationImportResponseApprovedDataOneAmountMin).nullish(),
+  "currency": zod.string().max(reviewReservationImportResponseApprovedDataOneCurrencyMax).nullish(),
+  "internalNotes": zod.string().nullish()
+}),zod.null()]).optional(),
+  "confidenceScore": zod.number().nullish(),
+  "missingFields": zod.array(zod.string()),
+  "uncertainFields": zod.array(zod.string()),
+  "summaryTr": zod.string().nullish(),
+  "evidence": zod.union([zod.record(zod.string(), zod.string()),zod.null()]).optional()
+})
+
+
+/**
+ * @summary Reject an imported reservation email
+ */
+export const RejectReservationImportParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const RejectReservationImportResponse = zod.void()
+
+
+/**
+ * @summary Create the one allowed draft operation for a reviewed import
+ */
+export const CreateReservationDraftOperationParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateReservationDraftOperationResponse = zod.object({
+  "operation": zod.object({
+  "id": zod.number(),
+  "quotationId": zod.number().nullish(),
+  "sourceType": zod.string().optional(),
+  "sourceQuoteId": zod.number().nullish(),
+  "sourceEmailImportId": zod.number().nullish(),
+  "sourceBookingReference": zod.string().nullish(),
+  "tourId": zod.number().nullish(),
+  "customerId": zod.number().nullish(),
+  "startDate": zod.string().nullish(),
+  "endDate": zod.string().nullish(),
+  "status": zod.string(),
+  "assignedTo": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "completionRate": zod.number(),
+  "guideName": zod.string().nullish(),
+  "guidePhone": zod.string().nullish(),
+  "driverName": zod.string().nullish(),
+  "driverPhone": zod.string().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "emergencyContact1Name": zod.string().nullish(),
+  "emergencyContact1Phone": zod.string().nullish(),
+  "emergencyContact2Name": zod.string().nullish(),
+  "emergencyContact2Phone": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}),
+  "duplicate": zod.boolean()
+})
 
 
 /**

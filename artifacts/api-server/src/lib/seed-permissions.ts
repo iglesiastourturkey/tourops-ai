@@ -222,7 +222,13 @@ export async function seedPermissions(): Promise<void> {
     await db
       .insert(rolePermissionsTable)
       .values(rpValues.slice(i, i + CHUNK))
-      .onConflictDoNothing();
+      // Permissions added in a later release must update the default matrix for
+      // existing installations. A no-op conflict left already-created admin and
+      // operations roles without the reservations grants.
+      .onConflictDoUpdate({
+        target: [rolePermissionsTable.roleName, rolePermissionsTable.permissionId],
+        set: { granted: sql`excluded.granted` },
+      });
   }
 
   // 5. Ensure system_settings row exists

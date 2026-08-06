@@ -76,6 +76,11 @@ Add `OPENAI_API_KEY=sk-...` to your `.env`. All four AI routes fall back to safe
 | `VITE_CLERK_PUBLISHABLE_KEY` | ✅ | — | Clerk publishable key (exposed to browser) |
 | `SESSION_SECRET` | ✅ | — | Express session signing secret |
 | `OPENAI_API_KEY` | ⚠️ optional | — | Enables live AI responses; absent = mock fallback |
+| `OPENROUTER_API_KEY` | ⚠️ optional | — | Enables live Gmail reservation extraction through OpenRouter |
+| `GOOGLE_OAUTH_CLIENT_ID` | ⚠️ Gmail only | — | Google Cloud OAuth web client ID for the manual Gmail scanner |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | ⚠️ Gmail only | — | Google Cloud OAuth web client secret for the manual Gmail scanner |
+| `GOOGLE_OAUTH_REDIRECT_URI` | ⚠️ Gmail only | — | Must be the public API callback URL ending in `/api/reservations/google-connection/callback` |
+| `GOOGLE_OAUTH_SUCCESS_URL` | optional | `/` | Where to return after a successful Gmail authorization |
 | `PORT` | optional | `5173` / `8080` | Port for frontend / API server |
 | `BASE_PATH` | optional | `/` | URL prefix the frontend is served from |
 
@@ -127,6 +132,16 @@ Turkish-language SPA for tour operators managing the Kuşadası / Efes / Pamukka
 - The API server must be running for any authenticated frontend page to load. The dashboard and all data pages call `/api/*` on mount.
 - `pnpm --filter @workspace/db run push` is destructive on schema changes that drop columns — review the diff before confirming in interactive mode.
 - Replit-specific Vite plugins (`@replit/vite-plugin-*`) are loaded only when `REPL_ID` is set. They are skipped silently in production builds and local development.
+
+### Gmail reservation intake setup
+
+The Gmail reservation inbox is deliberately **manual**: it only scans messages carrying the `TourPilot` Gmail label when an authorized staff member selects **Gmail’i Tara**. It does not monitor Gmail in the background, download attachment contents, or create final operations automatically.
+
+1. In Google Cloud Console, create (or select) a project and configure the OAuth consent screen for the connected Google Workspace account.
+2. Create a **Web application** OAuth 2.0 client. Add the exact public callback URL from `GOOGLE_OAUTH_REDIRECT_URI` as an authorized redirect URI. Its path must be `/api/reservations/google-connection/callback`.
+3. Configure `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` as server-side secrets. Optionally configure `GOOGLE_OAUTH_SUCCESS_URL` to return to the app’s Settings page.
+4. The implementation requests only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`.
+5. A super admin or admin opens **Ayarlar → Google Workspace** and connects the mailbox. Operations staff can then scan and review imports, but cannot authorize or disconnect the mailbox.
 
 ## User preferences
 

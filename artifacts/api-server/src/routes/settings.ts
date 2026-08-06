@@ -2,10 +2,13 @@ import { Router } from "express";
 import { db } from "@workspace/db";
 import { exchangeRatesTable, agencySettingsTable, emailTemplatesTable } from "@workspace/db/schema";
 import { eq } from "drizzle-orm";
-import { requireAuth, requirePermission } from "../lib/auth";
+import { requirePermission } from "../lib/auth";
 
 const router = Router();
-router.use(requireAuth);
+// NOTE: no router-level requireAuth here. This router is mounted WITHOUT a path
+// prefix in routes/index.ts, so a router-level middleware would intercept every
+// route registered after it (e.g. the public Google OAuth callback). Each route
+// below enforces auth via its own requirePermission guard instead.
 
 // --- Exchange rates ---
 router.get("/exchange-rates", requirePermission("settings", "view"), async (req, res) => {

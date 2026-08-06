@@ -966,6 +966,150 @@ paths:
         "404":
           description: Not found
 
+  # ─── GMAIL RESERVATIONS ───────────────────────────────────────────────────
+  /reservations/google-connection:
+    get:
+      operationId: getGoogleReservationConnection
+      tags: [reservations]
+      summary: Get Google Workspace Gmail connection status
+      responses:
+        "200":
+          description: Connection status
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoogleConnectionStatus" }
+    delete:
+      operationId: disconnectGoogleReservationConnection
+      tags: [reservations]
+      summary: Disconnect the Google Workspace Gmail account
+      responses:
+        "204": { description: Disconnected }
+  /reservations/google-connection/authorize:
+    post:
+      operationId: authorizeGoogleReservationConnection
+      tags: [reservations]
+      summary: Create a Google OAuth authorization URL
+      responses:
+        "200":
+          description: Authorization URL
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/GoogleAuthorization" }
+  /reservations/google-connection/callback:
+    get:
+      operationId: completeGoogleReservationAuthorization
+      tags: [reservations]
+      summary: Google OAuth callback
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema: { type: string }
+        - name: state
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "302": { description: Redirects to the configured success page }
+  /reservations/scan:
+    post:
+      operationId: scanReservationMailbox
+      tags: [reservations]
+      summary: Manually scan messages marked with the TourPilot Gmail label
+      responses:
+        "200":
+          description: Scan result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservationScanResult" }
+  /reservations:
+    get:
+      operationId: listReservationImports
+      tags: [reservations]
+      summary: List imported reservation emails
+      parameters:
+        - name: search
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          schema: { type: string }
+      responses:
+        "200":
+          description: Reservation imports
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/ReservationImport" }
+  /reservations/{id}:
+    get:
+      operationId: getReservationImport
+      tags: [reservations]
+      summary: Get an imported email and its extraction
+      parameters:
+        - $ref: "#/components/parameters/ReservationImportId"
+      responses:
+        "200":
+          description: Reservation import
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservationImportDetail" }
+        "404": { description: Not found }
+  /reservations/{id}/analyze:
+    post:
+      operationId: analyzeReservationImport
+      tags: [reservations]
+      summary: Extract structured reservation data with AI
+      parameters:
+        - $ref: "#/components/parameters/ReservationImportId"
+      responses:
+        "200":
+          description: Validated AI extraction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservationAnalysis" }
+  /reservations/{id}/review:
+    patch:
+      operationId: reviewReservationImport
+      tags: [reservations]
+      summary: Save reviewed reservation fields
+      parameters:
+        - $ref: "#/components/parameters/ReservationImportId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/ReservationReview" }
+      responses:
+        "200":
+          description: Saved extraction
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservationExtraction" }
+  /reservations/{id}/reject:
+    post:
+      operationId: rejectReservationImport
+      tags: [reservations]
+      summary: Reject an imported reservation email
+      parameters:
+        - $ref: "#/components/parameters/ReservationImportId"
+      responses:
+        "204": { description: Rejected }
+  /reservations/{id}/create-draft:
+    post:
+      operationId: createReservationDraftOperation
+      tags: [reservations]
+      summary: Create the one allowed draft operation for a reviewed import
+      parameters:
+        - $ref: "#/components/parameters/ReservationImportId"
+      responses:
+        "201":
+          description: Created or existing draft operation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReservationDraftResult" }
+
   # ─── STORAGE ──────────────────────────────────────────────────────────────
   /storage/uploads/request-url:
     post:
@@ -1337,6 +1481,12 @@ paths:
                 $ref: "#/components/schemas/AIAssistResult"
 
 components:
+  parameters:
+    ReservationImportId:
+      name: id
+      in: path
+      required: true
+      schema: { type: number }
   schemas:
     HealthStatus:
       type: object
@@ -1812,6 +1962,8 @@ components:
         quotationId: { type: ["number", "null"] }
         sourceType: { type: string }
         sourceQuoteId: { type: ["number", "null"] }
+        sourceEmailImportId: { type: ["number", "null"] }
+        sourceBookingReference: { type: ["string", "null"] }
         tourId: { type: ["number", "null"] }
         customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
@@ -1839,6 +1991,8 @@ components:
         quotationId: { type: ["number", "null"] }
         sourceType: { type: string }
         sourceQuoteId: { type: ["number", "null"] }
+        sourceEmailImportId: { type: ["number", "null"] }
+        sourceBookingReference: { type: ["string", "null"] }
         tourId: { type: ["number", "null"] }
         customerId: { type: ["number", "null"] }
         startDate: { type: ["string", "null"] }
@@ -1862,6 +2016,123 @@ components:
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, status, completionRate, tasks, customer, createdAt, updatedAt]
+
+    # ── Gmail Reservations ───────────────────────────────────────────────
+    GoogleConnection:
+      type: object
+      properties:
+        googleAccountEmail: { type: ["string", "null"] }
+        status: { type: string }
+        lastError: { type: ["string", "null"] }
+      required: [status]
+    GoogleConnectionStatus:
+      type: object
+      properties:
+        configured: { type: boolean }
+        connection: { anyOf: [{ $ref: "#/components/schemas/GoogleConnection" }, { type: "null" }] }
+      required: [configured, connection]
+    GoogleAuthorization:
+      type: object
+      properties:
+        authorizationUrl: { type: string }
+      required: [authorizationUrl]
+    ReservationData:
+      type: object
+      properties:
+        agencyName: { type: ["string", "null"] }
+        bookingReference: { type: ["string", "null"] }
+        customerName: { type: ["string", "null"] }
+        customerEmail: { type: ["string", "null"] }
+        customerPhone: { type: ["string", "null"] }
+        tourName: { type: ["string", "null"] }
+        tourDate: { type: ["string", "null"], format: date }
+        guestCount: { type: ["number", "null"], minimum: 0 }
+        adultCount: { type: ["number", "null"], minimum: 0 }
+        childCount: { type: ["number", "null"], minimum: 0 }
+        hotelName: { type: ["string", "null"] }
+        pickupLocation: { type: ["string", "null"] }
+        pickupTime: { type: ["string", "null"] }
+        dropoffLocation: { type: ["string", "null"] }
+        flightNumber: { type: ["string", "null"] }
+        transferRequired: { type: ["boolean", "null"] }
+        guideLanguage: { type: ["string", "null"] }
+        vehicleType: { type: ["string", "null"] }
+        specialRequests: { type: ["string", "null"] }
+        amount: { type: ["number", "null"], minimum: 0 }
+        currency: { type: ["string", "null"], maxLength: 10 }
+        internalNotes: { type: ["string", "null"] }
+    ReservationEvidence:
+      type: object
+      additionalProperties: { type: string }
+    ReservationAnalysis:
+      type: object
+      properties:
+        data: { $ref: "#/components/schemas/ReservationData" }
+        confidenceScore: { type: number, minimum: 0, maximum: 100 }
+        missingFields: { type: array, items: { type: string } }
+        uncertainFields: { type: array, items: { type: string } }
+        summaryTr: { type: string }
+        evidence: { $ref: "#/components/schemas/ReservationEvidence" }
+      required: [data, confidenceScore, missingFields, uncertainFields, summaryTr, evidence]
+    ReservationExtraction:
+      type: object
+      properties:
+        id: { type: number }
+        importId: { type: number }
+        extractedData: { anyOf: [{ $ref: "#/components/schemas/ReservationData" }, { type: "null" }] }
+        approvedData: { anyOf: [{ $ref: "#/components/schemas/ReservationData" }, { type: "null" }] }
+        confidenceScore: { type: ["number", "null"] }
+        missingFields: { type: array, items: { type: string } }
+        uncertainFields: { type: array, items: { type: string } }
+        summaryTr: { type: ["string", "null"] }
+        evidence: { anyOf: [{ $ref: "#/components/schemas/ReservationEvidence" }, { type: "null" }] }
+      required: [id, importId, missingFields, uncertainFields]
+    ReservationAttachment:
+      type: object
+      properties:
+        name: { type: string }
+        mimeType: { type: string }
+        size: { type: number }
+      required: [name, mimeType, size]
+    ReservationImport:
+      type: object
+      properties:
+        id: { type: number }
+        sender: { type: ["string", "null"] }
+        recipients: { type: ["string", "null"] }
+        subject: { type: ["string", "null"] }
+        receivedAt: { type: ["string", "null"], format: date-time }
+        status: { type: string }
+        processingError: { type: ["string", "null"] }
+        operationId: { type: ["number", "null"] }
+        attachments: { type: array, items: { $ref: "#/components/schemas/ReservationAttachment" } }
+      required: [id, status, attachments]
+    ReservationImportDetail:
+      allOf:
+        - $ref: "#/components/schemas/ReservationImport"
+        - type: object
+          properties:
+            plainTextBody: { type: ["string", "null"] }
+            sanitizedHtmlBody: { type: ["string", "null"] }
+            extraction: { anyOf: [{ $ref: "#/components/schemas/ReservationExtraction" }, { type: "null" }] }
+          required: [extraction]
+    ReservationReview:
+      type: object
+      properties:
+        data: { $ref: "#/components/schemas/ReservationData" }
+      required: [data]
+    ReservationScanResult:
+      type: object
+      properties:
+        scanned: { type: number, minimum: 0 }
+        imported: { type: number, minimum: 0 }
+      required: [scanned, imported]
+    ReservationDraftResult:
+      type: object
+      properties:
+        operation: { $ref: "#/components/schemas/Operation" }
+        duplicate: { type: boolean }
+      required: [operation, duplicate]
     OperationInput:
       type: object
       properties:
