@@ -1,0 +1,180 @@
+Improve only the Google Workspace integration settings UI and connection controls.
+
+Current page:
+Ayarlar → Google Workspace
+
+Current issue:
+The page only shows a warning that Google OAuth is not configured.
+There are no clear Gmail or Google Drive connect/disconnect controls.
+
+Goal:
+Add two separate integration cards:
+1. Gmail Rezervasyon Bağlantısı
+2. Google Drive Bağlantısı
+
+Do not modify Clerk, RBAC, database schema, reservation parsing, operation creation, accounting, offline sync, DNS, or deployment architecture unless strictly required to wire the existing Google OAuth routes.
+
+1. Gmail connection card
+
+Title:
+Gmail Rezervasyon Bağlantısı
+
+Description:
+TourPilot etiketli rezervasyon e-postalarını okumak ve sisteme aktarmak için Gmail hesabınızı bağlayın.
+
+Disconnected state:
+- status badge: Bağlı Değil
+- button: Gmail'i Bağla
+
+Connected state:
+- status badge: Bağlı
+- connected Google email
+- granted Gmail scopes
+- last successful sync time
+- button: Bağlantıyı Yenile
+- destructive secondary button: Bağlantıyı Kes
+
+2. Google Drive connection card
+
+Title:
+Google Drive Bağlantısı
+
+Description:
+Rezervasyon dosyalarına, Excel/Google Sheets belgelerine ve operasyon klasörlerine erişmek için Google Drive hesabınızı bağlayın.
+
+Disconnected state:
+- status badge: Bağlı Değil
+- button: Google Drive'ı Bağla
+
+Connected state:
+- status badge: Bağlı
+- connected Google email
+- granted Drive scopes
+- selected folder or file access summary
+- last successful access/sync time
+- button: Bağlantıyı Yenile
+- destructive secondary button: Bağlantıyı Kes
+
+3. OAuth behavior
+
+Prefer one shared Google connection record but track Gmail and Drive grants separately.
+
+Do not request unnecessary scopes.
+
+Gmail:
+- read-only message access
+- label/search access
+
+Google Drive:
+- prefer file-specific access where possible
+- do not request unrestricted full Drive access unless absolutely required
+- clearly report the exact scopes used
+
+If the same Google account is already connected:
+- allow adding the missing Gmail or Drive scope without creating a duplicate connection
+- preserve the existing refresh token safely
+- update granted scope metadata
+
+4. Connect/disconnect behavior
+
+Connect buttons:
+- start backend OAuth flow
+- return to the Google Workspace settings page
+- show success or failure toast
+- refresh connection state
+
+Disconnect:
+- require confirmation dialog
+- revoke or remove only the selected integration grant where technically possible
+- if Google only supports revoking the entire token, explain this clearly in the UI before disconnecting
+- do not delete imported emails, created operations, or previously indexed Drive files
+
+5. Configuration-not-ready state
+
+If Google OAuth environment variables are missing:
+- keep the warning
+- disable connect buttons
+- show exactly which configuration is missing using safe variable names only
+- never display client secrets
+
+Expected safe configuration names may include:
+- GOOGLE_CLIENT_ID
+- GOOGLE_CLIENT_SECRET
+- GOOGLE_REDIRECT_URI
+- GOOGLE_GMAIL_REDIRECT_URI
+- GOOGLE_DRIVE_REDIRECT_URI
+
+Use only the variables actually required by the implementation.
+
+6. RBAC
+
+Visible only to:
+- super_admin
+- admin
+
+Backend must independently enforce this.
+
+operations users may use imported reservation data but may not connect or disconnect Google accounts.
+
+7. Security
+
+Never expose or log:
+- access tokens
+- refresh tokens
+- authorization codes
+- client secrets
+- full OAuth callback URLs containing sensitive query parameters
+
+Store tokens only using the existing secure encryption mechanism.
+
+8. UI layout
+
+Use the existing settings design system.
+
+Display two stacked cards or a responsive two-column layout:
+
+- Gmail Rezervasyon Bağlantısı
+- Google Drive Bağlantısı
+
+Each card must include:
+- integration icon
+- description
+- status badge
+- account email
+- last sync/access
+- Connect / Refresh / Disconnect actions
+
+Use Turkish UI text.
+
+9. Verification
+
+Test:
+- OAuth not configured state
+- connect Gmail only
+- connect Drive only
+- connect both on the same Google account
+- reconnect/refresh consent
+- disconnect Gmail
+- disconnect Drive
+- cancellation during OAuth
+- expired token
+- admin allowed
+- operations user receives 403
+- existing imported data remains after disconnect
+
+Run:
+- frontend TypeScript
+- API TypeScript
+- frontend production build
+- API production build
+
+Report only:
+- modified files
+- final UI states
+- Gmail scopes
+- Drive scopes
+- shared connection behavior
+- disconnect behavior
+- manual Google Cloud setup steps
+- verification results
+- build results

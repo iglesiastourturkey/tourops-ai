@@ -3790,7 +3790,7 @@ export const getGetGoogleReservationConnectionUrl = () => {
 }
 
 /**
- * @summary Get Google Workspace Gmail connection status
+ * @summary Get Google Workspace Gmail and Drive connection status
  */
 export const getGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleConnectionStatus> => {
 
@@ -3837,7 +3837,7 @@ export type GetGoogleReservationConnectionQueryError = ErrorType<unknown>
 
 
 /**
- * @summary Get Google Workspace Gmail connection status
+ * @summary Get Google Workspace Gmail and Drive connection status
  */
 
 export function useGetGoogleReservationConnection<TData = Awaited<ReturnType<typeof getGoogleReservationConnection>>, TError = ErrorType<unknown>>(
@@ -3858,91 +3858,20 @@ export function useGetGoogleReservationConnection<TData = Awaited<ReturnType<typ
 
 
 
-export const getDisconnectGoogleReservationConnectionUrl = () => {
+export const getAuthorizeGoogleReservationConnectionUrl = (integration: 'gmail' | 'drive',) => {
 
 
 
 
-  return `/api/reservations/google-connection`
+  return `/api/reservations/google-connection/${integration}/authorize`
 }
 
 /**
- * @summary Disconnect the Google Workspace Gmail account
+ * @summary Create an incremental Google OAuth authorization URL for Gmail or Drive
  */
-export const disconnectGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const authorizeGoogleReservationConnection = async (integration: 'gmail' | 'drive', options?: Parameters<typeof customFetch>[1]): Promise<GoogleAuthorization> => {
 
-  return customFetch<void>(getDisconnectGoogleReservationConnectionUrl(),
-  {
-    ...options,
-    method: 'DELETE'
-
-
-  }
-);}
-
-
-
-
-
-export const getDisconnectGoogleReservationConnectionMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext> => {
-
-const mutationKey = ['disconnectGoogleReservationConnection'];
-const {mutation: mutationOptions, request: requestOptions} = options ?
-      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
-      options
-      : {...options, mutation: {...options.mutation, mutationKey}}
-      : {mutation: { mutationKey, }, request: undefined};
-
-
-
-
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, void> = () => {
-
-
-          return  disconnectGoogleReservationConnection(requestOptions)
-        }
-
-
-
-
-
-
-  return  { mutationFn, ...mutationOptions }}
-
-    export type DisconnectGoogleReservationConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>>
-
-    export type DisconnectGoogleReservationConnectionMutationError = ErrorType<unknown>
-
-    /**
- * @summary Disconnect the Google Workspace Gmail account
- */
-export const useDisconnectGoogleReservationConnection = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
- ): UseMutationResult<
-        Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>,
-        TError,
-        void,
-        TContext
-      > => {
-      return useMutation(getDisconnectGoogleReservationConnectionMutationOptions(options));
-    }
-
-export const getAuthorizeGoogleReservationConnectionUrl = () => {
-
-
-
-
-  return `/api/reservations/google-connection/authorize`
-}
-
-/**
- * @summary Create a Google OAuth authorization URL
- */
-export const authorizeGoogleReservationConnection = async ( options?: Parameters<typeof customFetch>[1]): Promise<GoogleAuthorization> => {
-
-  return customFetch<GoogleAuthorization>(getAuthorizeGoogleReservationConnectionUrl(),
+  return customFetch<GoogleAuthorization>(getAuthorizeGoogleReservationConnectionUrl(integration),
   {
     ...options,
     method: 'POST'
@@ -3956,8 +3885,8 @@ export const authorizeGoogleReservationConnection = async ( options?: Parameters
 
 
 export const getAuthorizeGoogleReservationConnectionMutationOptions = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext> => {
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext> => {
 
 const mutationKey = ['authorizeGoogleReservationConnection'];
 const {mutation: mutationOptions, request: requestOptions} = options ?
@@ -3969,10 +3898,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, {integration: 'gmail' | 'drive'}> = (props) => {
+          const {integration} = props ?? {};
 
-
-          return  authorizeGoogleReservationConnection(requestOptions)
+          return  authorizeGoogleReservationConnection(integration,requestOptions)
         }
 
 
@@ -3987,17 +3916,88 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type AuthorizeGoogleReservationConnectionMutationError = ErrorType<unknown>
 
     /**
- * @summary Create a Google OAuth authorization URL
+ * @summary Create an incremental Google OAuth authorization URL for Gmail or Drive
  */
 export const useAuthorizeGoogleReservationConnection = <TError = ErrorType<unknown>,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext>, request?: SecondParameter<typeof customFetch>}
  ): UseMutationResult<
         Awaited<ReturnType<typeof authorizeGoogleReservationConnection>>,
         TError,
-        void,
+        {integration: 'gmail' | 'drive'},
         TContext
       > => {
       return useMutation(getAuthorizeGoogleReservationConnectionMutationOptions(options));
+    }
+
+export const getDisconnectGoogleReservationConnectionUrl = (integration: 'gmail' | 'drive',) => {
+
+
+
+
+  return `/api/reservations/google-connection/${integration}`
+}
+
+/**
+ * @summary Remove Gmail or Drive access while preserving imported data
+ */
+export const disconnectGoogleReservationConnection = async (integration: 'gmail' | 'drive', options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDisconnectGoogleReservationConnectionUrl(integration),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDisconnectGoogleReservationConnectionMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext> => {
+
+const mutationKey = ['disconnectGoogleReservationConnection'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, {integration: 'gmail' | 'drive'}> = (props) => {
+          const {integration} = props ?? {};
+
+          return  disconnectGoogleReservationConnection(integration,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DisconnectGoogleReservationConnectionMutationResult = NonNullable<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>>
+
+    export type DisconnectGoogleReservationConnectionMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Remove Gmail or Drive access while preserving imported data
+ */
+export const useDisconnectGoogleReservationConnection = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>, TError,{integration: 'gmail' | 'drive'}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof disconnectGoogleReservationConnection>>,
+        TError,
+        {integration: 'gmail' | 'drive'},
+        TContext
+      > => {
+      return useMutation(getDisconnectGoogleReservationConnectionMutationOptions(options));
     }
 
 export const getCompleteGoogleReservationAuthorizationUrl = (params: CompleteGoogleReservationAuthorizationParams,) => {

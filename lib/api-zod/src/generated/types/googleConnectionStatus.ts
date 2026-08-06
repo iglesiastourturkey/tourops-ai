@@ -9,5 +9,6 @@ import type { GoogleConnection } from './googleConnection';
 
 export interface GoogleConnectionStatus {
   configured: boolean;
+  missingConfiguration: string[];
   connection: GoogleConnection | null;
 }

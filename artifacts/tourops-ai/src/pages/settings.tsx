@@ -7,16 +7,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useGetAgencySettings, useUpdateAgencySettings, useListExchangeRates, useUpdateExchangeRate, useCreateExchangeRate, useDeleteExchangeRate, useListEmailTemplates, useUpdateEmailTemplate, useCreateEmailTemplate, useGetMyProfile } from '@workspace/api-client-react';
 import { getGetAgencySettingsQueryKey, getListExchangeRatesQueryKey, getListEmailTemplatesQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Save, Plus, Trash2 } from 'lucide-react';
+import { Save, Plus, Trash2, Mail, HardDrive, RefreshCw, Unplug, ShieldCheck } from 'lucide-react';
 import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
-import { reservationApi } from '@/lib/reservation-api';
+import { reservationApi, type GoogleIntegration } from '@/lib/reservation-api';
+import { GoogleIntegrationCard } from '@/components/GoogleIntegrationCard';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const EMAIL_TYPES = ['quotation', 'follow_up', 'confirmation', 'cancellation', 'welcome', 'custom'];
@@ -61,6 +62,7 @@ export default function SettingsPage() {
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', type: 'quotation', subject: '', body: '', language: 'tr' });
+  const [disconnectTarget, setDisconnectTarget] = useState<GoogleIntegration | null>(null);
 
   useEffect(() => {
     if (agencySettings) {
@@ -258,32 +260,40 @@ export default function SettingsPage() {
         </TabsContent>
 
         {(isAdmin || role === 'super_admin') && <TabsContent value="google">
-          <Card className="max-w-2xl">
-            <CardHeader><CardTitle className="text-base">Gmail Rezervasyon Bağlantısı</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
-              {googleConnection.isLoading ? <Skeleton className="h-20 w-full" /> : !googleConnection.data?.configured ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-                  Google OAuth henüz sunucuda yapılandırılmamış. Google Cloud ayarları tamamlandığında buradan Gmail bağlantısını başlatabilirsiniz.
-                </div>
-              ) : googleConnection.data.connection ? (
-                <>
-                  <div className="rounded-lg bg-muted p-4 text-sm space-y-1">
-                    <p><strong>Bağlı hesap:</strong> {googleConnection.data.connection.googleAccountEmail ?? 'Google hesabı'}</p>
-                    <p><strong>Durum:</strong> {googleConnection.data.connection.status === 'connected' ? 'Bağlı' : 'Hata'}</p>
-                    {googleConnection.data.connection.lastError && <p className="text-destructive">{googleConnection.data.connection.lastError}</p>}
-                  </div>
-                  <Button variant="destructive" onClick={() => disconnectGoogle.mutate()} disabled={disconnectGoogle.isPending}>{disconnectGoogle.isPending ? 'Kaldırılıyor...' : 'Bağlantıyı Kaldır'}</Button>
-                </>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-sm text-muted-foreground">TourPilot yalnızca Gmail’deki <strong>TourPilot</strong> etiketi için salt-okunur erişim ister. Otomatik tarama veya e-posta gönderme yapılmaz.</p>
-                  <Button onClick={() => connectGoogle.mutate()} disabled={connectGoogle.isPending} data-testid="button-connect-google">{connectGoogle.isPending ? 'Yönlendiriliyor...' : 'Google Workspace Bağla'}</Button>
+          {googleConnection.isLoading ? <Skeleton className="h-72 w-full" /> : (
+            <div className="max-w-4xl space-y-4">
+              {!googleConnection.data?.configured && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <p className="font-medium">Google OAuth henüz yapılandırılmamış.</p>
+                  <p className="mt-1">Bağlantıları etkinleştirmek için şu sunucu ayarlarını ekleyin: {(googleConnection.data?.missingConfiguration ?? []).join(', ')}.</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <GoogleIntegrationCard integration="gmail" title="Gmail Rezervasyon Bağlantısı" description="TourPilot etiketli rezervasyon e-postalarını okumak ve sisteme aktarmak için Gmail hesabınızı bağlayın." icon={<Mail className="h-5 w-5" />} scope="https://www.googleapis.com/auth/gmail.readonly" connection={googleConnection.data?.connection ?? null} configured={googleConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('gmail')} onDisconnect={() => setDisconnectTarget('gmail')} />
+                <GoogleIntegrationCard integration="drive" title="Google Drive Bağlantısı" description="Rezervasyon dosyalarına ve TourPilot tarafından oluşturulan veya seçtiğiniz Drive dosyalarına erişmek için hesabınızı bağlayın." icon={<HardDrive className="h-5 w-5" />} scope="https://www.googleapis.com/auth/drive.file" connection={googleConnection.data?.connection ?? null} configured={googleConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('drive')} onDisconnect={() => setDisconnectTarget('drive')} />
+              </div>
+            </div>
+          )}
         </TabsContent>}
       </Tabs>
+
+      <Dialog open={!!disconnectTarget} onOpenChange={open => { if (!open) setDisconnectTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{disconnectTarget === 'gmail' ? 'Gmail bağlantısı kesilsin mi?' : 'Google Drive bağlantısı kesilsin mi?'}</DialogTitle>
+            <DialogDescription>
+              Bu işlem mevcut içe aktarılmış e-postaları, oluşturulmuş operasyonları veya önceki Drive kayıtlarını silmez.
+              {googleConnection.data?.connection?.grantedScopes?.filter(scope => scope === 'https://www.googleapis.com/auth/gmail.readonly' || scope === 'https://www.googleapis.com/auth/drive.file').length === 1 && ' Son Google izni kaldırıldığı için Google erişim belirteci de iptal edilir.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDisconnectTarget(null)}>Vazgeç</Button>
+            <Button variant="destructive" disabled={disconnectGoogle.isPending} onClick={() => { if (disconnectTarget) disconnectGoogle.mutate(disconnectTarget, { onSuccess: () => setDisconnectTarget(null) }); }}>
+              {disconnectGoogle.isPending ? 'Kesiliyor...' : 'Bağlantıyı Kes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Rate Dialog */}
       <Dialog open={rateDialogOpen} onOpenChange={setRateDialogOpen}>

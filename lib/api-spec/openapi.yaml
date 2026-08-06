@@ -987,30 +987,35 @@ paths:
     get:
       operationId: getGoogleReservationConnection
       tags: [reservations]
-      summary: Get Google Workspace Gmail connection status
+      summary: Get Google Workspace Gmail and Drive connection status
       responses:
         "200":
           description: Connection status
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GoogleConnectionStatus" }
-    delete:
-      operationId: disconnectGoogleReservationConnection
-      tags: [reservations]
-      summary: Disconnect the Google Workspace Gmail account
-      responses:
-        "204": { description: Disconnected }
-  /reservations/google-connection/authorize:
+  /reservations/google-connection/{integration}/authorize:
     post:
       operationId: authorizeGoogleReservationConnection
       tags: [reservations]
-      summary: Create a Google OAuth authorization URL
+      summary: Create an incremental Google OAuth authorization URL for Gmail or Drive
+      parameters:
+        - $ref: "#/components/parameters/GoogleIntegration"
       responses:
         "200":
           description: Authorization URL
           content:
             application/json:
               schema: { $ref: "#/components/schemas/GoogleAuthorization" }
+  /reservations/google-connection/{integration}:
+    delete:
+      operationId: disconnectGoogleReservationConnection
+      tags: [reservations]
+      summary: Remove Gmail or Drive access while preserving imported data
+      parameters:
+        - $ref: "#/components/parameters/GoogleIntegration"
+      responses:
+        "204": { description: Disconnected }
   /reservations/google-connection/callback:
     get:
       operationId: completeGoogleReservationAuthorization
@@ -1498,6 +1503,13 @@ paths:
 
 components:
   parameters:
+    GoogleIntegration:
+      name: integration
+      in: path
+      required: true
+      schema:
+        type: string
+        enum: [gmail, drive]
     ReservationImportId:
       name: id
       in: path
@@ -2048,13 +2060,17 @@ components:
         googleAccountEmail: { type: ["string", "null"] }
         status: { type: string }
         lastError: { type: ["string", "null"] }
-      required: [status]
+        grantedScopes: { type: array, items: { type: string } }
+        lastSuccessfulAccessAt: { type: ["string", "null"], format: date-time }
+        driveAccessSummary: { type: ["string", "null"] }
+      required: [status, grantedScopes]
     GoogleConnectionStatus:
       type: object
       properties:
         configured: { type: boolean }
+        missingConfiguration: { type: array, items: { type: string } }
         connection: { anyOf: [{ $ref: "#/components/schemas/GoogleConnection" }, { type: "null" }] }
-      required: [configured, connection]
+      required: [configured, missingConfiguration, connection]
     GoogleAuthorization:
       type: object
       properties:

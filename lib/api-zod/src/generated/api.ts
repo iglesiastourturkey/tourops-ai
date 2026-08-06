@@ -1609,30 +1609,42 @@ export const DeleteOperationReceiptResponse = zod.void()
 
 
 /**
- * @summary Get Google Workspace Gmail connection status
+ * @summary Get Google Workspace Gmail and Drive connection status
  */
 export const GetGoogleReservationConnectionResponse = zod.object({
   "configured": zod.boolean(),
+  "missingConfiguration": zod.array(zod.string()),
   "connection": zod.union([zod.object({
   "googleAccountEmail": zod.string().nullish(),
   "status": zod.string(),
-  "lastError": zod.string().nullish()
+  "lastError": zod.string().nullish(),
+  "grantedScopes": zod.array(zod.string()),
+  "lastSuccessfulAccessAt": zod.coerce.date().nullish(),
+  "driveAccessSummary": zod.string().nullish()
 }),zod.null()])
 })
 
 
 /**
- * @summary Disconnect the Google Workspace Gmail account
+ * @summary Create an incremental Google OAuth authorization URL for Gmail or Drive
  */
-export const DisconnectGoogleReservationConnectionResponse = zod.void()
+export const AuthorizeGoogleReservationConnectionParams = zod.object({
+  "integration": zod.enum(['gmail', 'drive'])
+})
 
-
-/**
- * @summary Create a Google OAuth authorization URL
- */
 export const AuthorizeGoogleReservationConnectionResponse = zod.object({
   "authorizationUrl": zod.string()
 })
+
+
+/**
+ * @summary Remove Gmail or Drive access while preserving imported data
+ */
+export const DisconnectGoogleReservationConnectionParams = zod.object({
+  "integration": zod.enum(['gmail', 'drive'])
+})
+
+export const DisconnectGoogleReservationConnectionResponse = zod.void()
 
 
 /**

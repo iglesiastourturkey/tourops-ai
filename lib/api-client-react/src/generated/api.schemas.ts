@@ -671,10 +671,16 @@ export interface GoogleConnection {
   status: string;
   /** @nullable */
   lastError?: string | null;
+  grantedScopes: string[];
+  /** @nullable */
+  lastSuccessfulAccessAt?: string | null;
+  /** @nullable */
+  driveAccessSummary?: string | null;
 }
 
 export interface GoogleConnectionStatus {
   configured: boolean;
+  missingConfiguration: string[];
   connection: GoogleConnection | null;
 }
 

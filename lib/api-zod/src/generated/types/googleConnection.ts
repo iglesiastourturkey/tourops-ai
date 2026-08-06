@@ -12,4 +12,9 @@ export interface GoogleConnection {
   status: string;
   /** @nullable */
   lastError?: string | null;
+  grantedScopes: string[];
+  /** @nullable */
+  lastSuccessfulAccessAt?: Date | null;
+  /** @nullable */
+  driveAccessSummary?: string | null;
 }

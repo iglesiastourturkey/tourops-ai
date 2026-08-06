@@ -1,6 +1,7 @@
 import { OAuth2Client } from "google-auth-library";
 
-const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const MAX_BODY_CHARS = 50_000;
 const MAX_MESSAGES_PER_SCAN = 50;
 
@@ -15,6 +16,8 @@ export type GmailMessage = {
   sanitizedHtmlBody: string | null;
   attachments: Array<{ name: string; mimeType: string; size: number }>;
 };
+
+export type GoogleIntegration = "gmail" | "drive";
 
 function config() {
   const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
@@ -35,11 +38,14 @@ export function createGoogleClient() {
   return new OAuth2Client(clientId, clientSecret, redirectUri);
 }
 
-export function createAuthorizationUrl(state: string) {
+export function createAuthorizationUrl(state: string, integration: GoogleIntegration, existingScopes: string[] = []) {
+  const requestedScope = integration === "gmail" ? GMAIL_SCOPE : DRIVE_SCOPE;
+  const scope = Array.from(new Set([...existingScopes, requestedScope]));
   return createGoogleClient().generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [GMAIL_SCOPE],
+    include_granted_scopes: true,
+    scope,
     state,
   });
 }
@@ -47,8 +53,8 @@ export function createAuthorizationUrl(state: string) {
 export async function exchangeAuthorizationCode(code: string) {
   const client = createGoogleClient();
   const { tokens } = await client.getToken(code);
-  if (!tokens.access_token || !tokens.refresh_token) {
-    throw new Error("Google did not return an offline access token. Reconnect and approve access.");
+  if (!tokens.access_token) {
+    throw new Error("Google did not return an access token. Reconnect and approve access.");
   }
   return tokens;
 }
@@ -104,9 +110,28 @@ export async function refreshAccessToken(refreshToken: string) {
   return token;
 }
 
-export async function verifyGoogleAccount(accessToken: string) {
-  const profile = await gmailFetch<{ emailAddress?: string }>(accessToken, "profile");
-  return profile.emailAddress ?? null;
+export async function verifyGoogleAccount(accessToken: string, integration: GoogleIntegration) {
+  if (integration === "gmail") {
+    const profile = await gmailFetch<{ emailAddress?: string }>(accessToken, "profile");
+    return profile.emailAddress ?? null;
+  }
+
+  const response = await fetch("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) throw new Error(`Google Drive API request failed (${response.status})`);
+  const payload = await response.json() as { user?: { emailAddress?: string } };
+  return payload.user?.emailAddress ?? null;
+}
+
+export async function revokeGoogleCredential(token: string) {
+  const response = await fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
+  if (!response.ok && response.status !== 400) {
+    throw new Error(`Google token revocation failed (${response.status})`);
+  }
 }
 
 export async function fetchTourPilotMessages(accessToken: string): Promise<GmailMessage[]> {

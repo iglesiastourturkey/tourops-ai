@@ -12,7 +12,8 @@ import { createAuditLog } from "../lib/audit";
 import { decryptCredential, encryptCredential } from "../lib/credential-encryption";
 import {
   createAuthorizationUrl, exchangeAuthorizationCode, fetchTourPilotMessages,
-  isGoogleOAuthConfigured, refreshAccessToken, verifyGoogleAccount,
+  isGoogleOAuthConfigured, refreshAccessToken, revokeGoogleCredential, verifyGoogleAccount,
+  DRIVE_SCOPE, GMAIL_SCOPE, type GoogleIntegration,
 } from "../lib/gmail-provider";
 
 const router = Router();
@@ -43,8 +44,8 @@ function cleanAiJson(raw: string) {
 function noBodyAuditMetadata(importId: number, messageId?: string) {
   return { importId, gmailMessageId: messageId };
 }
-function oauthState(profileId: number) {
-  const payload = Buffer.from(JSON.stringify({ profileId, issuedAt: Date.now() })).toString("base64url");
+function oauthState(profileId: number, integration: GoogleIntegration) {
+  const payload = Buffer.from(JSON.stringify({ profileId, integration, issuedAt: Date.now() })).toString("base64url");
   const secret = process.env.SESSION_SECRET;
   if (!secret) throw new Error("SESSION_SECRET is required");
   const signature = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
@@ -56,10 +57,19 @@ function parseOauthState(state: string) {
   if (!payload || !signature || !secret) throw new Error("Invalid OAuth state");
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("base64url");
   if (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error("Invalid OAuth state");
-  const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { profileId: number; issuedAt: number };
-  if (!parsed.profileId || Date.now() - parsed.issuedAt > 10 * 60_000) throw new Error("Expired OAuth state");
+  const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { profileId: number; integration: GoogleIntegration; issuedAt: number };
+  if (!parsed.profileId || !["gmail", "drive"].includes(parsed.integration) || Date.now() - parsed.issuedAt > 10 * 60_000) throw new Error("Expired OAuth state");
   return parsed;
 }
+const connectionScopes = (connection: typeof googleConnectionsTable.$inferSelect) => connection.grantedScopes ?? [];
+const connectionSummary = (connection: typeof googleConnectionsTable.$inferSelect | undefined) => connection ? {
+  googleAccountEmail: connection.googleAccountEmail,
+  status: connection.status,
+  lastError: connection.lastError,
+  grantedScopes: connectionScopes(connection),
+  lastSuccessfulAccessAt: connection.lastSuccessfulAccessAt,
+  driveAccessSummary: connection.driveAccessSummary,
+} : null;
 async function activeAccessToken(connection: typeof googleConnectionsTable.$inferSelect) {
   if (!connection.refreshTokenEncrypted) throw new Error("Google connection has no refresh token");
   const refreshToken = decryptCredential(connection.refreshTokenEncrypted);
@@ -75,18 +85,35 @@ router.get("/google-connection/callback", async (req, res) => {
     if (typeof req.query.code !== "string") {
       res.status(400).send("Google bağlantı isteği geçersiz veya süresi dolmuş."); return;
     }
+    const [existing] = await db.select().from(googleConnectionsTable)
+      .where(eq(googleConnectionsTable.profileId, parsedState.profileId)).limit(1);
     const tokens = await exchangeAuthorizationCode(req.query.code);
-    const email = await verifyGoogleAccount(tokens.access_token!);
+    const email = await verifyGoogleAccount(tokens.access_token!, parsedState.integration);
+    const grantedScopes = Array.from(new Set([
+      ...connectionScopes(existing ?? {} as typeof googleConnectionsTable.$inferSelect),
+      parsedState.integration === "gmail" ? GMAIL_SCOPE : DRIVE_SCOPE,
+    ]));
+    const refreshTokenEncrypted = tokens.refresh_token
+      ? encryptCredential(tokens.refresh_token)
+      : existing?.refreshTokenEncrypted ?? null;
+    if (!refreshTokenEncrypted) throw new Error("Google refresh token is unavailable. Reconnect and approve offline access.");
     await db.insert(googleConnectionsTable).values({
       profileId: parsedState.profileId, googleAccountEmail: email,
-      accessTokenEncrypted: encryptCredential(tokens.access_token!), refreshTokenEncrypted: encryptCredential(tokens.refresh_token!),
-      tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null, status: "connected", lastError: null,
+      accessTokenEncrypted: encryptCredential(tokens.access_token!), refreshTokenEncrypted,
+      tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null, grantedScopes,
+      driveAccessSummary: parsedState.integration === "drive" ? "Uygulamanın oluşturduğu veya seçtiğiniz Drive dosyalarına erişim" : null,
+      lastSuccessfulAccessAt: new Date(), status: "connected", lastError: null,
     }).onConflictDoUpdate({
       target: [googleConnectionsTable.profileId, googleConnectionsTable.provider],
-      set: { googleAccountEmail: email, accessTokenEncrypted: encryptCredential(tokens.access_token!), refreshTokenEncrypted: encryptCredential(tokens.refresh_token!), tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null, status: "connected", lastError: null },
+      set: {
+        googleAccountEmail: email, accessTokenEncrypted: encryptCredential(tokens.access_token!), refreshTokenEncrypted,
+        tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null, grantedScopes,
+        driveAccessSummary: parsedState.integration === "drive" ? "Uygulamanın oluşturduğu veya seçtiğiniz Drive dosyalarına erişim" : existing?.driveAccessSummary ?? null,
+        lastSuccessfulAccessAt: new Date(), status: "connected", lastError: null,
+      },
     });
-    await createAuditLog({ eventType: "google_connection_created", actorProfileId: parsedState.profileId, module: "reservations", description: "Google Workspace bağlantısı oluşturuldu" });
-    res.redirect(process.env.GOOGLE_OAUTH_SUCCESS_URL?.trim() || "/");
+    await createAuditLog({ eventType: "google_connection_created", actorProfileId: parsedState.profileId, module: "reservations", metadata: { integration: parsedState.integration }, description: "Google Workspace bağlantısı oluşturuldu" });
+    res.redirect(process.env.GOOGLE_OAUTH_SUCCESS_URL?.trim() || "/settings?google=connected");
   } catch {
     res.status(502).send("Google bağlantısı tamamlanamadı. Ayarları kontrol edip tekrar deneyin.");
   }
@@ -95,28 +122,52 @@ router.get("/google-connection/callback", async (req, res) => {
 router.use(requireAuth, requireActive());
 
 router.get("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {
-  const [connection] = await db.select({
-    id: googleConnectionsTable.id, googleAccountEmail: googleConnectionsTable.googleAccountEmail,
-    status: googleConnectionsTable.status, lastError: googleConnectionsTable.lastError,
-    updatedAt: googleConnectionsTable.updatedAt,
-  }).from(googleConnectionsTable).orderBy(desc(googleConnectionsTable.updatedAt)).limit(1);
-  res.json({ configured: isGoogleOAuthConfigured(), connection: connection ?? null });
+  const [connection] = await db.select().from(googleConnectionsTable)
+    .where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+  const configured = isGoogleOAuthConfigured();
+  res.json({
+    configured,
+    missingConfiguration: configured ? [] : ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"].filter(key => !process.env[key]?.trim()),
+    connection: connectionSummary(connection),
+  });
 });
 
-router.post("/google-connection/authorize", requirePermission("settings", "manage"), async (_req, res) => {
+router.post("/google-connection/:integration/authorize", requirePermission("settings", "manage"), async (req, res) => {
+  const integration = req.params.integration;
+  if (integration !== "gmail" && integration !== "drive") { res.status(400).json({ error: "Geçersiz Google entegrasyonu" }); return; }
   if (!isGoogleOAuthConfigured()) { res.status(503).json({ error: "Google OAuth yapılandırılmamış" }); return; }
-  res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id)) });
+  const [connection] = await db.select().from(googleConnectionsTable).where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+  res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id, integration), integration, connectionScopes(connection ?? {} as typeof googleConnectionsTable.$inferSelect)) });
 });
 
-router.delete("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {
-  await db.delete(googleConnectionsTable);
-  await createAuditLog({ eventType: "google_connection_disconnected", actorProfileId: res.locals.profile.id, module: "reservations", description: "Google Workspace bağlantısı kaldırıldı" });
+router.delete("/google-connection/:integration", requirePermission("settings", "manage"), async (req, res) => {
+  const integration = req.params.integration;
+  if (integration !== "gmail" && integration !== "drive") { res.status(400).json({ error: "Geçersiz Google entegrasyonu" }); return; }
+  const [connection] = await db.select().from(googleConnectionsTable).where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+  if (!connection) { res.status(204).send(); return; }
+  const scope = integration === "gmail" ? GMAIL_SCOPE : DRIVE_SCOPE;
+  const retainedScopes = connectionScopes(connection).filter(item => item !== scope);
+  if (retainedScopes.length === 0) {
+    // Google revokes a refresh token as a whole; only do so when no selected
+    // integration remains. Imported reservation records are intentionally kept.
+    if (connection.refreshTokenEncrypted) {
+      try { await revokeGoogleCredential(decryptCredential(connection.refreshTokenEncrypted)); } catch { /* disconnect still removes local access */ }
+    }
+    await db.delete(googleConnectionsTable).where(eq(googleConnectionsTable.id, connection.id));
+  } else {
+    await db.update(googleConnectionsTable).set({
+      grantedScopes: retainedScopes,
+      driveAccessSummary: integration === "drive" ? null : connection.driveAccessSummary,
+      lastError: null,
+    }).where(eq(googleConnectionsTable.id, connection.id));
+  }
+  await createAuditLog({ eventType: "google_connection_disconnected", actorProfileId: res.locals.profile.id, module: "reservations", metadata: { integration, tokenRevoked: retainedScopes.length === 0 }, description: "Google Workspace bağlantısı kaldırıldı" });
   res.status(204).send();
 });
 
 router.post("/scan", requirePermission("reservations", "create"), async (_req, res) => {
   const [connection] = await db.select().from(googleConnectionsTable).orderBy(desc(googleConnectionsTable.updatedAt)).limit(1);
-  if (!connection || connection.status !== "connected") { res.status(409).json({ error: "Yönetici önce Google Workspace hesabını bağlamalıdır" }); return; }
+  if (!connection || connection.status !== "connected" || !connectionScopes(connection).includes(GMAIL_SCOPE)) { res.status(409).json({ error: "Yönetici önce Gmail rezervasyon bağlantısını kurmalıdır" }); return; }
   try {
     await createAuditLog({ eventType: "reservation_scan_started", actorProfileId: res.locals.profile.id, module: "reservations", description: "Gmail rezervasyon taraması başlatıldı" });
     const messages = await fetchTourPilotMessages(await activeAccessToken(connection));
@@ -133,6 +184,7 @@ router.post("/scan", requirePermission("reservations", "create"), async (_req, r
       }
     }
     await createAuditLog({ eventType: "reservation_scan_completed", actorProfileId: res.locals.profile.id, module: "reservations", metadata: { imported }, description: "Gmail rezervasyon taraması tamamlandı" });
+    await db.update(googleConnectionsTable).set({ lastSuccessfulAccessAt: new Date(), status: "connected", lastError: null }).where(eq(googleConnectionsTable.id, connection.id));
     res.json({ scanned: messages.length, imported });
   } catch (error) {
     await db.update(googleConnectionsTable).set({ status: "error", lastError: error instanceof Error ? error.message.slice(0, 250) : "Tarama başarısız" }).where(eq(googleConnectionsTable.id, connection.id));
