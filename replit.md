@@ -77,10 +77,16 @@ Add `OPENAI_API_KEY=sk-...` to your `.env`. All four AI routes fall back to safe
 | `SESSION_SECRET` | ✅ | — | Express session signing secret |
 | `OPENAI_API_KEY` | ⚠️ optional | — | Enables live AI responses; absent = mock fallback |
 | `OPENROUTER_API_KEY` | ⚠️ optional | — | Enables live Gmail reservation extraction through OpenRouter |
-| `GOOGLE_OAUTH_CLIENT_ID` | ⚠️ Gmail only | — | Google Cloud OAuth web client ID for the manual Gmail scanner |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | ⚠️ Gmail only | — | Google Cloud OAuth web client secret for the manual Gmail scanner |
-| `GOOGLE_OAUTH_REDIRECT_URI` | ⚠️ Gmail only | — | Must be the public API callback URL ending in `/api/reservations/google-connection/callback` |
-| `GOOGLE_OAUTH_SUCCESS_URL` | optional | `/` | Where to return after a successful Gmail authorization |
+| `GOOGLE_OAUTH_CLIENT_ID` | ⚠️ Gmail/Drive | — | Google Cloud OAuth web client ID for the manual Gmail scanner and Drive connection |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | ⚠️ Gmail/Drive | — | Google Cloud OAuth web client secret |
+| `GOOGLE_OAUTH_REDIRECT_URI` | ⚠️ Gmail/Drive | — | Must be the public API callback URL ending in `/api/reservations/google-connection/callback` |
+| `GOOGLE_OAUTH_SUCCESS_URL` | optional | `/settings?google=connected` | Where to return after a successful Google authorization |
+| `CONTACT_SMTP_HOST` | ⚠️ Contact form | — | SMTP server hostname for public contact-form delivery |
+| `CONTACT_SMTP_PORT` | ⚠️ Contact form | — | SMTP port, usually `587` (STARTTLS) or `465` (TLS) |
+| `CONTACT_SMTP_SECURE` | optional | `false` | Set `true` only for implicit TLS, normally port `465` |
+| `CONTACT_SMTP_USER` | ⚠️ Contact form | — | SMTP account username |
+| `CONTACT_SMTP_PASSWORD` | ⚠️ Contact form | — | SMTP account password or provider app password |
+| `CONTACT_SMTP_FROM_EMAIL` | ⚠️ Contact form | — | Verified sender, for example `TourPilot <noreply@yourdomain.com>` |
 | `PORT` | optional | `5173` / `8080` | Port for frontend / API server |
 | `BASE_PATH` | optional | `/` | URL prefix the frontend is served from |
 
@@ -140,8 +146,17 @@ The Gmail reservation inbox is deliberately **manual**: it only scans messages c
 1. In Google Cloud Console, create (or select) a project and configure the OAuth consent screen for the connected Google Workspace account.
 2. Create a **Web application** OAuth 2.0 client. Add the exact public callback URL from `GOOGLE_OAUTH_REDIRECT_URI` as an authorized redirect URI. Its path must be `/api/reservations/google-connection/callback`.
 3. Configure `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` as server-side secrets. Optionally configure `GOOGLE_OAUTH_SUCCESS_URL` to return to the app’s Settings page.
-4. The implementation requests only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`.
+4. The implementation requests only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`. The optional Drive integration uses the limited `https://www.googleapis.com/auth/drive.file` scope.
 5. A super admin or admin opens **Ayarlar → Google Workspace** and connects the mailbox. Operations staff can then scan and review imports, but cannot authorize or disconnect the mailbox.
+
+### Landing-page contact form setup
+
+The public **İletişim** form sends messages to `info@iglesiastourturkey.com` from the API server. It uses a hidden honeypot plus per-IP rate limiting; form contents are not stored in the database or audit log.
+
+1. Configure `CONTACT_SMTP_HOST`, `CONTACT_SMTP_PORT`, `CONTACT_SMTP_USER`, `CONTACT_SMTP_PASSWORD`, and `CONTACT_SMTP_FROM_EMAIL` as server-side secrets.
+2. Use a verified sender address in `CONTACT_SMTP_FROM_EMAIL`. The visitor's email address is set as the email reply-to address, rather than being used as the sender.
+3. For standard STARTTLS SMTP set `CONTACT_SMTP_PORT=587` and leave `CONTACT_SMTP_SECURE` unset or `false`. For implicit TLS set port `465` and `CONTACT_SMTP_SECURE=true`.
+4. No contact-form credentials are exposed to the Vite frontend.
 
 ## User preferences
 

@@ -17,6 +17,40 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
+ * @summary Submit a public TourPilot contact form
+ */
+export const submitContactFormBodyFullNameMax = 120;
+
+export const submitContactFormBodyCompanyNameMax = 200;
+
+export const submitContactFormBodyEmailMax = 254;
+
+export const submitContactFormBodyPhoneMax = 50;
+
+export const submitContactFormBodySubjectMax = 200;
+
+export const submitContactFormBodyMessageMax = 5000;
+
+export const submitContactFormBodyWebsiteMax = 200;
+
+
+
+export const SubmitContactFormBody = zod.object({
+  "fullName": zod.string().min(1).max(submitContactFormBodyFullNameMax),
+  "companyName": zod.string().max(submitContactFormBodyCompanyNameMax).optional(),
+  "email": zod.string().max(submitContactFormBodyEmailMax).describe('Valid email address'),
+  "phone": zod.string().max(submitContactFormBodyPhoneMax).optional(),
+  "subject": zod.string().max(submitContactFormBodySubjectMax).optional(),
+  "message": zod.string().min(1).max(submitContactFormBodyMessageMax),
+  "website": zod.string().max(submitContactFormBodyWebsiteMax).optional().describe('Honeypot field; keep empty')
+})
+
+export const SubmitContactFormResponse = zod.object({
+  "success": zod.boolean()
+})
+
+
+/**
  * @summary Get current user profile
  */
 export const GetMyProfileResponse = zod.object({

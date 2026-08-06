@@ -1,11 +1,14 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, lazy, Suspense, type FormEvent } from 'react';
 import { Link } from 'wouter';
 import { useAuth } from '@clerk/react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import {
   Menu, X, CheckCircle2, Shield, Users, FileText,
   BarChart3, MapPin, Zap, Clock, ChevronRight, Lock,
-  Smartphone, Star, ArrowRight,
+  Smartphone, Star, ArrowRight, Mail, Phone, Send, Loader2,
 } from 'lucide-react';
 import { APP_VERSION } from '@/lib/version';
 
@@ -33,7 +36,22 @@ const NAV_LINKS = [
   { href: '#ozellikler', label: 'Özellikler' },
   { href: '#nasil-calisir', label: 'Nasıl Çalışır?' },
   { href: '#guvenlik', label: 'Güvenlik' },
+  { href: '#iletisim', label: 'İletişim' },
 ];
+
+type ContactFormData = {
+  fullName: string;
+  companyName: string;
+  email: string;
+  phone: string;
+  subject: string;
+  message: string;
+  website: string;
+};
+
+const INITIAL_CONTACT_FORM: ContactFormData = {
+  fullName: '', companyName: '', email: '', phone: '', subject: '', message: '', website: '',
+};
 
 const VALUE_CARDS = [
   {
@@ -113,8 +131,52 @@ export default function LandingPage() {
   const { isLoaded, userId } = useAuth();
   const isSignedIn = isLoaded && !!userId;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [contactForm, setContactForm] = useState<ContactFormData>(INITIAL_CONTACT_FORM);
+  const [contactError, setContactError] = useState('');
+  const [contactSuccess, setContactSuccess] = useState(false);
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false);
 
   const dashHref = `${BASE.endsWith('/') ? BASE : BASE + '/'}dashboard`;
+  const contactApiUrl = `${BASE.endsWith('/') ? BASE : `${BASE}/`}api/contact`;
+
+  const updateContactField = (field: keyof ContactFormData, value: string) => {
+    setContactForm(current => ({ ...current, [field]: value }));
+    if (contactError) setContactError('');
+  };
+
+  const submitContact = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isSubmittingContact || contactSuccess) return;
+
+    if (!contactForm.fullName.trim() || !contactForm.email.trim() || !contactForm.message.trim()) {
+      setContactError('Lütfen zorunlu alanları doldurun.');
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactForm.email.trim())) {
+      setContactError('Lütfen geçerli bir e-posta adresi girin.');
+      return;
+    }
+
+    setIsSubmittingContact(true);
+    setContactError('');
+    try {
+      const response = await fetch(contactApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactForm),
+      });
+      if (!response.ok && response.status !== 204) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(payload?.error || 'Mesajınız gönderilemedi. Lütfen tekrar deneyin.');
+      }
+      setContactSuccess(true);
+      setContactForm(INITIAL_CONTACT_FORM);
+    } catch (error) {
+      setContactError(error instanceof Error ? error.message : 'Mesajınız gönderilemedi. Lütfen tekrar deneyin.');
+    } finally {
+      setIsSubmittingContact(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#F7F9FC] text-[#162033] overflow-x-hidden scroll-smooth">
@@ -502,7 +564,93 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── J. Footer ──────────────────────────────────────────────────────── */}
+      {/* ── J. Contact ─────────────────────────────────────────────────────── */}
+      <section id="iletisim" className="scroll-mt-16 py-20 sm:py-24 px-4 bg-white" aria-labelledby="contact-heading">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#F97316]/20 bg-orange-50 px-3 py-1 text-xs font-semibold text-[#c65d08]">
+              <Mail className="w-3.5 h-3.5" /> İletişim
+            </span>
+            <h2 id="contact-heading" className="mt-4 text-3xl sm:text-4xl font-bold tracking-tight text-[#0B1F3A]">
+              Bizimle İletişime Geçin
+            </h2>
+            <p className="mt-4 text-[#162033]/60 leading-relaxed">
+              TourPilot hakkında bilgi almak, demo talep etmek veya iş ortaklığı için bize ulaşabilirsiniz.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-[0.85fr_1.15fr] gap-6 lg:gap-8 items-start">
+            <aside className="rounded-2xl bg-[#0B1F3A] p-7 sm:p-8 text-white shadow-xl shadow-[#0B1F3A]/10">
+              <div className="w-11 h-11 rounded-xl bg-[#F97316] flex items-center justify-center mb-6">
+                <Send className="w-5 h-5" />
+              </div>
+              <h3 className="text-xl font-bold">Doğru çözüme birlikte bakalım.</h3>
+              <p className="mt-3 text-sm leading-6 text-white/65">
+                Ekibinizin günlük operasyonlarına uygun TourPilot deneyimini birlikte planlayalım.
+              </p>
+              <div className="mt-8 space-y-4 border-t border-white/10 pt-6">
+                <div className="flex gap-3 text-sm">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10"><Mail className="w-4 h-4 text-[#F97316]" /></span>
+                  <div><p className="text-white/45 text-xs">E-posta</p><a className="font-medium hover:text-[#F97316] transition-colors" href="mailto:info@iglesiastourturkey.com">info@iglesiastourturkey.com</a></div>
+                </div>
+                <div className="flex gap-3 text-sm">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/10"><Phone className="w-4 h-4 text-[#F97316]" /></span>
+                  <div><p className="text-white/45 text-xs">Size dönüşümüz</p><p className="font-medium">İş günlerinde en kısa sürede</p></div>
+                </div>
+              </div>
+            </aside>
+
+            <div className="rounded-2xl border border-slate-200 bg-[#F7F9FC] p-5 sm:p-7 shadow-sm">
+              {contactSuccess ? (
+                <div className="min-h-[360px] flex flex-col items-center justify-center text-center px-4">
+                  <div className="h-14 w-14 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <CheckCircle2 className="h-7 w-7 text-emerald-600" />
+                  </div>
+                  <h3 className="mt-5 text-xl font-bold text-[#0B1F3A]">Teşekkür ederiz.</h3>
+                  <p className="mt-3 max-w-md text-[#162033]/65 leading-6">Mesajınız başarıyla gönderildi. En kısa sürede sizinle iletişime geçeceğiz.</p>
+                  <Button variant="outline" className="mt-6 border-[#0B1F3A]/20 text-[#0B1F3A]" onClick={() => setContactSuccess(false)}>Yeni mesaj gönder</Button>
+                </div>
+              ) : (
+                <form onSubmit={submitContact} noValidate className="space-y-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    <ContactField label="Ad Soyad" required htmlFor="contact-full-name">
+                      <Input id="contact-full-name" required autoComplete="name" value={contactForm.fullName} onChange={event => updateContactField('fullName', event.target.value)} placeholder="Adınız ve soyadınız" />
+                    </ContactField>
+                    <ContactField label="Firma Adı" htmlFor="contact-company">
+                      <Input id="contact-company" autoComplete="organization" value={contactForm.companyName} onChange={event => updateContactField('companyName', event.target.value)} placeholder="Firma adınız" />
+                    </ContactField>
+                    <ContactField label="E-posta" required htmlFor="contact-email">
+                      <Input id="contact-email" required type="email" autoComplete="email" value={contactForm.email} onChange={event => updateContactField('email', event.target.value)} placeholder="ornek@firma.com" />
+                    </ContactField>
+                    <ContactField label="Telefon" htmlFor="contact-phone">
+                      <Input id="contact-phone" type="tel" autoComplete="tel" value={contactForm.phone} onChange={event => updateContactField('phone', event.target.value)} placeholder="+90 5XX XXX XX XX" />
+                    </ContactField>
+                  </div>
+                  <ContactField label="Konu" htmlFor="contact-subject">
+                    <Input id="contact-subject" value={contactForm.subject} onChange={event => updateContactField('subject', event.target.value)} placeholder="Nasıl yardımcı olabiliriz?" />
+                  </ContactField>
+                  <ContactField label="Mesaj" required htmlFor="contact-message">
+                    <Textarea id="contact-message" required rows={5} value={contactForm.message} onChange={event => updateContactField('message', event.target.value)} placeholder="İhtiyacınızı kısaca anlatın." className="resize-y bg-white" />
+                  </ContactField>
+                  <div className="sr-only" aria-hidden="true">
+                    <Label htmlFor="contact-website">Web sitesi</Label>
+                    <Input id="contact-website" tabIndex={-1} autoComplete="off" value={contactForm.website} onChange={event => updateContactField('website', event.target.value)} />
+                  </div>
+                  {contactError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{contactError}</p>}
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                    <p className="text-xs leading-5 text-[#162033]/45">Zorunlu alanlar <span className="text-[#F97316]">*</span> ile işaretlidir.</p>
+                    <Button type="submit" disabled={isSubmittingContact} className="bg-[#F97316] hover:bg-[#ea6c0a] min-w-32 gap-2 text-white font-semibold">
+                      {isSubmittingContact ? <><Loader2 className="h-4 w-4 animate-spin" /> Gönderiliyor...</> : <>Gönder <Send className="h-4 w-4" /></>}
+                    </Button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── K. Footer ──────────────────────────────────────────────────────── */}
       <footer className="bg-[#060d1a] text-white py-14 px-4" aria-label="Alt bilgi">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-10">
@@ -552,6 +700,15 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function ContactField({ label, required = false, htmlFor, children }: { label: string; required?: boolean; htmlFor: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={htmlFor} className="text-[#0B1F3A]">{label}{required && <span className="ml-1 text-[#F97316]">*</span>}</Label>
+      {children}
     </div>
   );
 }

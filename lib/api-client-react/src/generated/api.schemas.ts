@@ -13,6 +13,35 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface ContactFormInput {
+  /**
+     * @minLength 1
+     * @maxLength 120
+     */
+  fullName: string;
+  /** @maxLength 200 */
+  companyName?: string;
+  /**
+     * Valid email address
+     * @maxLength 254
+     */
+  email: string;
+  /** @maxLength 50 */
+  phone?: string;
+  /** @maxLength 200 */
+  subject?: string;
+  /**
+     * @minLength 1
+     * @maxLength 5000
+     */
+  message: string;
+  /**
+     * Honeypot field; keep empty
+     * @maxLength 200
+     */
+  website?: string;
+}
+
 export type ProfileRole = typeof ProfileRole[keyof typeof ProfileRole];
 
 

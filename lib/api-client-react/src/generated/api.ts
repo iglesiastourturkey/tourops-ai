@@ -25,6 +25,7 @@ import type {
   AgencySettings,
   AgencySettingsUpdate,
   CompleteGoogleReservationAuthorizationParams,
+  ContactFormInput,
   Customer,
   CustomerInput,
   CustomerUpdate,
@@ -201,6 +202,77 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
+
+export const getSubmitContactFormUrl = () => {
+
+
+
+
+  return `/api/contact`
+}
+
+/**
+ * @summary Submit a public TourPilot contact form
+ */
+export const submitContactForm = async (contactFormInput: ContactFormInput, options?: Parameters<typeof customFetch>[1]): Promise<SuccessResponse> => {
+
+  return customFetch<SuccessResponse>(getSubmitContactFormUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(contactFormInput)
+  }
+);}
+
+
+
+
+
+export const getSubmitContactFormMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitContactForm>>, TError,{data: BodyType<ContactFormInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof submitContactForm>>, TError,{data: BodyType<ContactFormInput>}, TContext> => {
+
+const mutationKey = ['submitContactForm'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof submitContactForm>>, {data: BodyType<ContactFormInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  submitContactForm(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SubmitContactFormMutationResult = NonNullable<Awaited<ReturnType<typeof submitContactForm>>>
+    export type SubmitContactFormMutationBody = BodyType<ContactFormInput>
+    export type SubmitContactFormMutationError = ErrorType<void>
+
+    /**
+ * @summary Submit a public TourPilot contact form
+ */
+export const useSubmitContactForm = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof submitContactForm>>, TError,{data: BodyType<ContactFormInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof submitContactForm>>,
+        TError,
+        {data: BodyType<ContactFormInput>},
+        TContext
+      > => {
+      return useMutation(getSubmitContactFormMutationOptions(options));
+    }
 
 export const getGetMyProfileUrl = () => {
 

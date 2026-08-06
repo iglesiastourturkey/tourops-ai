@@ -36,6 +36,8 @@ tags:
     description: AI assistant operations
   - name: storage
     description: Object storage upload and serving endpoints
+  - name: contact
+    description: Public landing-page contact form
 paths:
   /healthz:
     get:
@@ -49,6 +51,30 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /contact:
+    post:
+      operationId: submitContactForm
+      tags: [contact]
+      summary: Submit a public TourPilot contact form
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ContactFormInput"
+      responses:
+        "200":
+          description: Contact message delivered
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SuccessResponse" }
+        "400":
+          description: Invalid form data
+        "429":
+          description: Rate limit exceeded
+        "503":
+          description: Email delivery is not configured or unavailable
 
   # ─── PROFILES ────────────────────────────────────────────────────────────
   /profiles/me:
@@ -1527,6 +1553,18 @@ components:
       properties:
         success: { type: boolean }
       required: [success]
+
+    ContactFormInput:
+      type: object
+      properties:
+        fullName: { type: string, minLength: 1, maxLength: 120 }
+        companyName: { type: string, maxLength: 200 }
+        email: { type: string, maxLength: 254, description: Valid email address }
+        phone: { type: string, maxLength: 50 }
+        subject: { type: string, maxLength: 200 }
+        message: { type: string, minLength: 1, maxLength: 5000 }
+        website: { type: string, maxLength: 200, description: Honeypot field; keep empty }
+      required: [fullName, email, message]
 
     # ── Profiles ────────────────────────────────────────────────────────
     Profile:

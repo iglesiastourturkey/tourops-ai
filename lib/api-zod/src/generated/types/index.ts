@@ -12,6 +12,7 @@ export * from './aIAssistInput';
 export * from './aIAssistResult';
 export * from './chartDataPoint';
 export * from './completeGoogleReservationAuthorizationParams';
+export * from './contactFormInput';
 export * from './customer';
 export * from './customerInput';
 export * from './customerUpdate';
