@@ -32,6 +32,17 @@ export const GetMyProfileResponse = zod.object({
 
 
 /**
+ * @summary Claim the pending invitation profile for the authenticated Clerk user
+ */
+export const CompleteInvitationProfileResponse = zod.object({
+  "id": zod.number(),
+  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
+  "isActive": zod.boolean(),
+  "alreadyCompleted": zod.boolean()
+})
+
+
+/**
  * @summary Update current user profile
  */
 export const UpdateMyProfileBody = zod.object({

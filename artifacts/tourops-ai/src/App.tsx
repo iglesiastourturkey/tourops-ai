@@ -1,6 +1,6 @@
 import { ClerkProvider, SignUp, Show, useAuth, useClerk } from '@clerk/react';
-import { lazy, Suspense, useEffect, useRef } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { publishableKeyFromHost } from '@clerk/react/internal';
 import { clerkAppearance } from '@/lib/clerk-appearance';
@@ -258,7 +258,7 @@ function ProfileError() {
 }
 
 function SignUpPage() {
-  const afterSignUpUrl = `${basePath}/dashboard`;
+  const afterSignUpUrl = `${basePath}/sign-up/complete`;
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <SignUp
@@ -268,6 +268,99 @@ function SignUpPage() {
         fallbackRedirectUrl={afterSignUpUrl}
         appearance={clerkAppearance}
       />
+    </div>
+  );
+}
+
+const roleLandingPath: Record<UserRole, string> = {
+  super_admin: '/dashboard',
+  admin: '/dashboard',
+  operations: '/dashboard',
+  accounting: '/dashboard',
+  guide: '/guide',
+  field_operations: '/field',
+};
+
+/**
+ * Public post-signup bridge. Clerk activates the session before this screen
+ * renders; this screen then claims the pending invitation profile and only
+ * redirects after the saved role is available.
+ */
+function SignUpCompletionPage() {
+  const { getToken, isLoaded, userId } = useAuth();
+  const [, navigate] = useLocation();
+  const attempted = useRef(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retryKey, setRetryKey] = useState(0);
+
+  // This URL is public, but it is meaningful only after Clerk has activated a
+  // just-created signup session. A direct visit returns to the public signup
+  // page rather than showing a permanent preparation spinner.
+  if (isLoaded && !userId) {
+    return <Redirect to="/sign-up" />;
+  }
+
+  useEffect(() => {
+    if (!isLoaded || !userId || attempted.current) return;
+    attempted.current = true;
+    let cancelled = false;
+
+    async function completeInvitation() {
+      setError(null);
+      for (let attempt = 0; attempt < 25; attempt += 1) {
+        const token = await getToken();
+        if (!token) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          continue;
+        }
+
+        const response = await fetch(`${basePath}/api/profiles/me/complete-invitation`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const payload = await response.json().catch(() => ({})) as { role?: UserRole; error?: string };
+        if (!response.ok) {
+          if (!cancelled) setError(payload.error ?? 'Hesabınız hazırlanamadı. Lütfen tekrar deneyin.');
+          return;
+        }
+        if (payload.role && roleLandingPath[payload.role]) {
+          navigate(roleLandingPath[payload.role]);
+          return;
+        }
+        if (!cancelled) setError('Hesabınıza ait rol doğrulanamadı. Lütfen yöneticinizle iletişime geçin.');
+        return;
+      }
+      if (!cancelled) setError('Oturum hazırlanamadı. Lütfen tekrar deneyin.');
+    }
+
+    void completeInvitation();
+    return () => { cancelled = true; };
+  }, [getToken, isLoaded, navigate, retryKey, userId]);
+
+  function retry() {
+    attempted.current = false;
+    setRetryKey(value => value + 1);
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+          <AlertTriangle className="mx-auto mb-4 h-10 w-10 text-amber-500" />
+          <h1 className="text-xl font-semibold text-[#0B1F3A]">Hesap hazırlanamadı</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{error}</p>
+          <Button className="mt-6" onClick={retry}>Tekrar Dene</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-3 text-muted-foreground">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm">Hesabınız hazırlanıyor…</p>
+      </div>
     </div>
   );
 }
@@ -284,6 +377,7 @@ function Router() {
       <Route path="/sign-in/staff/*?" component={SignInStaffPage} />
       <Route path="/sign-in/admin" component={SignInAdminPage} />
       <Route path="/sign-in" component={SignInSelectPage} />
+      <Route path="/sign-up/complete" component={SignUpCompletionPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/forbidden" component={ForbiddenPage} />
       <Route path="/forgot-password" component={ForgotPasswordPage} />

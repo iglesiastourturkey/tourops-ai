@@ -8,9 +8,15 @@ When an admin invites a new user via `POST /api/users/invite`:
 1. `clerkClient.invitations.createInvitation({ emailAddress, publicMetadata: { pendingRole }, ignoreExisting: true })` — sends the Clerk invitation email
 2. A profile stub is inserted with `clerkUserId = 'pending-<email>'` and the assigned role
 
-On first sign-in, `getOrCreateProfile` now has a three-path check:
+Invitation acceptance must go through a dedicated public completion screen after Clerk activates the signup session. That screen calls the authenticated invitation-completion endpoint, which atomically claims only the matching pending stub and preserves its saved role before redirecting to the role's workspace.
+
+**Why:** Redirecting Clerk signup directly to `/dashboard` causes valid guide and field-operations invitees to hit the role guard and see “Yetkisiz Erişim” before their profile is deterministically linked.
+
+**How to apply:** Keep `/sign-up` and its completion route outside all profile/permission guards. Completion is idempotent for an already-claimed Clerk user but never creates a fallback profile, rebinds an existing profile, or permits an unmatched email. Redirect only after the completion response supplies the authoritative role.
+
+For ordinary first sign-in outside an invitation, `getOrCreateProfile` retains its three-path behavior:
 1. **By clerkUserId** — normal case; return as-is to preserve existing role
-2. **By email with pending-% stub** — claim the stub: `UPDATE profiles SET clerkUserId = realId WHERE id = pendingRow.id`
+2. **By email with pending-% stub** — claim the stub
 3. **New user** — insert with default `guide` role
 
 ## Last-admin protection (backend, PATCH /api/users/:clerkUserId)

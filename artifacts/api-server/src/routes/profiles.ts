@@ -2,11 +2,81 @@ import { Router } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
 import { db } from "@workspace/db";
 import { profilesTable } from "@workspace/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, like } from "drizzle-orm";
 import { requireAuth, requireActive } from "../lib/auth";
 import { getPermissionsForProfile } from "../lib/permissions";
+import { createAuditLog } from "../lib/audit";
 
 const router = Router();
+
+// POST /api/profiles/me/complete-invitation
+// Claims exactly one pending profile after Clerk has activated the newly-created
+// session. This deliberately does not create a fallback profile: a signup from
+// an invitation must retain the role the super admin assigned.
+router.post("/me/complete-invitation", requireAuth, async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Kimlik doğrulama gerekli" });
+      return;
+    }
+
+    const user = await clerkClient.users.getUser(userId);
+    const email = user.emailAddresses.find(
+      address => address.id === user.primaryEmailAddressId,
+    )?.emailAddress?.trim().toLowerCase();
+
+    if (!email) {
+      res.status(409).json({ error: "Davet e-posta adresi doğrulanamadı" });
+      return;
+    }
+
+    // Idempotent completion for a previously claimed invitation. Do not rebind
+    // another active profile, even when it has the same email address.
+    const [existing] = await db.select()
+      .from(profilesTable)
+      .where(eq(profilesTable.clerkUserId, userId))
+      .limit(1);
+    if (existing) {
+      res.json({ id: existing.id, role: existing.role, isActive: existing.isActive, alreadyCompleted: true });
+      return;
+    }
+
+    const [claimed] = await db.update(profilesTable)
+      .set({
+        clerkUserId: userId,
+        email,
+        name: [user.firstName, user.lastName].filter(Boolean).join(" ").trim() || null,
+      })
+      .where(and(
+        eq(profilesTable.clerkUserId, `pending-${email}`),
+        eq(profilesTable.email, email),
+        like(profilesTable.clerkUserId, "pending-%"),
+      ))
+      .returning();
+
+    if (!claimed) {
+      req.log.warn({ eventType: "invitation_completion_failed", reason: "pending_profile_not_found" }, "Invitation profile completion rejected");
+      res.status(404).json({ error: "Geçerli bir bekleyen davet bulunamadı" });
+      return;
+    }
+
+    await createAuditLog({
+      eventType: "invitation_accepted",
+      targetProfileId: claimed.id,
+      module: "users",
+      entityType: "invitation",
+      entityId: claimed.id,
+      result: "success",
+      description: "Kullanıcı daveti kabul edildi",
+    });
+
+    res.json({ id: claimed.id, role: claimed.role, isActive: claimed.isActive, alreadyCompleted: false });
+  } catch {
+    req.log.error({ eventType: "invitation_completion_failed", reason: "unexpected_error" }, "Invitation profile completion failed");
+    res.status(500).json({ error: "Davet tamamlanamadı. Lütfen tekrar deneyin." });
+  }
+});
 
 // GET /api/profiles/me
 router.get("/me", requireAuth, requireActive(), async (req, res) => {

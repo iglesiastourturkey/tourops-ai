@@ -39,6 +39,25 @@ export interface ProfileUpdate {
   name?: string;
 }
 
+export type InvitationCompletionRole = typeof InvitationCompletionRole[keyof typeof InvitationCompletionRole];
+
+
+export const InvitationCompletionRole = {
+  super_admin: 'super_admin',
+  admin: 'admin',
+  operations: 'operations',
+  guide: 'guide',
+  accounting: 'accounting',
+  field_operations: 'field_operations',
+} as const;
+
+export interface InvitationCompletion {
+  id: number;
+  role: InvitationCompletionRole;
+  isActive: boolean;
+  alreadyCompleted: boolean;
+}
+
 export interface Customer {
   id: number;
   name: string;

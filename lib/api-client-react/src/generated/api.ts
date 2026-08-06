@@ -42,6 +42,7 @@ import type {
   GoogleAuthorization,
   GoogleConnectionStatus,
   HealthStatus,
+  InvitationCompletion,
   ItineraryInput,
   ItineraryResult,
   ListCustomersParams,
@@ -234,7 +235,7 @@ export const getGetMyProfileQueryKey = () => {
     }
 
 
-export const getGetMyProfileQueryOptions = <TData = Awaited<ReturnType<typeof getMyProfile>>, TError = ErrorType<void>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetMyProfileQueryOptions = <TData = Awaited<ReturnType<typeof getMyProfile>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -253,14 +254,14 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetMyProfileQueryResult = NonNullable<Awaited<ReturnType<typeof getMyProfile>>>
-export type GetMyProfileQueryError = ErrorType<void>
+export type GetMyProfileQueryError = ErrorType<unknown>
 
 
 /**
  * @summary Get current user profile
  */
 
-export function useGetMyProfile<TData = Awaited<ReturnType<typeof getMyProfile>>, TError = ErrorType<void>>(
+export function useGetMyProfile<TData = Awaited<ReturnType<typeof getMyProfile>>, TError = ErrorType<unknown>>(
   options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMyProfile>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
@@ -278,12 +279,83 @@ export function useGetMyProfile<TData = Awaited<ReturnType<typeof getMyProfile>>
 
 
 
+export const getCompleteInvitationProfileUrl = () => {
+
+
+
+
+  return `/api/profiles/me/complete-invitation`
+}
+
+/**
+ * @summary Claim the pending invitation profile for the authenticated Clerk user
+ */
+export const completeInvitationProfile = async ( options?: Parameters<typeof customFetch>[1]): Promise<InvitationCompletion> => {
+
+  return customFetch<InvitationCompletion>(getCompleteInvitationProfileUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getCompleteInvitationProfileMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeInvitationProfile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof completeInvitationProfile>>, TError,void, TContext> => {
+
+const mutationKey = ['completeInvitationProfile'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof completeInvitationProfile>>, void> = () => {
+
+
+          return  completeInvitationProfile(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CompleteInvitationProfileMutationResult = NonNullable<Awaited<ReturnType<typeof completeInvitationProfile>>>
+
+    export type CompleteInvitationProfileMutationError = ErrorType<void>
+
+    /**
+ * @summary Claim the pending invitation profile for the authenticated Clerk user
+ */
+export const useCompleteInvitationProfile = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof completeInvitationProfile>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof completeInvitationProfile>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getCompleteInvitationProfileMutationOptions(options));
+    }
+
 export const getUpdateMyProfileUrl = () => {
 
 
 
 
-  return `/api/profiles/me`
+  return `/api/profiles/me/complete-invitation`
 }
 
 /**

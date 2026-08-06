@@ -31,6 +31,8 @@ export * from './googleAuthorization';
 export * from './googleConnection';
 export * from './googleConnectionStatus';
 export * from './healthStatus';
+export * from './invitationCompletion';
+export * from './invitationCompletionRole';
 export * from './itineraryDay';
 export * from './itineraryInput';
 export * from './itineraryResult';

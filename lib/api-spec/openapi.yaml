@@ -63,8 +63,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Profile"
+  /profiles/me/complete-invitation:
+    post:
+      operationId: completeInvitationProfile
+      tags: [profiles]
+      summary: Claim the pending invitation profile for the authenticated Clerk user
+      responses:
+        "200":
+          description: Invitation profile completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvitationCompletion"
         "401":
           description: Unauthorized
+        "404":
+          description: No matching pending invitation
+        "409":
+          description: Invitation email unavailable
     patch:
       operationId: updateMyProfile
       tags: [profiles]
@@ -1517,6 +1533,14 @@ components:
       type: object
       properties:
         name: { type: string }
+    InvitationCompletion:
+      type: object
+      properties:
+        id: { type: number }
+        role: { type: string, enum: [super_admin, admin, operations, guide, accounting, field_operations] }
+        isActive: { type: boolean }
+        alreadyCompleted: { type: boolean }
+      required: [id, role, isActive, alreadyCompleted]
 
     # ── Customers ────────────────────────────────────────────────────────
     Customer:
