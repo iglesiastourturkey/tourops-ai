@@ -23,6 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Users, ChevronLeft, AlertTriangle, Loader2 } from 'lucide-react';
 import { API_BASE } from '@/lib/clerk-appearance';
+import { SecondFactorVerification } from '@/components/auth/second-factor-verification';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,7 +33,7 @@ function clerkMsg(err: { message?: string; longMessage?: string } | null | undef
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-type Mode = 'form' | 'checking' | 'denied';
+type Mode = 'form' | 'checking' | 'denied' | 'client-trust' | 'second-factor' | 'new-password';
 
 export default function SignInStaffPage() {
   const { signIn }                     = useSignIn();
@@ -151,14 +152,7 @@ export default function SignInStaffPage() {
       }
 
       // Inspect the resource directly (mutated in-place by create()).
-      if (signIn.status === 'complete' && signIn.createdSessionId) {
-        await clerk.setActive({ session: signIn.createdSessionId });
-        setMode('checking');
-      } else {
-        setFormError(
-          `Giriş tamamlanamadı (durum: ${signIn.status ?? 'bilinmiyor'}). Lütfen tekrar deneyin.`
-        );
-      }
+      await continueSignIn();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Giriş başarısız');
     } finally {
@@ -166,7 +160,46 @@ export default function SignInStaffPage() {
     }
   }
 
+  async function continueSignIn() {
+    if (!signIn) return;
+    if (signIn.status === 'complete' && signIn.createdSessionId) {
+      await clerk.setActive({ session: signIn.createdSessionId });
+      setMode('checking');
+      return;
+    }
+    if (signIn.status === 'needs_client_trust') {
+      setMode('client-trust');
+      return;
+    }
+    if (signIn.status === 'needs_second_factor') {
+      setMode('second-factor');
+      return;
+    }
+    if (signIn.status === 'needs_new_password') {
+      setMode('new-password');
+      setFormError('Geçici şifrenizi değiştirmeniz gerekiyor. Lütfen şifre yenileme adımını tamamlayın.');
+      return;
+    }
+    setFormError('Giriş işlemi tamamlanamadı. Lütfen tekrar deneyin.');
+  }
+
   const ready = !!signIn;
+
+  if ((mode === 'client-trust' || mode === 'second-factor') && signIn) {
+    return (
+      <SecondFactorVerification
+        signIn={signIn}
+        kind={mode === 'client-trust' ? 'client-trust' : 'second-factor'}
+        onComplete={continueSignIn}
+        onBack={() => { setMode('form'); setFormError(null); }}
+      />
+    );
+  }
+
+  if (mode === 'new-password') {
+    navigate('/change-password');
+    return null;
+  }
 
   // ── Checking / spinner ────────────────────────────────────────────────────
   if (mode === 'checking') {

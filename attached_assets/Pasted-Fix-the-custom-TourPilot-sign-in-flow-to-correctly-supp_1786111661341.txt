@@ -1,0 +1,225 @@
+Fix the custom TourPilot sign-in flow to correctly support Clerk Client Trust.
+
+Current production issue:
+
+A super_admin can sign in successfully from an already trusted computer.
+
+When the exact same valid account/password is used from a new computer, Clerk returns:
+
+needs_client_trust
+
+The current custom admin login page treats this as an error and displays:
+
+"Giriş tamamlanamadı (durum: needs_client_trust). Lütfen tekrar deneyin."
+
+This is incorrect.
+
+Root cause:
+Clerk Client Trust requires additional verification on a new device, but our custom sign-in flow does not handle the needs_client_trust state.
+
+Do not disable Clerk Client Trust.
+Do not weaken authentication security.
+Do not bypass second-factor/client-trust verification.
+
+Implement proper support for it.
+
+Requirements:
+
+1. Existing password login
+
+Keep the existing:
+
+- email or username
+- password
+
+flow.
+
+After the password attempt inspect the Clerk sign-in status.
+
+Handle at minimum:
+
+- complete
+- needs_client_trust
+- needs_second_factor
+- needs_new_password
+
+Do not treat these expected Clerk states as generic errors.
+
+2. needs_client_trust
+
+When Clerk returns:
+
+needs_client_trust
+
+inspect supportedSecondFactors.
+
+Prefer verification in this order where supported:
+
+1. email_code
+2. phone_code
+3. email_link
+
+For email_code:
+
+- call Clerk prepareSecondFactor() correctly
+- show a second UI step on the same login page
+
+Turkish UI:
+
+Title:
+"Yeni Cihaz Doğrulaması"
+
+Description:
+"Güvenliğiniz için bu cihazı doğrulamamız gerekiyor. Hesabınıza kayıtlı iletişim adresine gönderilen doğrulama kodunu girin."
+
+Field:
+"Doğrulama Kodu"
+
+Buttons:
+"Doğrula"
+"Kodu Yeniden Gönder"
+"Geri"
+
+Do not reveal more of the destination email/phone than Clerk already safely provides.
+
+3. Verification
+
+When the user enters the code:
+
+- use Clerk's supported second-factor verification API
+- verify the code
+- if signIn.status becomes complete:
+  - call setActive using createdSessionId
+  - continue through the existing TourPilot profile/role loading flow
+  - redirect according to the existing role logic
+
+For super_admin/admin:
+→ /dashboard
+
+Preserve existing role redirects for all other roles.
+
+4. needs_second_factor
+
+The application may also encounter normal MFA.
+
+Do not break it.
+
+Handle needs_second_factor separately from needs_client_trust.
+
+If TOTP, SMS, email code, or another supported factor already exists, show the appropriate verification state.
+
+Reuse common verification UI where practical.
+
+5. needs_new_password
+
+Preserve the existing temporary-password / first-login password-change behavior.
+
+Do not allow Client Trust handling to bypass mustChangePassword.
+
+6. UX
+
+Do not show internal Clerk statuses such as:
+
+needs_client_trust
+
+to normal users.
+
+Instead show understandable Turkish messages.
+
+Example:
+
+"Bu bilgisayardan ilk kez giriş yapıyorsunuz. Güvenlik doğrulaması gerekiyor."
+
+Wrong code:
+"Doğrulama kodu geçersiz veya süresi dolmuş."
+
+Expired flow:
+"Oturum doğrulaması sona erdi. Lütfen tekrar giriş yapın."
+
+7. Security
+
+Do not:
+
+- disable Client Trust
+- automatically trust arbitrary devices
+- bypass verification for super_admin
+- log passwords
+- log verification codes
+- log Clerk tokens
+- expose secrets
+- implement a fake frontend-only verification step
+
+All verification must be completed through Clerk.
+
+8. Admin and staff login
+
+Review both custom authentication pages:
+
+- /sign-in/admin
+- staff/personnel login
+
+Both should safely handle Clerk Client Trust.
+
+Do not duplicate the authentication implementation unnecessarily.
+Extract shared handling if appropriate.
+
+9. Existing functionality
+
+Do not modify:
+
+- Clerk application identity
+- existing users
+- profile IDs
+- roles
+- permissions
+- invitations
+- sign-up completion flow
+- database data
+
+This task is only to make the existing custom sign-in flow correctly support new-device verification.
+
+10. Verification
+
+Test:
+
+A. Existing trusted browser
+- login with valid super_admin
+- login completes normally without unnecessary extra prompt
+
+B. New browser/incognito/new device
+- valid email/username + password
+- Clerk returns needs_client_trust
+- verification UI appears
+- verification code is sent
+- correct code succeeds
+- session becomes active
+- user reaches /dashboard
+
+C. Wrong verification code
+- clear error
+- no session created
+
+D. Cancel/back
+- return safely to initial login step
+
+E. Resend
+- resend verification code works without duplicate session problems
+
+F. staff account
+- same Client Trust flow works
+- role redirect remains correct
+
+G. TypeScript/build
+Run:
+- frontend TypeScript
+- frontend production build
+- API TypeScript/build if any shared auth code changes
+
+Report only:
+- root cause
+- files modified
+- Clerk statuses handled
+- verification strategies supported
+- admin result
+- staff result
+- build/test results

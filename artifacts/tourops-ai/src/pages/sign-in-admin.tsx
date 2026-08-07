@@ -24,6 +24,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, ChevronLeft, AlertTriangle, Loader2 } from 'lucide-react';
 import { API_BASE, VITE_BASE } from '@/lib/clerk-appearance';
+import { SecondFactorVerification } from '@/components/auth/second-factor-verification';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ const ADMIN_SSO_KEY = 'tourpilot_admin_sso';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-type Mode = 'form' | 'checking' | 'denied' | 'error';
+type Mode = 'form' | 'checking' | 'denied' | 'client-trust' | 'second-factor' | 'new-password';
 
 export default function SignInAdminPage() {
   const { signIn }        = useSignIn();
@@ -184,26 +185,35 @@ export default function SignInAdminPage() {
 
       // Inspect the resource directly (mutated in-place by create()).
       // status and createdSessionId are NOT on the create() return value.
-      if (signIn.status === 'complete' && signIn.createdSessionId) {
-        // setActive() issues the JWT and sets userId non-null in the browser.
-        // Without it the session lives only on Clerk's server and doRoleCheck
-        // never fires.
-        await clerk.setActive({ session: signIn.createdSessionId });
-        // useEffect on [mode, isLoaded, userId] fires doRoleCheck() once
-        // Clerk propagates the new session.
-        setMode('checking');
-      } else {
-        // Sign-in did not complete in one step — surface the actual state so
-        // it can be investigated rather than swallowed silently.
-        setFormError(
-          `Giriş tamamlanamadı (durum: ${signIn.status ?? 'bilinmiyor'}). Lütfen tekrar deneyin.`
-        );
-      }
+      await continueSignIn();
     } catch (err: unknown) {
       setFormError(err instanceof Error ? err.message : 'Giriş başarısız');
     } finally {
       setLoading(false);
     }
+  }
+
+  async function continueSignIn() {
+    if (!signIn) return;
+    if (signIn.status === 'complete' && signIn.createdSessionId) {
+      await clerk.setActive({ session: signIn.createdSessionId });
+      setMode('checking');
+      return;
+    }
+    if (signIn.status === 'needs_client_trust') {
+      setMode('client-trust');
+      return;
+    }
+    if (signIn.status === 'needs_second_factor') {
+      setMode('second-factor');
+      return;
+    }
+    if (signIn.status === 'needs_new_password') {
+      setMode('new-password');
+      setFormError('Geçici şifrenizi değiştirmeniz gerekiyor. Lütfen şifre yenileme adımını tamamlayın.');
+      return;
+    }
+    setFormError('Giriş işlemi tamamlanamadı. Lütfen tekrar deneyin.');
   }
 
   // ── Google OAuth ──────────────────────────────────────────────────────────
@@ -225,6 +235,22 @@ export default function SignInAdminPage() {
   }
 
   const ready = !!signIn;
+
+  if ((mode === 'client-trust' || mode === 'second-factor') && signIn) {
+    return (
+      <SecondFactorVerification
+        signIn={signIn}
+        kind={mode === 'client-trust' ? 'client-trust' : 'second-factor'}
+        onComplete={continueSignIn}
+        onBack={() => { setMode('form'); setFormError(null); }}
+      />
+    );
+  }
+
+  if (mode === 'new-password') {
+    navigate('/change-password');
+    return null;
+  }
 
   // ── Checking / spinner ────────────────────────────────────────────────────
   if (mode === 'checking') {
