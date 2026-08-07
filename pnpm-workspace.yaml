@@ -43,6 +43,10 @@ onlyBuiltDependencies:
   - unrs-resolver
 
 overrides:
+  # Security: CVE-2026-18446 fast-uri host confusion via backslash (fix: >=3.1.5)
+  'ajv>fast-uri': '>=3.1.5'
+  # Security: CVE-2026-69152 brace-expansion DoS (fix: >=5.0.9) — scoped to minimatch v10 only
+  'minimatch@10>brace-expansion': '>=5.0.9'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-arm64': '-'
   '@expo/ngrok-bin>@expo/ngrok-bin-darwin-x64': '-'
