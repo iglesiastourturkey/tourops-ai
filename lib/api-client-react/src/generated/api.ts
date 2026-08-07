@@ -56,7 +56,10 @@ import type {
   ListToursParams,
   Notification,
   Operation,
+  OperationActivity,
   OperationDetail,
+  OperationDocument,
+  OperationDocumentInput,
   OperationInput,
   OperationReceipt,
   OperationReceiptInput,
@@ -3852,6 +3855,305 @@ export const useDeleteOperationReceipt = <TError = ErrorType<void>,
       > => {
       return useMutation(getDeleteOperationReceiptMutationOptions(options));
     }
+
+export const getListOperationDocumentsUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}/documents`
+}
+
+/**
+ * @summary List documents for an operation
+ */
+export const listOperationDocuments = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<OperationDocument[]> => {
+
+  return customFetch<OperationDocument[]>(getListOperationDocumentsUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOperationDocumentsQueryKey = (id: number,) => {
+    return [
+    `/api/operations/${id}/documents`
+    ] as const;
+    }
+
+
+export const getListOperationDocumentsQueryOptions = <TData = Awaited<ReturnType<typeof listOperationDocuments>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOperationDocumentsQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOperationDocuments>>> = ({ signal }) => listOperationDocuments(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOperationDocuments>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOperationDocumentsQueryResult = NonNullable<Awaited<ReturnType<typeof listOperationDocuments>>>
+export type ListOperationDocumentsQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List documents for an operation
+ */
+
+export function useListOperationDocuments<TData = Awaited<ReturnType<typeof listOperationDocuments>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationDocuments>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOperationDocumentsQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateOperationDocumentUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}/documents`
+}
+
+/**
+ * @summary Register an uploaded operation document
+ */
+export const createOperationDocument = async (id: number,
+    operationDocumentInput: OperationDocumentInput, options?: Parameters<typeof customFetch>[1]): Promise<OperationDocument> => {
+
+  return customFetch<OperationDocument>(getCreateOperationDocumentUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operationDocumentInput)
+  }
+);}
+
+
+
+
+
+export const getCreateOperationDocumentMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOperationDocument>>, TError,{id: number;data: BodyType<OperationDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createOperationDocument>>, TError,{id: number;data: BodyType<OperationDocumentInput>}, TContext> => {
+
+const mutationKey = ['createOperationDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createOperationDocument>>, {id: number;data: BodyType<OperationDocumentInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createOperationDocument(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateOperationDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof createOperationDocument>>>
+    export type CreateOperationDocumentMutationBody = BodyType<OperationDocumentInput>
+    export type CreateOperationDocumentMutationError = ErrorType<unknown>
+
+    /**
+ * @summary Register an uploaded operation document
+ */
+export const useCreateOperationDocument = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createOperationDocument>>, TError,{id: number;data: BodyType<OperationDocumentInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createOperationDocument>>,
+        TError,
+        {id: number;data: BodyType<OperationDocumentInput>},
+        TContext
+      > => {
+      return useMutation(getCreateOperationDocumentMutationOptions(options));
+    }
+
+export const getDeleteOperationDocumentUrl = (id: number,
+    documentId: number,) => {
+
+
+
+
+  return `/api/operations/${id}/documents/${documentId}`
+}
+
+/**
+ * @summary Delete an operation document and its storage object
+ */
+export const deleteOperationDocument = async (id: number,
+    documentId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteOperationDocumentUrl(id,documentId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteOperationDocumentMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperationDocument>>, TError,{id: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteOperationDocument>>, TError,{id: number;documentId: number}, TContext> => {
+
+const mutationKey = ['deleteOperationDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteOperationDocument>>, {id: number;documentId: number}> = (props) => {
+          const {id,documentId} = props ?? {};
+
+          return  deleteOperationDocument(id,documentId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteOperationDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof deleteOperationDocument>>>
+
+    export type DeleteOperationDocumentMutationError = ErrorType<void>
+
+    /**
+ * @summary Delete an operation document and its storage object
+ */
+export const useDeleteOperationDocument = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteOperationDocument>>, TError,{id: number;documentId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteOperationDocument>>,
+        TError,
+        {id: number;documentId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteOperationDocumentMutationOptions(options));
+    }
+
+export const getListOperationActivityUrl = (id: number,) => {
+
+
+
+
+  return `/api/operations/${id}/activity`
+}
+
+/**
+ * @summary List permanent activity records for an operation
+ */
+export const listOperationActivity = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<OperationActivity[]> => {
+
+  return customFetch<OperationActivity[]>(getListOperationActivityUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListOperationActivityQueryKey = (id: number,) => {
+    return [
+    `/api/operations/${id}/activity`
+    ] as const;
+    }
+
+
+export const getListOperationActivityQueryOptions = <TData = Awaited<ReturnType<typeof listOperationActivity>>, TError = ErrorType<unknown>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListOperationActivityQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listOperationActivity>>> = ({ signal }) => listOperationActivity(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listOperationActivity>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListOperationActivityQueryResult = NonNullable<Awaited<ReturnType<typeof listOperationActivity>>>
+export type ListOperationActivityQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List permanent activity records for an operation
+ */
+
+export function useListOperationActivity<TData = Awaited<ReturnType<typeof listOperationActivity>>, TError = ErrorType<unknown>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listOperationActivity>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListOperationActivityQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getGetGoogleReservationConnectionUrl = () => {
 

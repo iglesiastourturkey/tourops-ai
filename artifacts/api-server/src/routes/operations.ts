@@ -1,8 +1,8 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { operationsTable, operationTasksTable, operationReceiptsTable } from "@workspace/db/schema";
-import { eq, desc, and } from "drizzle-orm";
+import { operationsTable, operationTasksTable, operationReceiptsTable, operationDocumentsTable, auditLogsTable } from "@workspace/db/schema";
+import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
@@ -15,6 +15,7 @@ const ALLOWED_RECEIPT_MIME_TYPES = new Set([
   "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif",
 ]);
 const MAX_RECEIPT_PHOTO_BYTES = 10 * 1024 * 1024; // 10 MB
+const CANONICAL_OBJECT_PATH_RE = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
 router.use(requireAuth);
@@ -250,9 +251,6 @@ router.get("/:id/receipts", requirePermission("receipts", "view"), async (req, r
   } catch { res.status(500).json({ error: "Failed to list receipts" }); }
 });
 
-// Canonical private-upload path pattern: /objects/uploads/<uuid>
-const CANONICAL_OBJECT_PATH_RE = /^\/objects\/uploads\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 router.post("/:id/receipts", requirePermission("receipts", "create"), async (req, res) => {
   try {
     const { userId } = getAuth(req);
@@ -300,6 +298,15 @@ router.post("/:id/receipts", requirePermission("receipts", "create"), async (req
     const [row] = await db.insert(operationReceiptsTable)
       .values({ ...body, operationId, createdByUserId: userId })
       .returning();
+    await createAuditLog({
+      eventType: "operation_expense_created",
+      actorProfileId: res.locals.profile.id,
+      newValue: { amount: row.amount, currency: row.currency, supplierName: row.supplierName },
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      description: "Operasyon masrafı eklendi",
+    });
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create receipt" }); }
 });
@@ -332,8 +339,134 @@ router.delete("/:id/receipts/:receiptId", requirePermission("receipts", "delete"
     }
 
     await db.delete(operationReceiptsTable).where(eq(operationReceiptsTable.id, receiptId));
+    await createAuditLog({
+      eventType: "operation_expense_deleted",
+      actorProfileId: res.locals.profile.id,
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      description: "Operasyon masrafı silindi",
+    });
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete receipt" }); }
+});
+
+// ─── Operation Documents ─────────────────────────────────────────────────────
+
+router.get("/:id/documents", requirePermission("operations", "view"), async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile.role as UserRole;
+    const operationId = parseInt(req.params.id as string, 10);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
+    const rows = await db.select().from(operationDocumentsTable)
+      .where(eq(operationDocumentsTable.operationId, operationId))
+      .orderBy(desc(operationDocumentsTable.createdAt));
+    res.json(rows);
+  } catch { res.status(500).json({ error: "Failed to list operation documents" }); }
+});
+
+router.post("/:id/documents", requirePermission("operations", "update"), async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.id as string, 10);
+    const body = req.body as { documentType?: string; title?: string; objectPath?: string; fileMimeType?: string; fileSize?: number };
+    if (!body.title?.trim() || !body.objectPath || !CANONICAL_OBJECT_PATH_RE.test(body.objectPath)) {
+      res.status(400).json({ error: "Document title and a valid uploaded object are required" });
+      return;
+    }
+    if (body.fileSize != null && (!Number.isFinite(body.fileSize) || body.fileSize < 1 || body.fileSize > 25 * 1024 * 1024)) {
+      res.status(400).json({ error: "Document file size must be between 1 byte and 25 MB" });
+      return;
+    }
+    try {
+      await objectStorageService.getObjectEntityFile(body.objectPath);
+    } catch (error) {
+      if (error instanceof ObjectNotFoundError) {
+        res.status(400).json({ error: "Document not found in storage; upload the file first" });
+        return;
+      }
+      throw error;
+    }
+    const [row] = await db.insert(operationDocumentsTable).values({
+      operationId,
+      documentType: body.documentType || "other",
+      title: body.title.trim(),
+      objectPath: body.objectPath,
+      fileMimeType: body.fileMimeType ?? null,
+      fileSize: body.fileSize ?? null,
+      uploadedByProfileId: res.locals.profile.id,
+    }).returning();
+    await createAuditLog({
+      eventType: "operation_document_added",
+      actorProfileId: res.locals.profile.id,
+      newValue: { title: row.title, documentType: row.documentType },
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      description: "Operasyon belgesi eklendi",
+    });
+    res.status(201).json(row);
+  } catch { res.status(500).json({ error: "Failed to create operation document" }); }
+});
+
+router.delete("/:id/documents/:documentId", requirePermission("operations", "delete"), async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.id as string, 10);
+    const documentId = parseInt(req.params.documentId as string, 10);
+    const [document] = await db.select().from(operationDocumentsTable)
+      .where(and(eq(operationDocumentsTable.id, documentId), eq(operationDocumentsTable.operationId, operationId)));
+    if (!document) { res.status(404).json({ error: "Document not found" }); return; }
+    try {
+      const object = await objectStorageService.getObjectEntityFile(document.objectPath);
+      await object.delete();
+    } catch { /* best-effort cleanup */ }
+    await db.delete(operationDocumentsTable).where(eq(operationDocumentsTable.id, documentId));
+    await createAuditLog({
+      eventType: "operation_document_deleted",
+      actorProfileId: res.locals.profile.id,
+      oldValue: { title: document.title, documentType: document.documentType },
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      description: "Operasyon belgesi silindi",
+    });
+    res.status(204).send();
+  } catch { res.status(500).json({ error: "Failed to delete operation document" }); }
+});
+
+// ─── Permanent operation activity feed ───────────────────────────────────────
+
+router.get("/:id/activity", requirePermission("operations", "view"), async (req, res) => {
+  try {
+    const { userId } = getAuth(req);
+    const role = res.locals.profile.role as UserRole;
+    const operationId = parseInt(req.params.id as string, 10);
+    if (!(await checkGuideOwnership(res, operationId, userId!, role))) return;
+    const rows = await db.select({
+      id: auditLogsTable.id,
+      eventType: auditLogsTable.eventType,
+      metadata: auditLogsTable.metadata,
+      createdAt: auditLogsTable.createdAt,
+    }).from(auditLogsTable)
+      .where(and(
+        eq(sql`${auditLogsTable.metadata}->>'entityType'`, "operation"),
+        eq(sql`${auditLogsTable.metadata}->>'entityId'`, String(operationId)),
+      ))
+      .orderBy(desc(auditLogsTable.createdAt))
+      .limit(100);
+    res.json(rows.map(row => {
+      const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      return {
+        id: row.id,
+        eventType: row.eventType,
+        description: typeof metadata.description === "string" ? metadata.description : null,
+        actorName: typeof metadata.actorName === "string" ? metadata.actorName : null,
+        actorRole: typeof metadata.actorRole === "string" ? metadata.actorRole : null,
+        metadata: row.metadata,
+        createdAt: row.createdAt,
+      };
+    }));
+  } catch { res.status(500).json({ error: "Failed to list operation activity" }); }
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

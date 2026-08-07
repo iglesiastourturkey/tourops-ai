@@ -1400,7 +1400,7 @@ export const GetOperationResponse = zod.object({
   "priority": zod.string(),
   "dueDate": zod.string().nullish(),
   "assignedTo": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "description": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })),
@@ -1496,7 +1496,7 @@ export const ListOperationTasksResponseItem = zod.object({
   "priority": zod.string(),
   "dueDate": zod.string().nullish(),
   "assignedTo": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "description": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1515,11 +1515,11 @@ export const CreateOperationTaskParams = zod.object({
 
 export const CreateOperationTaskBody = zod.object({
   "title": zod.string().min(1),
+  "description": zod.string().optional(),
   "status": zod.string().optional(),
   "priority": zod.string().optional(),
   "dueDate": zod.string().optional(),
-  "assignedTo": zod.string().optional(),
-  "notes": zod.string().optional()
+  "assignedTo": zod.string().optional()
 })
 
 export const CreateOperationTaskResponse = zod.object({
@@ -1530,7 +1530,7 @@ export const CreateOperationTaskResponse = zod.object({
   "priority": zod.string(),
   "dueDate": zod.string().nullish(),
   "assignedTo": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "description": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1546,11 +1546,11 @@ export const UpdateOperationTaskParams = zod.object({
 
 export const UpdateOperationTaskBody = zod.object({
   "title": zod.string().optional(),
+  "description": zod.string().optional(),
   "status": zod.string().optional(),
   "priority": zod.string().optional(),
   "dueDate": zod.string().optional(),
   "assignedTo": zod.string().optional(),
-  "notes": zod.string().optional(),
   "completedAt": zod.string().optional()
 })
 
@@ -1562,7 +1562,7 @@ export const UpdateOperationTaskResponse = zod.object({
   "priority": zod.string(),
   "dueDate": zod.string().nullish(),
   "assignedTo": zod.string().nullish(),
-  "notes": zod.string().nullish(),
+  "description": zod.string().nullish(),
   "completedAt": zod.string().nullish(),
   "createdAt": zod.coerce.date()
 })
@@ -1640,6 +1640,92 @@ export const DeleteOperationReceiptParams = zod.object({
 })
 
 export const DeleteOperationReceiptResponse = zod.void()
+
+
+/**
+ * @summary List documents for an operation
+ */
+export const ListOperationDocumentsParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOperationDocumentsResponseItem = zod.object({
+  "id": zod.number(),
+  "operationId": zod.number(),
+  "documentType": zod.string(),
+  "title": zod.string(),
+  "objectPath": zod.string(),
+  "fileMimeType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "uploadedByProfileId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListOperationDocumentsResponse = zod.array(ListOperationDocumentsResponseItem)
+
+
+/**
+ * @summary Register an uploaded operation document
+ */
+export const CreateOperationDocumentParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+
+
+
+
+
+export const CreateOperationDocumentBody = zod.object({
+  "documentType": zod.string(),
+  "title": zod.string().min(1),
+  "objectPath": zod.string().min(1),
+  "fileMimeType": zod.string().optional(),
+  "fileSize": zod.number().min(1).optional()
+})
+
+export const CreateOperationDocumentResponse = zod.object({
+  "id": zod.number(),
+  "operationId": zod.number(),
+  "documentType": zod.string(),
+  "title": zod.string(),
+  "objectPath": zod.string(),
+  "fileMimeType": zod.string().nullish(),
+  "fileSize": zod.number().nullish(),
+  "uploadedByProfileId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Delete an operation document and its storage object
+ */
+export const DeleteOperationDocumentParams = zod.object({
+  "id": zod.coerce.number(),
+  "documentId": zod.coerce.number()
+})
+
+export const DeleteOperationDocumentResponse = zod.void()
+
+
+/**
+ * @summary List permanent activity records for an operation
+ */
+export const ListOperationActivityParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const ListOperationActivityResponseItem = zod.object({
+  "id": zod.number(),
+  "eventType": zod.string(),
+  "description": zod.string().nullish(),
+  "actorName": zod.string().nullish(),
+  "actorRole": zod.string().nullish(),
+  "metadata": zod.union([zod.record(zod.string(), zod.unknown()),zod.null()]).optional(),
+  "createdAt": zod.coerce.date()
+})
+export const ListOperationActivityResponse = zod.array(ListOperationActivityResponseItem)
 
 
 /**

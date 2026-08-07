@@ -6,19 +6,18 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface OperationTask {
+export interface OperationDocument {
   id: number;
   operationId: number;
+  documentType: string;
   title: string;
-  status: string;
-  priority: string;
+  objectPath: string;
   /** @nullable */
-  dueDate?: string | null;
+  fileMimeType?: string | null;
   /** @nullable */
-  assignedTo?: string | null;
+  fileSize?: number | null;
   /** @nullable */
-  description?: string | null;
-  /** @nullable */
-  completedAt?: string | null;
+  uploadedByProfileId?: number | null;
   createdAt: Date;
+  updatedAt: Date;
 }

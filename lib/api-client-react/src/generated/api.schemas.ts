@@ -637,7 +637,7 @@ export interface OperationTask {
   /** @nullable */
   assignedTo?: string | null;
   /** @nullable */
-  notes?: string | null;
+  description?: string | null;
   /** @nullable */
   completedAt?: string | null;
   createdAt: string;
@@ -896,20 +896,20 @@ export interface OperationUpdate {
 export interface OperationTaskInput {
   /** @minLength 1 */
   title: string;
+  description?: string;
   status?: string;
   priority?: string;
   dueDate?: string;
   assignedTo?: string;
-  notes?: string;
 }
 
 export interface OperationTaskUpdate {
   title?: string;
+  description?: string;
   status?: string;
   priority?: string;
   dueDate?: string;
   assignedTo?: string;
-  notes?: string;
   completedAt?: string;
 }
 
@@ -937,6 +937,48 @@ export interface OperationReceiptInput {
   receiptDate?: string;
   guideNote?: string;
   photoObjectPath?: string;
+}
+
+export interface OperationDocument {
+  id: number;
+  operationId: number;
+  documentType: string;
+  title: string;
+  objectPath: string;
+  /** @nullable */
+  fileMimeType?: string | null;
+  /** @nullable */
+  fileSize?: number | null;
+  /** @nullable */
+  uploadedByProfileId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperationDocumentInput {
+  documentType: string;
+  /** @minLength 1 */
+  title: string;
+  /** @minLength 1 */
+  objectPath: string;
+  fileMimeType?: string;
+  /** @minimum 1 */
+  fileSize?: number;
+}
+
+export type OperationActivityMetadata = { [key: string]: unknown } | null;
+
+export interface OperationActivity {
+  id: number;
+  eventType: string;
+  /** @nullable */
+  description?: string | null;
+  /** @nullable */
+  actorName?: string | null;
+  /** @nullable */
+  actorRole?: string | null;
+  metadata?: OperationActivityMetadata;
+  createdAt: string;
 }
 
 export interface UploadUrlRequest {

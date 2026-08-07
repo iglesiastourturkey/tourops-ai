@@ -8,10 +8,10 @@
 
 export interface OperationTaskUpdate {
   title?: string;
+  description?: string;
   status?: string;
   priority?: string;
   dueDate?: string;
   assignedTo?: string;
-  notes?: string;
   completedAt?: string;
 }

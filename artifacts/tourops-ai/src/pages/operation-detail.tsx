@@ -16,18 +16,20 @@ import {
   useGetOperation, useUpdateOperation,
   useListOperationTasks, useUpdateOperationTask, useCreateOperationTask, useDeleteOperationTask,
   useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
+  useListOperationDocuments, useCreateOperationDocument, useDeleteOperationDocument, useListOperationActivity,
   useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer, useGetQuotation,
-  useListProfiles,
+  useListProfiles, customFetch,
 } from '@workspace/api-client-react';
 import {
   getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
   getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey, getListProfilesQueryKey,
+  getListOperationDocumentsQueryKey, getListOperationActivityQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import {
   ArrowLeft, Plus, Trash2, User, Car, AlertTriangle,
-  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2, FileText,
+  FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2, FileText, Pencil, Upload, History, ExternalLink, CalendarDays, ClipboardList,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -36,6 +38,9 @@ import { uploadFile, getStorageObjectUrl } from '@/lib/storage-service';
 import { generateOperationPdf } from '@/lib/operation-pdf-export';
 import { ocrReceiptImage, OCR_LOW_CONFIDENCE_THRESHOLD, type OcrReceiptResult } from '@/lib/ocr-service';
 import { useProfile } from '@/contexts/ProfileContext';
+
+const BASE = import.meta.env.BASE_URL ?? '/';
+const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
 
 // ─── AuthenticatedImage ───────────────────────────────────────────────────────
 // Fetches a protected storage object with a Clerk Bearer token and renders it
@@ -108,6 +113,14 @@ interface ReceiptForm {
   guideNote: string;
 }
 
+interface GeneralForm {
+  startDate: string;
+  endDate: string;
+  status: string;
+  assignedTo: string;
+  notes: string;
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OperationDetailPage() {
@@ -124,7 +137,15 @@ export default function OperationDetailPage() {
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [taskForm, setTaskForm] = useState({ title: '', priority: 'medium', dueDate: '', assignedTo: '' });
+  const [taskForm, setTaskForm] = useState({ title: '', description: '', priority: 'medium', dueDate: '', assignedTo: '', status: 'not_started' });
+  const [editingTaskId, setEditingTaskId] = useState<number | null>(null);
+  const [generalEditOpen, setGeneralEditOpen] = useState(false);
+  const [generalForm, setGeneralForm] = useState<GeneralForm>({ startDate: '', endDate: '', status: 'active', assignedTo: '', notes: '' });
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentType, setDocumentType] = useState('other');
+  const [documentTitle, setDocumentTitle] = useState('');
+  const documentInputRef = useRef<HTMLInputElement>(null);
 
   const [guideEditOpen, setGuideEditOpen] = useState(false);
   const [guideForm, setGuideForm] = useState<GuideForm>({
@@ -134,6 +155,7 @@ export default function OperationDetailPage() {
     assignedGuideUserId: null,
   });
   const [isSavingGuide, setIsSavingGuide] = useState(false);
+  const [assignmentWarnings, setAssignmentWarnings] = useState<string[]>([]);
 
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptForm, setReceiptForm] = useState<ReceiptForm>({
@@ -160,6 +182,12 @@ export default function OperationDetailPage() {
   });
   const { data: receipts, isLoading: receiptsLoading } = useListOperationReceipts(id, {
     query: { enabled: !!id, queryKey: getListOperationReceiptsQueryKey(id) },
+  });
+  const { data: documents, isLoading: documentsLoading } = useListOperationDocuments(id, {
+    query: { enabled: !!id, queryKey: getListOperationDocumentsQueryKey(id) },
+  });
+  const { data: activity, isLoading: activityLoading } = useListOperationActivity(id, {
+    query: { enabled: !!id, queryKey: getListOperationActivityQueryKey(id), staleTime: 30_000 },
   });
   // Agency settings only needed for PDF export; accounting/guide will get 403 so skip the call
   const { data: agencySettings } = useGetAgencySettings({ query: { enabled: canEdit, queryKey: ['agencySettings'] } });
@@ -191,6 +219,8 @@ export default function OperationDetailPage() {
   const updateOperationMutation = useUpdateOperation();
   const createReceiptMutation = useCreateOperationReceipt();
   const deleteReceiptMutation = useDeleteOperationReceipt();
+  const createDocumentMutation = useCreateOperationDocument();
+  const deleteDocumentMutation = useDeleteOperationDocument();
 
   // ── Guide profiles (for assignment dropdown) ────────────────────────────
   const { data: guideProfiles } = useListProfiles(
@@ -216,6 +246,18 @@ export default function OperationDetailPage() {
     }
   }, [operation]);
 
+  useEffect(() => {
+    if (operation) {
+      setGeneralForm({
+        startDate: operation.startDate ?? '',
+        endDate: operation.endDate ?? '',
+        status: operation.status ?? 'active',
+        assignedTo: operation.assignedTo ?? '',
+        notes: operation.notes ?? '',
+      });
+    }
+  }, [operation]);
+
   // ── Cleanup photo preview URL ────────────────────────────────────────────
   useEffect(() => {
     return () => { if (receiptPhotoPreview) URL.revokeObjectURL(receiptPhotoPreview); };
@@ -232,15 +274,103 @@ export default function OperationDetailPage() {
 
   function handleCreateTask() {
     if (!taskForm.title.trim()) { toast({ title: 'Başlık zorunludur', variant: 'destructive' }); return; }
-    createTaskMutation.mutate({ id, data: { ...taskForm, status: 'not_started' } }, {
-      onSuccess: () => {
-        toast({ title: 'Görev eklendi' });
-        qc.invalidateQueries({ queryKey: getListOperationTasksQueryKey(id) });
-        qc.invalidateQueries({ queryKey: getGetOperationQueryKey(id) });
-        setTaskDialogOpen(false);
-        setTaskForm({ title: '', priority: 'medium', dueDate: '', assignedTo: '' });
-      },
+    const taskData = {
+      ...taskForm,
+      title: taskForm.title.trim(),
+      description: taskForm.description || undefined,
+      dueDate: taskForm.dueDate || undefined,
+      assignedTo: taskForm.assignedTo || undefined,
+    };
+    const onSuccess = () => {
+      toast({ title: editingTaskId ? 'Görev güncellendi' : 'Görev eklendi' });
+      qc.invalidateQueries({ queryKey: getListOperationTasksQueryKey(id) });
+      qc.invalidateQueries({ queryKey: getGetOperationQueryKey(id) });
+      qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+      setTaskDialogOpen(false);
+      setEditingTaskId(null);
+      setTaskForm({ title: '', description: '', priority: 'medium', dueDate: '', assignedTo: '', status: 'not_started' });
+    };
+    if (editingTaskId) {
+      updateTaskMutation.mutate({ id, taskId: editingTaskId, data: taskData }, {
+        onSuccess,
+        onError: () => toast({ title: 'Görev güncellenemedi', variant: 'destructive' }),
+      });
+      return;
+    }
+    createTaskMutation.mutate({ id, data: taskData }, {
+      onSuccess,
       onError: () => toast({ title: 'Hata', variant: 'destructive' }),
+    });
+  }
+
+  function openTaskEditor(task?: typeof allTasks[number]) {
+    setEditingTaskId(task?.id ?? null);
+    setTaskForm(task ? {
+      title: task.title,
+      description: task.description ?? '',
+      priority: task.priority ?? 'medium',
+      dueDate: task.dueDate ?? '',
+      assignedTo: task.assignedTo ?? '',
+      status: task.status,
+    } : { title: '', description: '', priority: 'medium', dueDate: '', assignedTo: '', status: 'not_started' });
+    setTaskDialogOpen(true);
+  }
+
+  function saveGeneralInformation() {
+    updateOperationMutation.mutate({ id, data: {
+      startDate: generalForm.startDate || undefined,
+      endDate: generalForm.endDate || undefined,
+      status: generalForm.status,
+      assignedTo: generalForm.assignedTo || undefined,
+      notes: generalForm.notes || undefined,
+    } }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getGetOperationQueryKey(id) });
+        qc.invalidateQueries({ queryKey: getListOperationsQueryKey() });
+        qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+        setGeneralEditOpen(false);
+        toast({ title: 'Genel bilgiler kaydedildi' });
+      },
+      onError: () => toast({ title: 'Kayıt hatası', variant: 'destructive' }),
+    });
+  }
+
+  async function handleCreateDocument() {
+    if (!documentFile) { toast({ title: 'Dosya seçin', variant: 'destructive' }); return; }
+    if (documentFile.size > 25 * 1024 * 1024) { toast({ title: 'Dosya çok büyük', description: 'En fazla 25 MB yükleyebilirsiniz.', variant: 'destructive' }); return; }
+    try {
+      const objectPath = await uploadFile(documentFile, await getToken());
+      createDocumentMutation.mutate({ id, data: {
+        title: documentTitle.trim() || documentFile.name,
+        documentType,
+        objectPath,
+        fileMimeType: documentFile.type || undefined,
+        fileSize: documentFile.size,
+      } }, {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: getListOperationDocumentsQueryKey(id) });
+          qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+          setDocumentDialogOpen(false);
+          setDocumentFile(null); setDocumentTitle(''); setDocumentType('other');
+          toast({ title: 'Belge eklendi' });
+        },
+        onError: () => toast({ title: 'Belge kaydedilemedi', variant: 'destructive' }),
+      });
+    } catch {
+      toast({ title: 'Dosya yüklenemedi', variant: 'destructive' });
+    }
+  }
+
+  function deleteDocument(documentId: number) {
+    if (!confirm('Bu belgeyi silmek istiyor musunuz?')) return;
+    deleteDocumentMutation.mutate({ id, documentId }, {
+      onSuccess: () => {
+        qc.invalidateQueries({ queryKey: getListOperationTasksQueryKey(id) });
+        qc.invalidateQueries({ queryKey: getListOperationDocumentsQueryKey(id) });
+        qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+        toast({ title: 'Belge silindi' });
+      },
+      onError: () => toast({ title: 'Belge silinemedi', variant: 'destructive' }),
     });
   }
 
@@ -255,17 +385,47 @@ export default function OperationDetailPage() {
   // ── Guide/driver handlers ─────────────────────────────────────────────────
   async function handleSaveGuide() {
     setIsSavingGuide(true);
+    setAssignmentWarnings([]);
     try {
+      const assignment = await customFetch<{ warnings?: string[] }>(`${API_BASE}/field/operations/${id}/assignments`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guideName: guideForm.guideName || undefined,
+          guidePhone: guideForm.guidePhone || undefined,
+          assignedGuideUserId: guideForm.assignedGuideUserId ?? null,
+          driverName: guideForm.driverName || undefined,
+          driverPhone: guideForm.driverPhone || undefined,
+          vehiclePlate: guideForm.vehiclePlate.trim().toUpperCase() || undefined,
+        }),
+      });
       await new Promise<void>((resolve, reject) => {
-        updateOperationMutation.mutate({ id, data: guideForm }, {
-          onSuccess: () => {
-            qc.invalidateQueries({ queryKey: getGetOperationQueryKey(id) });
-            toast({ title: 'Rehber / Şoför bilgileri kaydedildi' });
-            setGuideEditOpen(false);
-            resolve();
-          },
-          onError: () => { toast({ title: 'Kayıt hatası', variant: 'destructive' }); reject(); },
+        updateOperationMutation.mutate({ id, data: {
+          emergencyContact1Name: guideForm.emergencyContact1Name || undefined,
+          emergencyContact1Phone: guideForm.emergencyContact1Phone || undefined,
+          emergencyContact2Name: guideForm.emergencyContact2Name || undefined,
+          emergencyContact2Phone: guideForm.emergencyContact2Phone || undefined,
+        } }, {
+          onSuccess: () => resolve(),
+          onError: () => reject(new Error('Acil irtibat bilgileri kaydedilemedi')),
         });
+      });
+      const warnings = assignment.warnings ?? [];
+      setAssignmentWarnings(warnings);
+      qc.invalidateQueries({ queryKey: getGetOperationQueryKey(id) });
+      qc.invalidateQueries({ queryKey: getListOperationsQueryKey() });
+      qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+      if (warnings.length) {
+        toast({ title: 'Atama kaydedildi — çakışma uyarısı', description: warnings[0], variant: 'destructive' });
+      } else {
+        toast({ title: 'Rehber / Şoför bilgileri kaydedildi' });
+      }
+      setGuideEditOpen(false);
+    } catch (error) {
+      toast({
+        title: 'Atama kaydedilemedi',
+        description: error instanceof Error ? error.message : 'Lütfen tekrar deneyin.',
+        variant: 'destructive',
       });
     } finally {
       setIsSavingGuide(false);
@@ -552,6 +712,26 @@ export default function OperationDetailPage() {
         </Card>
       )}
 
+      {/* ── General information ────────────────────────────────────────────── */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2"><CalendarDays className="w-4 h-4 text-muted-foreground" />Genel Bilgiler</CardTitle>
+            {canEdit && <Button variant="outline" size="sm" onClick={() => setGeneralEditOpen(true)} className="gap-1.5"><Pencil className="w-3.5 h-3.5" />Düzenle</Button>}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {opLoading ? <Skeleton className="h-16 w-full" /> : (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div><p className="text-xs text-muted-foreground mb-1">Tarih</p><p>{formatDate(operation?.startDate)}{operation?.endDate ? ` → ${formatDate(operation.endDate)}` : ''}</p></div>
+              <div><p className="text-xs text-muted-foreground mb-1">Durum</p><Badge variant="secondary">{OPERATION_STATUS_LABELS[operation?.status ?? ''] ?? operation?.status}</Badge></div>
+              <div><p className="text-xs text-muted-foreground mb-1">Operasyon Sorumlusu</p><p>{operation?.assignedTo || <span className="italic text-muted-foreground">Atanmadı</span>}</p></div>
+              {operation?.notes && <div className="sm:col-span-3 pt-1 border-t"><p className="text-xs text-muted-foreground mb-1">Notlar</p><p className="whitespace-pre-wrap">{operation.notes}</p></div>}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* ── Guide & driver card ────────────────────────────────────────────── */}
       <Card className="mb-4">
         <CardHeader className="pb-3">
@@ -633,7 +813,7 @@ export default function OperationDetailPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Görevler</CardTitle>
             {canEdit && (
-              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTaskDialogOpen(true)} data-testid="button-add-task">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => openTaskEditor()} data-testid="button-add-task">
                 <Plus className="w-3.5 h-3.5" />Görev Ekle
               </Button>
             )}
@@ -656,6 +836,7 @@ export default function OperationDetailPage() {
                   />
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-medium ${task.status === 'completed' ? 'line-through text-muted-foreground' : ''}`}>{task.title}</p>
+                    {task.description && <p className="text-xs text-muted-foreground mt-1">{task.description}</p>}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${PRIORITY_COLORS[task.priority ?? 'medium'] ?? 'bg-gray-100 text-gray-600'}`}>{PRIORITY_LABELS[task.priority ?? 'medium']}</span>
                       <span className="text-xs text-muted-foreground">{TASK_STATUS_LABELS[task.status] ?? task.status}</span>
@@ -663,15 +844,38 @@ export default function OperationDetailPage() {
                       {task.assignedTo && <span className="text-xs text-muted-foreground">Sorumlu: {task.assignedTo}</span>}
                     </div>
                   </div>
-                  {canEdit && (
+                  {canEdit && <div className="flex gap-1">
+                    <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => openTaskEditor(task)} aria-label="Görevi düzenle"><Pencil className="w-3.5 h-3.5" /></Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive flex-shrink-0" onClick={() => handleDeleteTask(task.id)} data-testid={`button-delete-task-${task.id}`}>
                       <Trash2 className="w-3.5 h-3.5" />
                     </Button>
-                  )}
+                  </div>}
                 </div>
               ))}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* ── Documents card ─────────────────────────────────────────────────── */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2"><CardTitle className="text-base flex items-center gap-2"><FileText className="w-4 h-4 text-muted-foreground" />Operasyon Belgeleri</CardTitle>{(documents ?? []).length > 0 && <Badge variant="secondary">{documents?.length}</Badge>}</div>
+            {canEdit && <Button size="sm" variant="outline" onClick={() => setDocumentDialogOpen(true)} className="gap-1.5"><Upload className="w-3.5 h-3.5" />Belge Ekle</Button>}
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {documentsLoading ? <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div> : (documents ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-5">Henüz belge eklenmemiş.</p>
+          ) : <div className="space-y-2">{documents?.map(document => (
+            <div key={document.id} className="flex items-center gap-3 p-3 rounded-lg border">
+              <FileText className="w-5 h-5 text-primary flex-shrink-0" />
+              <div className="flex-1 min-w-0"><p className="text-sm font-medium truncate">{document.title}</p><p className="text-xs text-muted-foreground">{document.documentType} · {formatDate(document.createdAt)}</p></div>
+              <Button asChild size="icon" variant="ghost" className="h-8 w-8" aria-label="Belgeyi aç"><a href={getStorageObjectUrl(document.objectPath)} target="_blank" rel="noreferrer"><ExternalLink className="w-3.5 h-3.5" /></a></Button>
+              {canEdit && <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive" onClick={() => deleteDocument(document.id)} aria-label="Belgeyi sil"><Trash2 className="w-3.5 h-3.5" /></Button>}
+            </div>
+          ))}</div>}
         </CardContent>
       </Card>
 
@@ -773,12 +977,65 @@ export default function OperationDetailPage() {
         </CardContent>
       </Card>
 
+      {/* ── Permanent activity feed ────────────────────────────────────────── */}
+      <Card className="mb-4">
+        <CardHeader className="pb-3"><CardTitle className="text-base flex items-center gap-2"><History className="w-4 h-4 text-muted-foreground" />Operasyon Geçmişi</CardTitle></CardHeader>
+        <CardContent className="pt-0">
+          {activityLoading ? <div className="space-y-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /></div> : (activity ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-5">Bu operasyon için henüz geçmiş kaydı bulunmuyor.</p>
+          ) : <div className="space-y-3">{activity?.map(item => (
+            <div key={item.id} className="flex gap-3 text-sm">
+              <div className="mt-1.5 h-2 w-2 rounded-full bg-primary flex-shrink-0" />
+              <div><p className="font-medium">{item.description || item.eventType}</p><p className="text-xs text-muted-foreground">{item.actorName ? `${item.actorName} · ` : ''}{new Date(item.createdAt).toLocaleString('tr-TR')}</p></div>
+            </div>
+          ))}</div>}
+        </CardContent>
+      </Card>
+
+      {/* ── General information edit dialog ───────────────────────────────── */}
+      <Dialog open={generalEditOpen} onOpenChange={setGeneralEditOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Genel Bilgileri Düzenle</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div><label className="text-xs text-muted-foreground mb-1 block">Başlangıç</label><Input type="date" value={generalForm.startDate} onChange={e => setGeneralForm(f => ({ ...f, startDate: e.target.value }))} /></div>
+              <div><label className="text-xs text-muted-foreground mb-1 block">Bitiş</label><Input type="date" value={generalForm.endDate} onChange={e => setGeneralForm(f => ({ ...f, endDate: e.target.value }))} /></div>
+            </div>
+            <div><label className="text-xs text-muted-foreground mb-1 block">Durum</label><Select value={generalForm.status} onValueChange={v => setGeneralForm(f => ({ ...f, status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(OPERATION_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
+            <div><label className="text-xs text-muted-foreground mb-1 block">Operasyon Sorumlusu</label><Input value={generalForm.assignedTo} onChange={e => setGeneralForm(f => ({ ...f, assignedTo: e.target.value }))} placeholder="Ad Soyad" /></div>
+            <div><label className="text-xs text-muted-foreground mb-1 block">Operasyon Notları</label><Textarea value={generalForm.notes} onChange={e => setGeneralForm(f => ({ ...f, notes: e.target.value }))} rows={4} placeholder="Planlama ve koordinasyon notları..." /></div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setGeneralEditOpen(false)}>İptal</Button><Button onClick={saveGeneralInformation} disabled={updateOperationMutation.isPending}>{updateOperationMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Document upload dialog ─────────────────────────────────────────── */}
+      <Dialog open={documentDialogOpen} onOpenChange={open => {
+        setDocumentDialogOpen(open);
+        if (!open) { setDocumentFile(null); setDocumentTitle(''); setDocumentType('other'); }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Operasyon Belgesi Ekle</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><label className="text-xs text-muted-foreground mb-1 block">Belge Türü</label><Select value={documentType} onValueChange={setDocumentType}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="itinerary">Program / Rota</SelectItem><SelectItem value="voucher">Voucher</SelectItem><SelectItem value="contract">Sözleşme</SelectItem><SelectItem value="insurance">Sigorta</SelectItem><SelectItem value="other">Diğer</SelectItem></SelectContent></Select></div>
+            <div><label className="text-xs text-muted-foreground mb-1 block">Başlık</label><Input value={documentTitle} onChange={e => setDocumentTitle(e.target.value)} placeholder={documentFile?.name ?? 'Belge başlığı'} /></div>
+            <div>
+              <input ref={documentInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={e => setDocumentFile(e.target.files?.[0] ?? null)} />
+              <Button type="button" variant="outline" className="w-full gap-2" onClick={() => documentInputRef.current?.click()}><Upload className="w-4 h-4" />{documentFile ? documentFile.name : 'PDF veya görsel seç'}</Button>
+              <p className="text-xs text-muted-foreground mt-1.5">PDF, JPG, PNG veya WEBP · en fazla 25 MB</p>
+            </div>
+          </div>
+          <DialogFooter><Button variant="outline" onClick={() => setDocumentDialogOpen(false)}>İptal</Button><Button onClick={handleCreateDocument} disabled={!documentFile || createDocumentMutation.isPending}>{createDocumentMutation.isPending ? 'Yükleniyor...' : 'Belgeyi Kaydet'}</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Task dialog ────────────────────────────────────────────────────── */}
       <Dialog open={taskDialogOpen} onOpenChange={setTaskDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Görev Ekle</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingTaskId ? 'Görevi Düzenle' : 'Görev Ekle'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Başlık *</label><Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="Görev başlığı..." data-testid="input-task-title" /></div>
+            <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Açıklama</label><Textarea value={taskForm.description} onChange={e => setTaskForm(f => ({ ...f, description: e.target.value }))} placeholder="Görev detayları..." rows={2} /></div>
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Öncelik</label>
               <Select value={taskForm.priority} onValueChange={v => setTaskForm(f => ({ ...f, priority: v }))}>
@@ -788,18 +1045,19 @@ export default function OperationDetailPage() {
             </div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Son Tarih</label><Input type="date" value={taskForm.dueDate} onChange={e => setTaskForm(f => ({ ...f, dueDate: e.target.value }))} data-testid="input-task-dueDate" /></div>
             <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Sorumlu</label><Input value={taskForm.assignedTo} onChange={e => setTaskForm(f => ({ ...f, assignedTo: e.target.value }))} placeholder="Ad Soyad" data-testid="input-task-assignedTo" /></div>
+            {editingTaskId && <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Durum</label><Select value={taskForm.status} onValueChange={v => setTaskForm(f => ({ ...f, status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{Object.entries(TASK_STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setTaskDialogOpen(false)}>İptal</Button>
-            <Button onClick={handleCreateTask} disabled={createTaskMutation.isPending} data-testid="button-save-task">
-              {createTaskMutation.isPending ? 'Ekleniyor...' : 'Ekle'}
+            <Button onClick={handleCreateTask} disabled={createTaskMutation.isPending || updateTaskMutation.isPending} data-testid="button-save-task">
+              {createTaskMutation.isPending || updateTaskMutation.isPending ? 'Kaydediliyor...' : editingTaskId ? 'Kaydet' : 'Ekle'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── Guide edit dialog ──────────────────────────────────────────────── */}
-      <Dialog open={guideEditOpen} onOpenChange={setGuideEditOpen}>
+      <Dialog open={guideEditOpen} onOpenChange={open => { setGuideEditOpen(open); if (!open) setAssignmentWarnings([]); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Rehber & Şoför Bilgileri</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -853,6 +1111,12 @@ export default function OperationDetailPage() {
                 <div><label className="text-xs text-muted-foreground mb-1 block">2. Kişi Tel.</label><Input value={guideForm.emergencyContact2Phone} onChange={e => setGuideForm(f => ({ ...f, emergencyContact2Phone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-emergency2-phone" /></div>
               </div>
             </div>
+            {assignmentWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                <p className="font-medium flex items-center gap-1.5"><AlertTriangle className="w-4 h-4" />Araç çakışma uyarısı</p>
+                {assignmentWarnings.map(warning => <p key={warning} className="mt-1 text-xs">{warning}</p>)}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGuideEditOpen(false)}>İptal</Button>

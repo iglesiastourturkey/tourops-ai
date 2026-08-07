@@ -8,7 +8,7 @@ import { Router, type IRouter, type Request, type Response } from "express";
 import { getAuth } from "@clerk/express";
 import { eq, and } from "drizzle-orm";
 import { db } from "@workspace/db";
-import { operationReceiptsTable, operationsTable } from "@workspace/db/schema";
+import { operationReceiptsTable, operationDocumentsTable, operationsTable } from "@workspace/db/schema";
 import { requireAuth, requireActive, requirePermission } from "../lib/auth";
 import { ObjectNotFoundError, ObjectStorageService } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
@@ -20,7 +20,7 @@ const objectStorageService = new ObjectStorageService();
  * POST /storage/uploads/request-url
  *
  * Request a presigned GCS URL for direct client upload.
- * Requires an active session with a role that can add receipts (admin, operations, guide).
+   * Requires an active session with document management permission.
  * Body: { name: string, size: number, contentType: string }
  * Response: { uploadURL: string, objectPath: string, metadata: {...} }
  */
@@ -32,20 +32,20 @@ router.post("/storage/uploads/request-url", requireAuth, requireActive(), requir
     return;
   }
 
-  // Restrict to vetted image MIME types only — prevents stored active-content
-  // (HTML/JS) from being uploaded and served on the same origin.
-  const ALLOWED_IMAGE_TYPES = new Set([
+   // Restrict to safe document/image MIME types. Objects are always served as
+   // forced downloads with nosniff, preventing same-origin active content.
+   const ALLOWED_UPLOAD_TYPES = new Set([
     "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic", "image/heif",
+     "application/pdf",
   ]);
-  if (!ALLOWED_IMAGE_TYPES.has(contentType)) {
-    res.status(400).json({ error: "Only image files (JPEG, PNG, GIF, WEBP, HEIC) are accepted" });
+   if (!ALLOWED_UPLOAD_TYPES.has(contentType)) {
+     res.status(400).json({ error: "Only images and PDF documents are accepted" });
     return;
   }
 
-  // Limit to 10 MB per receipt photo.
-  const MAX_BYTES = 10 * 1024 * 1024;
+   const MAX_BYTES = 25 * 1024 * 1024;
   if (typeof size !== "number" || size <= 0 || size > MAX_BYTES) {
-    res.status(400).json({ error: "File size must be between 1 byte and 10 MB" });
+     res.status(400).json({ error: "File size must be between 1 byte and 25 MB" });
     return;
   }
 
@@ -120,7 +120,8 @@ router.get("/storage/objects/*path", requireAuth, requireActive(), async (req: R
     const wildcardPath = Array.isArray(raw) ? raw.join("/") : raw;
     const objectPath = `/objects/${wildcardPath}`;
 
-    // Authorization layer 2: only serve objects registered as receipt photos
+    // Authorization layer 2: only serve objects registered as a receipt photo
+    // or an operation document. Raw uploads are never accessible by their path.
     const [receipt] = await db
       .select({
         id: operationReceiptsTable.id,
@@ -131,8 +132,25 @@ router.get("/storage/objects/*path", requireAuth, requireActive(), async (req: R
       .limit(1);
 
     if (!receipt) {
-      res.status(403).json({ error: "Forbidden" });
-      return;
+      const [document] = await db
+        .select({ id: operationDocumentsTable.id, operationId: operationDocumentsTable.operationId })
+        .from(operationDocumentsTable)
+        .where(eq(operationDocumentsTable.objectPath, objectPath))
+        .limit(1);
+      if (!document) {
+        res.status(403).json({ error: "Forbidden" });
+        return;
+      }
+      if (role === "guide") {
+        const [op] = await db
+          .select({ assignedGuideUserId: operationsTable.assignedGuideUserId })
+          .from(operationsTable)
+          .where(eq(operationsTable.id, document.operationId));
+        if (!op || op.assignedGuideUserId !== userId) {
+          res.status(403).json({ error: "Forbidden" });
+          return;
+        }
+      }
     }
 
     // Authorization layer 3: guides may only access receipts from their assigned operations

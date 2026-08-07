@@ -1008,6 +1008,80 @@ paths:
         "404":
           description: Not found
 
+  /operations/{id}/documents:
+    get:
+      operationId: listOperationDocuments
+      tags: [operations]
+      summary: List documents for an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: List of operation documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OperationDocument" }
+    post:
+      operationId: createOperationDocument
+      tags: [operations]
+      summary: Register an uploaded operation document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OperationDocumentInput" }
+      responses:
+        "201":
+          description: Created document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/OperationDocument" }
+  /operations/{id}/documents/{documentId}:
+    delete:
+      operationId: deleteOperationDocument
+      tags: [operations]
+      summary: Delete an operation document and its storage object
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: documentId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204": { description: Deleted }
+        "404": { description: Not found }
+  /operations/{id}/activity:
+    get:
+      operationId: listOperationActivity
+      tags: [operations]
+      summary: List permanent activity records for an operation
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Activity records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/OperationActivity" }
+
   # ─── GMAIL RESERVATIONS ───────────────────────────────────────────────────
   /reservations/google-connection:
     get:
@@ -2259,7 +2333,7 @@ components:
         priority: { type: string }
         dueDate: { type: ["string", "null"] }
         assignedTo: { type: ["string", "null"] }
-        notes: { type: ["string", "null"] }
+        description: { type: ["string", "null"] }
         completedAt: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
       required: [id, operationId, title, status, priority, createdAt]
@@ -2267,21 +2341,21 @@ components:
       type: object
       properties:
         title: { type: string, minLength: 1 }
+        description: { type: string }
         status: { type: string }
         priority: { type: string }
         dueDate: { type: string }
         assignedTo: { type: string }
-        notes: { type: string }
       required: [title]
     OperationTaskUpdate:
       type: object
       properties:
         title: { type: string }
+        description: { type: string }
         status: { type: string }
         priority: { type: string }
         dueDate: { type: string }
         assignedTo: { type: string }
-        notes: { type: string }
         completedAt: { type: string }
 
     # ── Operation Receipts ───────────────────────────────────────────────
@@ -2309,6 +2383,45 @@ components:
         guideNote: { type: string }
         photoObjectPath: { type: string }
       required: [amount]
+
+    OperationDocument:
+      type: object
+      properties:
+        id: { type: number }
+        operationId: { type: number }
+        documentType: { type: string }
+        title: { type: string }
+        objectPath: { type: string }
+        fileMimeType: { type: ["string", "null"] }
+        fileSize: { type: ["number", "null"] }
+        uploadedByProfileId: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, operationId, documentType, title, objectPath, createdAt, updatedAt]
+    OperationDocumentInput:
+      type: object
+      properties:
+        documentType: { type: string }
+        title: { type: string, minLength: 1 }
+        objectPath: { type: string, minLength: 1 }
+        fileMimeType: { type: string }
+        fileSize: { type: number, minimum: 1 }
+      required: [documentType, title, objectPath]
+    OperationActivity:
+      type: object
+      properties:
+        id: { type: number }
+        eventType: { type: string }
+        description: { type: ["string", "null"] }
+        actorName: { type: ["string", "null"] }
+        actorRole: { type: ["string", "null"] }
+        metadata:
+          anyOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
+        createdAt: { type: string, format: date-time }
+      required: [id, eventType, createdAt]
 
     # ── Object Storage ───────────────────────────────────────────────────
     UploadUrlRequest:

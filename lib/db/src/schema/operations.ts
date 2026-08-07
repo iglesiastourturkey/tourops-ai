@@ -123,6 +123,22 @@ export const operationFieldNotesTable = pgTable("operation_field_notes", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });
 
+// ── Operation Documents ───────────────────────────────────────────────────────
+
+export const operationDocumentsTable = pgTable("operation_documents", {
+  id: serial("id").primaryKey(),
+  operationId: integer("operation_id").notNull().references(() => operationsTable.id, { onDelete: "cascade" }),
+  documentType: text("document_type").notNull().default("other"),
+  // 'voucher' | 'passenger_list' | 'hotel_confirmation' | 'flight_ticket' | 'pdf' | 'other'
+  title: text("title").notNull(),
+  objectPath: text("object_path").notNull(),
+  fileMimeType: text("file_mime_type"),
+  fileSize: integer("file_size"),
+  uploadedByProfileId: integer("uploaded_by_profile_id").references(() => profilesTable.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
 // ── Sprint 6.1: location sharing ─────────────────────────────────────────────
 
 export const operationLocationsTable = pgTable("operation_locations", {
@@ -140,12 +156,15 @@ export type OperationLocation = typeof operationLocationsTable.$inferSelect;
 export const insertOperationSchema = createInsertSchema(operationsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationTaskSchema = createInsertSchema(operationTasksTable).omit({ id: true, createdAt: true, updatedAt: true });
 export const insertOperationReceiptSchema = createInsertSchema(operationReceiptsTable).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertOperationDocumentSchema = createInsertSchema(operationDocumentsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertOperation = z.infer<typeof insertOperationSchema>;
 export type InsertOperationTask = z.infer<typeof insertOperationTaskSchema>;
 export type InsertOperationReceipt = z.infer<typeof insertOperationReceiptSchema>;
+export type InsertOperationDocument = z.infer<typeof insertOperationDocumentSchema>;
 export type Operation = typeof operationsTable.$inferSelect;
 export type OperationTask = typeof operationTasksTable.$inferSelect;
 export type OperationReceipt = typeof operationReceiptsTable.$inferSelect;
+export type OperationDocument = typeof operationDocumentsTable.$inferSelect;
 export type OperationStatusHistory = typeof operationStatusHistoryTable.$inferSelect;
 export type FieldIncident = typeof fieldIncidentsTable.$inferSelect;
 export type OperationFieldNote = typeof operationFieldNotesTable.$inferSelect;

@@ -6,12 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface OperationTaskInput {
+export interface OperationDocumentInput {
+  documentType: string;
   /** @minLength 1 */
   title: string;
-  description?: string;
-  status?: string;
-  priority?: string;
-  dueDate?: string;
-  assignedTo?: string;
+  /** @minLength 1 */
+  objectPath: string;
+  fileMimeType?: string;
+  /** @minimum 1 */
+  fileSize?: number;
 }
