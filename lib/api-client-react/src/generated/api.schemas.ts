@@ -923,11 +923,30 @@ export interface OperationReceipt {
   /** @nullable */
   receiptDate?: string | null;
   /** @nullable */
+  receiptTime?: string | null;
+  /** @nullable */
+  taxAmount?: number | null;
+  /** @nullable */
+  taxRate?: number | null;
+  /** @nullable */
+  documentNumber?: string | null;
+  /** @nullable */
+  paymentMethod?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
   guideNote?: string | null;
   /** @nullable */
   photoObjectPath?: string | null;
+  reviewStatus?: string;
+  ocrStatus?: string;
+  ocrRawResult?: unknown;
+  /** @nullable */
+  correctedFields?: string | null;
   createdAt: string;
   updatedAt: string;
+  /** @nullable */
+  possibleDuplicateOf?: number | null;
 }
 
 export interface OperationReceiptInput {
@@ -935,8 +954,29 @@ export interface OperationReceiptInput {
   currency?: string;
   supplierName?: string;
   receiptDate?: string;
+  receiptTime?: string;
+  taxAmount?: number;
+  taxRate?: number;
+  documentNumber?: string;
+  paymentMethod?: string;
+  category?: string;
   guideNote?: string;
   photoObjectPath?: string;
+  ocrRawResult?: unknown;
+}
+
+export interface OperationReceiptUpdateInput {
+  amount?: number;
+  currency?: string;
+  supplierName?: string;
+  receiptDate?: string;
+  receiptTime?: string;
+  taxAmount?: number;
+  taxRate?: number;
+  documentNumber?: string;
+  paymentMethod?: string;
+  category?: string;
+  guideNote?: string;
 }
 
 export interface OperationDocument {

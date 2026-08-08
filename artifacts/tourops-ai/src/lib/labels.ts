@@ -30,6 +30,7 @@ export const SUPPLIER_CATEGORY_LABELS: Record<string, string> = {
   airline: 'Havayolu',
   car_rental: 'Araç Kiralama',
   insurance: 'Sigorta',
+  driver: 'Şoför',
   other: 'Diğer',
 };
 

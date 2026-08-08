@@ -63,6 +63,7 @@ import type {
   OperationInput,
   OperationReceipt,
   OperationReceiptInput,
+  OperationReceiptUpdateInput,
   OperationTask,
   OperationTaskInput,
   OperationTaskUpdate,
@@ -3781,6 +3782,80 @@ export const useCreateOperationReceipt = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getCreateOperationReceiptMutationOptions(options));
+    }
+
+export const getUpdateOperationReceiptUrl = (id: number,
+    receiptId: number,) => {
+
+
+
+
+  return `/api/operations/${id}/receipts/${receiptId}`
+}
+
+/**
+ * @summary Correct OCR/verified fields on an existing receipt
+ */
+export const updateOperationReceipt = async (id: number,
+    receiptId: number,
+    operationReceiptUpdateInput: OperationReceiptUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<OperationReceipt> => {
+
+  return customFetch<OperationReceipt>(getUpdateOperationReceiptUrl(id,receiptId),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(operationReceiptUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateOperationReceiptMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOperationReceipt>>, TError,{id: number;receiptId: number;data: BodyType<OperationReceiptUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateOperationReceipt>>, TError,{id: number;receiptId: number;data: BodyType<OperationReceiptUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateOperationReceipt'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateOperationReceipt>>, {id: number;receiptId: number;data: BodyType<OperationReceiptUpdateInput>}> = (props) => {
+          const {id,receiptId,data} = props ?? {};
+
+          return  updateOperationReceipt(id,receiptId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateOperationReceiptMutationResult = NonNullable<Awaited<ReturnType<typeof updateOperationReceipt>>>
+    export type UpdateOperationReceiptMutationBody = BodyType<OperationReceiptUpdateInput>
+    export type UpdateOperationReceiptMutationError = ErrorType<void>
+
+    /**
+ * @summary Correct OCR/verified fields on an existing receipt
+ */
+export const useUpdateOperationReceipt = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateOperationReceipt>>, TError,{id: number;receiptId: number;data: BodyType<OperationReceiptUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateOperationReceipt>>,
+        TError,
+        {id: number;receiptId: number;data: BodyType<OperationReceiptUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateOperationReceiptMutationOptions(options));
     }
 
 export const getDeleteOperationReceiptUrl = (id: number,

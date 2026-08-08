@@ -26,6 +26,7 @@ import {
 import { requireAuth, requirePermission } from "../lib/auth";
 import { replayIdempotentResponse, rememberIdempotentResponse } from "../lib/idempotency";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { createAuditLog } from "../lib/audit";
 import multer from "multer";
 import type { Request, Response } from "express";
 
@@ -579,6 +580,44 @@ router.patch("/operations/:id/assignments", requirePermission("field_operations"
         `OPR-${opId} rehber/şoför ataması güncellendi`,
         opId,
       );
+    }
+
+    // Audit trail — guide assignment change
+    if (guideName !== undefined && guideName !== (op.guideName ?? "")) {
+      const description = !op.guideName && guideName
+        ? `Rehber ${guideName} olarak atandı.`
+        : op.guideName && !guideName
+          ? "Rehber ataması kaldırıldı."
+          : `Rehber ${guideName} olarak değiştirildi.`;
+      await createAuditLog({
+        eventType: !op.guideName && guideName ? "guide_assigned" : !guideName ? "guide_unassigned" : "guide_changed",
+        actorProfileId: profile.id,
+        oldValue: { guideName: op.guideName, assignedGuideUserId: op.assignedGuideUserId },
+        newValue: { guideName, assignedGuideUserId: assignedGuideUserId ?? op.assignedGuideUserId },
+        module: "operations",
+        entityType: "operation",
+        entityId: opId,
+        description,
+      });
+    }
+
+    // Audit trail — driver assignment change
+    if (driverName !== undefined && driverName !== (op.driverName ?? "")) {
+      const description = !op.driverName && driverName
+        ? `Şoför ${driverName} olarak atandı.`
+        : op.driverName && !driverName
+          ? "Şoför ataması kaldırıldı."
+          : `Şoför ${driverName} olarak değiştirildi.`;
+      await createAuditLog({
+        eventType: !op.driverName && driverName ? "driver_assigned" : !driverName ? "driver_unassigned" : "driver_changed",
+        actorProfileId: profile.id,
+        oldValue: { driverName: op.driverName, driverPhone: op.driverPhone },
+        newValue: { driverName, driverPhone: driverPhone ?? op.driverPhone },
+        module: "operations",
+        entityType: "operation",
+        entityId: opId,
+        description,
+      });
     }
 
     return res.json({ ...updated, warnings });

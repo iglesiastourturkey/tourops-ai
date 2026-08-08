@@ -6,8 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface OperationReceiptInput {
-  amount: number;
+export interface OperationReceiptUpdateInput {
+  amount?: number;
   currency?: string;
   supplierName?: string;
   receiptDate?: string;
@@ -18,6 +18,4 @@ export interface OperationReceiptInput {
   paymentMethod?: string;
   category?: string;
   guideNote?: string;
-  photoObjectPath?: string;
-  ocrRawResult?: unknown;
 }

@@ -55,6 +55,7 @@ export * from './operationDocumentInput';
 export * from './operationInput';
 export * from './operationReceipt';
 export * from './operationReceiptInput';
+export * from './operationReceiptUpdateInput';
 export * from './operationTask';
 export * from './operationTaskInput';
 export * from './operationTaskUpdate';

@@ -989,6 +989,36 @@ paths:
                 $ref: "#/components/schemas/OperationReceipt"
 
   /operations/{id}/receipts/{receiptId}:
+    patch:
+      operationId: updateOperationReceipt
+      tags: [operations]
+      summary: Correct OCR/verified fields on an existing receipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: receiptId
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OperationReceiptUpdateInput"
+      responses:
+        "200":
+          description: Updated receipt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OperationReceipt"
+        "404":
+          description: Not found
+        "409":
+          description: Receipt is locked by an approved/paid accounting transaction
     delete:
       operationId: deleteOperationReceipt
       tags: [operations]
@@ -2368,10 +2398,21 @@ components:
         currency: { type: string }
         supplierName: { type: ["string", "null"] }
         receiptDate: { type: ["string", "null"] }
+        receiptTime: { type: ["string", "null"] }
+        taxAmount: { type: ["number", "null"] }
+        taxRate: { type: ["number", "null"] }
+        documentNumber: { type: ["string", "null"] }
+        paymentMethod: { type: ["string", "null"] }
+        category: { type: ["string", "null"] }
         guideNote: { type: ["string", "null"] }
         photoObjectPath: { type: ["string", "null"] }
+        reviewStatus: { type: string }
+        ocrStatus: { type: string }
+        ocrRawResult: {}
+        correctedFields: { type: ["string", "null"] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+        possibleDuplicateOf: { type: ["number", "null"] }
       required: [id, operationId, amount, currency, createdAt, updatedAt]
     OperationReceiptInput:
       type: object
@@ -2380,9 +2421,30 @@ components:
         currency: { type: string }
         supplierName: { type: string }
         receiptDate: { type: string }
+        receiptTime: { type: string }
+        taxAmount: { type: number }
+        taxRate: { type: number }
+        documentNumber: { type: string }
+        paymentMethod: { type: string }
+        category: { type: string }
         guideNote: { type: string }
         photoObjectPath: { type: string }
+        ocrRawResult: {}
       required: [amount]
+    OperationReceiptUpdateInput:
+      type: object
+      properties:
+        amount: { type: number }
+        currency: { type: string }
+        supplierName: { type: string }
+        receiptDate: { type: string }
+        receiptTime: { type: string }
+        taxAmount: { type: number }
+        taxRate: { type: number }
+        documentNumber: { type: string }
+        paymentMethod: { type: string }
+        category: { type: string }
+        guideNote: { type: string }
 
     OperationDocument:
       type: object

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { operationsTable, operationTasksTable, operationReceiptsTable, operationDocumentsTable, auditLogsTable } from "@workspace/db/schema";
+import { operationsTable, operationTasksTable, operationReceiptsTable, operationDocumentsTable, auditLogsTable, accountingTransactionsTable } from "@workspace/db/schema";
 import { eq, desc, and, sql } from "drizzle-orm";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
@@ -294,10 +294,27 @@ router.post("/:id/receipts", requirePermission("receipts", "create"), async (req
       }
     }
 
+    // Soft duplicate check — same operation, amount, date and supplier already recorded.
+    // Not a hard block: just surfaced to the client as a warning.
+    let possibleDuplicateOf: number | undefined;
+    if (body.receiptDate && body.supplierName) {
+      const candidates = await db.select({ id: operationReceiptsTable.id })
+        .from(operationReceiptsTable)
+        .where(and(
+          eq(operationReceiptsTable.operationId, operationId),
+          eq(operationReceiptsTable.amount, Number(body.amount)),
+          eq(operationReceiptsTable.receiptDate, body.receiptDate),
+          sql`lower(${operationReceiptsTable.supplierName}) = lower(${body.supplierName})`,
+        ))
+        .limit(1);
+      possibleDuplicateOf = candidates[0]?.id;
+    }
+
     // Record creator for guide-scoped deletion enforcement
     const [row] = await db.insert(operationReceiptsTable)
       .values({ ...body, operationId, createdByUserId: userId })
       .returning();
+    const formattedAmount = new Intl.NumberFormat("tr-TR", { style: "currency", currency: row.currency }).format(row.amount);
     await createAuditLog({
       eventType: "operation_expense_created",
       actorProfileId: res.locals.profile.id,
@@ -305,10 +322,82 @@ router.post("/:id/receipts", requirePermission("receipts", "create"), async (req
       module: "operations",
       entityType: "operation",
       entityId: operationId,
-      description: "Operasyon masrafı eklendi",
+      description: `${formattedAmount} tutarında masraf makbuzu eklendi.`,
     });
-    res.status(201).json(row);
+    res.status(201).json({ ...row, possibleDuplicateOf });
   } catch { res.status(500).json({ error: "Failed to create receipt" }); }
+});
+
+// PATCH /operations/:id/receipts/:receiptId — correct OCR/verified fields on an existing receipt.
+// Blocked once the receipt is linked to an approved/paid accounting transaction (reconciled data
+// must not be silently rewritten). Guides never reach this — "receipts.update" is admin/operations only.
+const RECEIPT_EDITABLE_FIELDS = [
+  "amount", "currency", "supplierName", "receiptDate", "receiptTime",
+  "taxAmount", "taxRate", "documentNumber", "paymentMethod", "category", "guideNote",
+] as const;
+
+router.patch("/:id/receipts/:receiptId", requirePermission("receipts", "update"), async (req, res) => {
+  try {
+    const operationId = parseInt(req.params.id as string);
+    const receiptId = parseInt(req.params.receiptId as string);
+
+    const [receipt] = await db.select().from(operationReceiptsTable)
+      .where(and(eq(operationReceiptsTable.id, receiptId), eq(operationReceiptsTable.operationId, operationId)));
+    if (!receipt) { res.status(404).json({ error: "Receipt not found" }); return; }
+
+    const [linkedTx] = await db.select({
+      accountingStatus: accountingTransactionsTable.accountingStatus,
+      paymentStatus: accountingTransactionsTable.paymentStatus,
+    }).from(accountingTransactionsTable).where(eq(accountingTransactionsTable.receiptId, receiptId)).limit(1);
+    if (linkedTx && (linkedTx.accountingStatus === "approved" || linkedTx.paymentStatus === "paid")) {
+      res.status(409).json({ error: "Bu makbuz muhasebe tarafında onaylanmış/ödenmiş; artık düzenlenemez." });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const updates: Partial<typeof operationReceiptsTable.$inferInsert> = {};
+    const changedFields: string[] = [];
+    for (const field of RECEIPT_EDITABLE_FIELDS) {
+      if (body[field] === undefined) continue;
+      const oldVal = receipt[field as keyof typeof receipt];
+      const newVal = body[field];
+      if (oldVal !== newVal) {
+        (updates as Record<string, unknown>)[field] = newVal;
+        changedFields.push(field);
+      }
+    }
+    if (changedFields.length === 0) { res.json(receipt); return; }
+
+    // Preserve which fields were manually corrected post-OCR, alongside their prior values.
+    let correctedFields: Record<string, unknown> = {};
+    try { correctedFields = receipt.correctedFields ? JSON.parse(receipt.correctedFields) : {}; } catch { /* ignore malformed existing data */ }
+    for (const field of changedFields) {
+      correctedFields[field] = { from: receipt[field as keyof typeof receipt], correctedAt: new Date().toISOString() };
+    }
+    updates.correctedFields = JSON.stringify(correctedFields);
+
+    const [row] = await db.update(operationReceiptsTable).set(updates)
+      .where(eq(operationReceiptsTable.id, receiptId))
+      .returning();
+
+    const actorName = res.locals.profile.name ?? res.locals.profile.email;
+    const description = changedFields.length === 1 && changedFields[0] === "category"
+      ? `Masraf kategorisi ${row.category} olarak değiştirildi.`
+      : `Makbuz OCR verileri ${actorName} tarafından düzeltildi.`;
+    await createAuditLog({
+      eventType: "receipt_corrected",
+      actorProfileId: res.locals.profile.id,
+      oldValue: Object.fromEntries(changedFields.map(f => [f, receipt[f as keyof typeof receipt]])),
+      newValue: Object.fromEntries(changedFields.map(f => [f, row[f as keyof typeof row]])),
+      metadata: { changedFields },
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      description,
+    });
+
+    res.json(row);
+  } catch { res.status(500).json({ error: "Failed to update receipt" }); }
 });
 
 // DELETE /operations/:id/receipts/:receiptId — deletes DB record + GCS object

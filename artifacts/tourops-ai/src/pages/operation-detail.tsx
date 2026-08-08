@@ -18,12 +18,13 @@ import {
   useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
   useListOperationDocuments, useCreateOperationDocument, useDeleteOperationDocument, useListOperationActivity,
   useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer, useGetQuotation,
-  useListProfiles, customFetch,
+  useListProfiles, useListSuppliers, useUpdateOperationReceipt, customFetch,
 } from '@workspace/api-client-react';
+import type { OperationReceipt } from '@workspace/api-client-react';
 import {
   getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
   getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey, getListProfilesQueryKey,
-  getListOperationDocumentsQueryKey, getListOperationActivityQueryKey,
+  getListOperationDocumentsQueryKey, getListOperationActivityQueryKey, getListSuppliersQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
@@ -110,8 +111,19 @@ interface ReceiptForm {
   currency: string;
   supplierName: string;
   receiptDate: string;
+  receiptTime: string;
+  taxAmount: string;
+  taxRate: string;
+  documentNumber: string;
+  paymentMethod: string;
+  category: string;
   guideNote: string;
 }
+
+const EMPTY_RECEIPT_FORM: ReceiptForm = {
+  amount: '', currency: 'TRY', supplierName: '', receiptDate: '', receiptTime: '',
+  taxAmount: '', taxRate: '', documentNumber: '', paymentMethod: '', category: '', guideNote: '',
+};
 
 interface GeneralForm {
   startDate: string;
@@ -158,9 +170,9 @@ export default function OperationDetailPage() {
   const [assignmentWarnings, setAssignmentWarnings] = useState<string[]>([]);
 
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
-  const [receiptForm, setReceiptForm] = useState<ReceiptForm>({
-    amount: '', currency: 'TRY', supplierName: '', receiptDate: '', guideNote: '',
-  });
+  const [receiptForm, setReceiptForm] = useState<ReceiptForm>(EMPTY_RECEIPT_FORM);
+  /** Verbatim OCR output for the currently-selected photo, saved alongside the receipt for audit. */
+  const [ocrRawResult, setOcrRawResult] = useState<OcrReceiptResult | null>(null);
   const [receiptPhoto, setReceiptPhoto] = useState<File | null>(null);
   const [receiptPhotoPreview, setReceiptPhotoPreview] = useState<string | null>(null);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState(false);
@@ -202,6 +214,72 @@ export default function OperationDetailPage() {
   // ── Delete receipt state ──────────────────────────────────────────────────
   const [deleteReceiptTarget, setDeleteReceiptTarget] = useState<number | null>(null);
 
+  // ── Receipt detail/edit state ─────────────────────────────────────────────
+  const [receiptDetailTarget, setReceiptDetailTarget] = useState<OperationReceipt | null>(null);
+  const [receiptEditForm, setReceiptEditForm] = useState<ReceiptForm>(EMPTY_RECEIPT_FORM);
+  const [isSavingReceiptEdit, setIsSavingReceiptEdit] = useState(false);
+
+  function openReceiptDetail(r: OperationReceipt) {
+    setReceiptDetailTarget(r);
+    setReceiptEditForm({
+      amount: String(r.amount),
+      currency: r.currency,
+      supplierName: r.supplierName ?? '',
+      receiptDate: r.receiptDate ?? '',
+      receiptTime: r.receiptTime ?? '',
+      taxAmount: r.taxAmount != null ? String(r.taxAmount) : '',
+      taxRate: r.taxRate != null ? String(r.taxRate) : '',
+      documentNumber: r.documentNumber ?? '',
+      paymentMethod: r.paymentMethod ?? '',
+      category: r.category ?? '',
+      guideNote: r.guideNote ?? '',
+    });
+  }
+
+  function saveReceiptEdit() {
+    if (!receiptDetailTarget) return;
+    const amountNum = parseFloat(receiptEditForm.amount);
+    if (!receiptEditForm.amount || isNaN(amountNum)) {
+      toast({ title: 'Tutar zorunludur', variant: 'destructive' }); return;
+    }
+    setIsSavingReceiptEdit(true);
+    updateReceiptMutation.mutate({
+      id,
+      receiptId: receiptDetailTarget.id,
+      data: {
+        amount: amountNum,
+        currency: receiptEditForm.currency,
+        supplierName: receiptEditForm.supplierName || undefined,
+        receiptDate: receiptEditForm.receiptDate || undefined,
+        receiptTime: receiptEditForm.receiptTime || undefined,
+        taxAmount: receiptEditForm.taxAmount ? parseFloat(receiptEditForm.taxAmount) : undefined,
+        taxRate: receiptEditForm.taxRate ? parseFloat(receiptEditForm.taxRate) : undefined,
+        documentNumber: receiptEditForm.documentNumber || undefined,
+        paymentMethod: receiptEditForm.paymentMethod || undefined,
+        category: receiptEditForm.category || undefined,
+        guideNote: receiptEditForm.guideNote || undefined,
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: 'Makbuz güncellendi' });
+        qc.invalidateQueries({ queryKey: getListOperationReceiptsQueryKey(id) });
+        qc.invalidateQueries({ queryKey: getListOperationActivityQueryKey(id) });
+        setReceiptDetailTarget(null);
+      },
+      onError: (err) => {
+        const status = (err as { status?: number } | null)?.status;
+        toast({
+          title: status === 409 ? 'Makbuz kilitli' : 'Kaydedilemedi',
+          description: status === 409
+            ? 'Bu makbuz muhasebe tarafında onaylanmış/ödenmiş; artık düzenlenemez.'
+            : (err instanceof Error ? err.message : 'Lütfen tekrar deneyin.'),
+          variant: 'destructive',
+        });
+      },
+      onSettled: () => setIsSavingReceiptEdit(false),
+    });
+  }
+
   // ── OCR state ─────────────────────────────────────────────────────────────
   const [isOcrLoading, setIsOcrLoading] = useState(false);
   /** Per-field confidence scores (0–1) from the last OCR run. */
@@ -219,6 +297,7 @@ export default function OperationDetailPage() {
   const updateOperationMutation = useUpdateOperation();
   const createReceiptMutation = useCreateOperationReceipt();
   const deleteReceiptMutation = useDeleteOperationReceipt();
+  const updateReceiptMutation = useUpdateOperationReceipt();
   const createDocumentMutation = useCreateOperationDocument();
   const deleteDocumentMutation = useDeleteOperationDocument();
 
@@ -226,6 +305,15 @@ export default function OperationDetailPage() {
   const { data: guideProfiles } = useListProfiles(
     { role: 'guide' },
     { query: { enabled: canEdit, queryKey: getListProfilesQueryKey({ role: 'guide' }) } },
+  );
+
+  // ── Driver suppliers (for assignment dropdown) ──────────────────────────
+  // No dedicated driver/personnel model exists — drivers are external
+  // contacts, modeled the same way freelance guides already are: as
+  // suppliers with a category tag.
+  const { data: driverSuppliers } = useListSuppliers(
+    { category: 'driver', isActive: true },
+    { query: { enabled: canEdit, queryKey: getListSuppliersQueryKey({ category: 'driver', isActive: true }) } },
   );
 
   // ── Sync guide form when operation loads ────────────────────────────────
@@ -499,19 +587,32 @@ export default function OperationDetailPage() {
         currency: receiptForm.currency,
         supplierName: receiptForm.supplierName || undefined,
         receiptDate: receiptForm.receiptDate || undefined,
+        receiptTime: receiptForm.receiptTime || undefined,
+        taxAmount: receiptForm.taxAmount ? parseFloat(receiptForm.taxAmount) : undefined,
+        taxRate: receiptForm.taxRate ? parseFloat(receiptForm.taxRate) : undefined,
+        documentNumber: receiptForm.documentNumber || undefined,
+        paymentMethod: receiptForm.paymentMethod || undefined,
+        category: receiptForm.category || undefined,
         guideNote: receiptForm.guideNote || undefined,
         photoObjectPath,
+        ocrRawResult: ocrRawResult ?? undefined,
       },
     }, {
-      onSuccess: () => {
+      onSuccess: (created) => {
         if (photoUploadError || (!photoObjectPath && receiptPhoto)) {
           toast({ title: 'Makbuz eklendi', description: 'Fotoğraf yüklenemedi; makbuz fotoğrafsız kaydedildi.', variant: 'default' });
         } else {
           toast({ title: 'Makbuz eklendi' });
         }
+        if (created?.possibleDuplicateOf) {
+          toast({
+            title: 'Olası tekrar',
+            description: `Bu belge daha önce yüklenmiş olabilir (Makbuz #${created.possibleDuplicateOf}).`,
+          });
+        }
         qc.invalidateQueries({ queryKey: getListOperationReceiptsQueryKey(id) });
         setReceiptDialogOpen(false);
-        setReceiptForm({ amount: '', currency: 'TRY', supplierName: '', receiptDate: '', guideNote: '' });
+        setReceiptForm(EMPTY_RECEIPT_FORM);
         setReceiptPhoto(null);
         setReceiptPhotoPreview(null);
         setUploadProgress(0);
@@ -527,6 +628,7 @@ export default function OperationDetailPage() {
   function clearOcrState() {
     setOcrConfidence({});
     setOcrConflicts({});
+    setOcrRawResult(null);
   }
 
   async function handleOcrScan() {
@@ -579,19 +681,35 @@ export default function OperationDetailPage() {
         }
       }
 
-      // Compose extra fields into the note (only if note is empty)
-      if (!receiptForm.guideNote) {
-        const parts: string[] = [];
-        if (result.receiptTime) parts.push(`Saat: ${result.receiptTime}`);
-        if (result.taxAmount != null) parts.push(`KDV: ${result.taxAmount}`);
-        if (result.invoiceNumber) parts.push(`Fiş No: ${result.invoiceNumber}`);
-        if (result.paymentMethod) parts.push(`Ödeme: ${result.paymentMethod}`);
-        if (result.expenseCategory) parts.push(`Kategori: ${result.expenseCategory}`);
-        if (parts.length > 0) newForm.guideNote = parts.join(' | ');
+      // Remaining string fields — same "fill if empty, else flag conflict" rule.
+      const stringFields: Array<[keyof ReceiptForm, string | null]> = [
+        ['receiptTime', result.receiptTime],
+        ['documentNumber', result.invoiceNumber],
+        ['paymentMethod', result.paymentMethod],
+        ['category', result.expenseCategory],
+      ];
+      for (const [field, ocrValue] of stringFields) {
+        if (!ocrValue) continue;
+        if (!receiptForm[field]) {
+          newForm[field] = ocrValue;
+        } else if (receiptForm[field] !== ocrValue) {
+          conflicts[field] = ocrValue;
+        }
+      }
+
+      // Tax amount (numeric)
+      if (result.taxAmount != null) {
+        const strVal = String(result.taxAmount);
+        if (!receiptForm.taxAmount) {
+          newForm.taxAmount = strVal;
+        } else if (receiptForm.taxAmount !== strVal) {
+          conflicts.taxAmount = strVal;
+        }
       }
 
       setReceiptForm(newForm);
       setOcrConflicts(conflicts);
+      setOcrRawResult(result);
       toast({ title: 'Makbuz okundu', description: 'Veriler forma aktarıldı. Lütfen kontrol edin.' });
     } catch (err) {
       toast({
@@ -944,10 +1062,17 @@ export default function OperationDetailPage() {
                           <AlertCircle className="w-3 h-3" />Fotoğraf yok
                         </span>
                       )}
+                      {r.ocrStatus === 'processed' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 font-medium leading-none">OCR Okundu</span>
+                      )}
+                      {r.ocrStatus === 'failed' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium leading-none">OCR Başarısız</span>
+                      )}
                     </div>
                     <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
                       {r.supplierName && <p>🏪 {r.supplierName}</p>}
-                      {r.receiptDate && <p>📅 {r.receiptDate}</p>}
+                      {r.receiptDate && <p>📅 {r.receiptDate}{r.receiptTime ? ` ${r.receiptTime}` : ''}</p>}
+                      {r.category && <p>🏷️ {r.category}</p>}
                       {r.guideNote && <p className="italic">"{r.guideNote}"</p>}
                     </div>
                   </div>
@@ -960,6 +1085,13 @@ export default function OperationDetailPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="gap-2"
+                          onClick={() => openReceiptDetail(r)}
+                          data-testid={`button-detail-receipt-${r.id}`}
+                        >
+                          <FileText className="w-3.5 h-3.5" />Detay / Düzenle
+                        </DropdownMenuItem>
                         <DropdownMenuItem
                           className="gap-2 text-destructive focus:text-destructive"
                           onClick={() => setDeleteReceiptTarget(r.id)}
@@ -1094,6 +1226,40 @@ export default function OperationDetailPage() {
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5" />Şoför & Araç
               </p>
+              {/* ── Assign from registered drivers (suppliers, category=driver) ── */}
+              <div className="mb-2">
+                <label className="text-xs text-muted-foreground mb-1 block">Kayıtlı Şoförden Seç</label>
+                <Select
+                  value="__pick__"
+                  onValueChange={v => {
+                    if (v === '__pick__') return;
+                    const supplier = (driverSuppliers ?? []).find(s => String(s.id) === v);
+                    if (!supplier) return;
+                    setGuideForm(f => ({
+                      ...f,
+                      driverName: supplier.contactPerson || supplier.name,
+                      driverPhone: supplier.phone ?? '',
+                    }));
+                  }}
+                >
+                  <SelectTrigger data-testid="select-driver-supplier">
+                    <SelectValue placeholder="Kayıtlı şoförden doldur..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__pick__" disabled>Kayıtlı şoförden doldur...</SelectItem>
+                    {(driverSuppliers ?? []).map(s => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {(s.contactPerson || s.name)}{s.phone ? ` · ${s.phone}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(driverSuppliers ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Kayıtlı aktif şoför yok — Tedarikçiler'den "Şoför" kategorisiyle ekleyebilirsiniz.
+                  </p>
+                )}
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label><Input value={guideForm.driverName} onChange={e => setGuideForm(f => ({ ...f, driverName: e.target.value }))} placeholder="Şoför adı" data-testid="input-driver-name" /></div>
                 <div><label className="text-xs text-muted-foreground mb-1 block">Telefon</label><Input value={guideForm.driverPhone} onChange={e => setGuideForm(f => ({ ...f, driverPhone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-driver-phone" /></div>
@@ -1256,9 +1422,49 @@ export default function OperationDetailPage() {
               )}
             </div>
 
+            {/* ── Verified data (OCR-extracted, editable before save) ─────── */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Saat</label>
+                <Input type="time" value={receiptForm.receiptTime} onChange={e => setReceiptForm(f => ({ ...f, receiptTime: e.target.value }))} data-testid="input-receipt-time" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Fiş / Fatura No</label>
+                <Input value={receiptForm.documentNumber} onChange={e => setReceiptForm(f => ({ ...f, documentNumber: e.target.value }))} placeholder="EFT2024/1234" data-testid="input-receipt-document-number" />
+                {ocrConflicts.documentNumber && (
+                  <button type="button" className="text-xs text-primary underline mt-1" onClick={() => { setReceiptForm(f => ({ ...f, documentNumber: ocrConflicts.documentNumber! })); setOcrConflicts(c => { const n = { ...c }; delete n.documentNumber; return n; }); }}>OCR: {ocrConflicts.documentNumber} — Kabul Et</button>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">KDV Tutarı</label>
+                <Input type="number" step="0.01" value={receiptForm.taxAmount} onChange={e => setReceiptForm(f => ({ ...f, taxAmount: e.target.value }))} placeholder="0.00" data-testid="input-receipt-tax-amount" />
+                {ocrConflicts.taxAmount && (
+                  <button type="button" className="text-xs text-primary underline mt-1" onClick={() => { setReceiptForm(f => ({ ...f, taxAmount: ocrConflicts.taxAmount! })); setOcrConflicts(c => { const n = { ...c }; delete n.taxAmount; return n; }); }}>OCR: {ocrConflicts.taxAmount} — Kabul Et</button>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">KDV Oranı (%)</label>
+                <Input type="number" step="1" value={receiptForm.taxRate} onChange={e => setReceiptForm(f => ({ ...f, taxRate: e.target.value }))} placeholder="20" data-testid="input-receipt-tax-rate" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Ödeme Yöntemi</label>
+                <Input value={receiptForm.paymentMethod} onChange={e => setReceiptForm(f => ({ ...f, paymentMethod: e.target.value }))} placeholder="Nakit, Kredi Kartı..." data-testid="input-receipt-payment-method" />
+                {ocrConflicts.paymentMethod && (
+                  <button type="button" className="text-xs text-primary underline mt-1" onClick={() => { setReceiptForm(f => ({ ...f, paymentMethod: ocrConflicts.paymentMethod! })); setOcrConflicts(c => { const n = { ...c }; delete n.paymentMethod; return n; }); }}>OCR: {ocrConflicts.paymentMethod} — Kabul Et</button>
+                )}
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Kategori</label>
+                <Input value={receiptForm.category} onChange={e => setReceiptForm(f => ({ ...f, category: e.target.value }))} placeholder="Yemek, Ulaşım..." data-testid="input-receipt-category" />
+                {ocrConflicts.category && (
+                  <button type="button" className="text-xs text-primary underline mt-1" onClick={() => { setReceiptForm(f => ({ ...f, category: ocrConflicts.category! })); setOcrConflicts(c => { const n = { ...c }; delete n.category; return n; }); }}>OCR: {ocrConflicts.category} — Kabul Et</button>
+                )}
+              </div>
+            </div>
+
             {/* ── Guide note ────────────────────────────────────────────── */}
             <div>
-              <label className="text-xs text-muted-foreground mb-1 block">Rehber Notu</label>
+              <label className="text-xs text-muted-foreground mb-1 block">Açıklama / Rehber Notu</label>
               <Textarea value={receiptForm.guideNote} onChange={e => setReceiptForm(f => ({ ...f, guideNote: e.target.value }))} rows={2} placeholder="Makbuz hakkında not..." data-testid="textarea-receipt-note" />
             </div>
 
@@ -1368,6 +1574,103 @@ export default function OperationDetailPage() {
             <Button variant="outline" onClick={() => setReceiptDialogOpen(false)} disabled={isUploadingReceipt || createReceiptMutation.isPending}>İptal</Button>
             <Button onClick={handleCreateReceipt} disabled={isUploadingReceipt || createReceiptMutation.isPending} data-testid="button-save-receipt">
               {isUploadingReceipt ? 'Fotoğraf yükleniyor...' : createReceiptMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Receipt detail / edit dialog ─────────────────────────────────── */}
+      {/* ORIGINAL DOCUMENT (photo) / OCR RESULT (raw, read-only) / VERIFIED DATA
+          (editable fields below) are kept visually distinct, per spec. */}
+      <Dialog open={receiptDetailTarget !== null} onOpenChange={open => { if (!open) setReceiptDetailTarget(null); }}>
+        <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Makbuz Detayı</DialogTitle></DialogHeader>
+          {receiptDetailTarget && (
+            <div className="space-y-3">
+              {/* Original document */}
+              {receiptDetailTarget.photoObjectPath ? (
+                <AuthenticatedImage
+                  objectPath={receiptDetailTarget.photoObjectPath}
+                  alt="Orijinal makbuz"
+                  className="w-full h-40 object-cover rounded-lg border"
+                />
+              ) : (
+                <div className="w-full h-20 rounded-lg border border-dashed flex items-center justify-center text-xs text-muted-foreground">
+                  Fotoğraf yok
+                </div>
+              )}
+
+              {/* Raw OCR result — read-only, kept distinct from verified data below */}
+              {receiptDetailTarget.ocrRawResult != null && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground select-none">OCR Ham Sonucu</summary>
+                  <pre className="mt-1.5 p-2 rounded-md bg-muted overflow-x-auto whitespace-pre-wrap">
+                    {JSON.stringify(receiptDetailTarget.ocrRawResult, null, 2)}
+                  </pre>
+                </details>
+              )}
+
+              {/* Verified data — editable */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tutar *</label>
+                  <Input type="number" step="0.01" min="0" value={receiptEditForm.amount} onChange={e => setReceiptEditForm(f => ({ ...f, amount: e.target.value }))} data-testid="input-edit-receipt-amount" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Para Birimi</label>
+                  <Select value={receiptEditForm.currency} onValueChange={v => setReceiptEditForm(f => ({ ...f, currency: v }))}>
+                    <SelectTrigger data-testid="select-edit-receipt-currency"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TRY">TRY ₺</SelectItem>
+                      <SelectItem value="USD">USD $</SelectItem>
+                      <SelectItem value="EUR">EUR €</SelectItem>
+                      <SelectItem value="GBP">GBP £</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Tedarikçi / Dükkan</label>
+                  <Input value={receiptEditForm.supplierName} onChange={e => setReceiptEditForm(f => ({ ...f, supplierName: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tarih</label>
+                  <Input type="date" value={receiptEditForm.receiptDate} onChange={e => setReceiptEditForm(f => ({ ...f, receiptDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Saat</label>
+                  <Input type="time" value={receiptEditForm.receiptTime} onChange={e => setReceiptEditForm(f => ({ ...f, receiptTime: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Fiş / Fatura No</label>
+                  <Input value={receiptEditForm.documentNumber} onChange={e => setReceiptEditForm(f => ({ ...f, documentNumber: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">KDV Tutarı</label>
+                  <Input type="number" step="0.01" value={receiptEditForm.taxAmount} onChange={e => setReceiptEditForm(f => ({ ...f, taxAmount: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">KDV Oranı (%)</label>
+                  <Input type="number" step="1" value={receiptEditForm.taxRate} onChange={e => setReceiptEditForm(f => ({ ...f, taxRate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Ödeme Yöntemi</label>
+                  <Input value={receiptEditForm.paymentMethod} onChange={e => setReceiptEditForm(f => ({ ...f, paymentMethod: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Kategori</label>
+                  <Input value={receiptEditForm.category} onChange={e => setReceiptEditForm(f => ({ ...f, category: e.target.value }))} data-testid="input-edit-receipt-category" />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Açıklama</label>
+                  <Textarea value={receiptEditForm.guideNote} onChange={e => setReceiptEditForm(f => ({ ...f, guideNote: e.target.value }))} rows={2} />
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiptDetailTarget(null)}>İptal</Button>
+            <Button onClick={saveReceiptEdit} disabled={isSavingReceiptEdit} data-testid="button-save-receipt-edit">
+              {isSavingReceiptEdit ? 'Kaydediliyor...' : 'Kaydet'}
             </Button>
           </DialogFooter>
         </DialogContent>

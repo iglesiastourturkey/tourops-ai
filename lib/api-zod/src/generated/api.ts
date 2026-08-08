@@ -1593,10 +1593,21 @@ export const ListOperationReceiptsResponseItem = zod.object({
   "currency": zod.string(),
   "supplierName": zod.string().nullish(),
   "receiptDate": zod.string().nullish(),
+  "receiptTime": zod.string().nullish(),
+  "taxAmount": zod.number().nullish(),
+  "taxRate": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "guideNote": zod.string().nullish(),
   "photoObjectPath": zod.string().nullish(),
+  "reviewStatus": zod.string().optional(),
+  "ocrStatus": zod.string().optional(),
+  "ocrRawResult": zod.unknown().optional(),
+  "correctedFields": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "possibleDuplicateOf": zod.number().nullish()
 })
 export const ListOperationReceiptsResponse = zod.array(ListOperationReceiptsResponseItem)
 
@@ -1613,8 +1624,15 @@ export const CreateOperationReceiptBody = zod.object({
   "currency": zod.string().optional(),
   "supplierName": zod.string().optional(),
   "receiptDate": zod.string().optional(),
+  "receiptTime": zod.string().optional(),
+  "taxAmount": zod.number().optional(),
+  "taxRate": zod.number().optional(),
+  "documentNumber": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "category": zod.string().optional(),
   "guideNote": zod.string().optional(),
-  "photoObjectPath": zod.string().optional()
+  "photoObjectPath": zod.string().optional(),
+  "ocrRawResult": zod.unknown().optional()
 })
 
 export const CreateOperationReceiptResponse = zod.object({
@@ -1624,10 +1642,68 @@ export const CreateOperationReceiptResponse = zod.object({
   "currency": zod.string(),
   "supplierName": zod.string().nullish(),
   "receiptDate": zod.string().nullish(),
+  "receiptTime": zod.string().nullish(),
+  "taxAmount": zod.number().nullish(),
+  "taxRate": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "category": zod.string().nullish(),
   "guideNote": zod.string().nullish(),
   "photoObjectPath": zod.string().nullish(),
+  "reviewStatus": zod.string().optional(),
+  "ocrStatus": zod.string().optional(),
+  "ocrRawResult": zod.unknown().optional(),
+  "correctedFields": zod.string().nullish(),
   "createdAt": zod.coerce.date(),
-  "updatedAt": zod.coerce.date()
+  "updatedAt": zod.coerce.date(),
+  "possibleDuplicateOf": zod.number().nullish()
+})
+
+
+/**
+ * @summary Correct OCR/verified fields on an existing receipt
+ */
+export const UpdateOperationReceiptParams = zod.object({
+  "id": zod.coerce.number(),
+  "receiptId": zod.coerce.number()
+})
+
+export const UpdateOperationReceiptBody = zod.object({
+  "amount": zod.number().optional(),
+  "currency": zod.string().optional(),
+  "supplierName": zod.string().optional(),
+  "receiptDate": zod.string().optional(),
+  "receiptTime": zod.string().optional(),
+  "taxAmount": zod.number().optional(),
+  "taxRate": zod.number().optional(),
+  "documentNumber": zod.string().optional(),
+  "paymentMethod": zod.string().optional(),
+  "category": zod.string().optional(),
+  "guideNote": zod.string().optional()
+})
+
+export const UpdateOperationReceiptResponse = zod.object({
+  "id": zod.number(),
+  "operationId": zod.number(),
+  "amount": zod.number(),
+  "currency": zod.string(),
+  "supplierName": zod.string().nullish(),
+  "receiptDate": zod.string().nullish(),
+  "receiptTime": zod.string().nullish(),
+  "taxAmount": zod.number().nullish(),
+  "taxRate": zod.number().nullish(),
+  "documentNumber": zod.string().nullish(),
+  "paymentMethod": zod.string().nullish(),
+  "category": zod.string().nullish(),
+  "guideNote": zod.string().nullish(),
+  "photoObjectPath": zod.string().nullish(),
+  "reviewStatus": zod.string().optional(),
+  "ocrStatus": zod.string().optional(),
+  "ocrRawResult": zod.unknown().optional(),
+  "correctedFields": zod.string().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "possibleDuplicateOf": zod.number().nullish()
 })
 
 

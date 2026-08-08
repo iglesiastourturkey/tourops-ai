@@ -1,4 +1,4 @@
-import { pgTable, text, serial, timestamp, integer, real, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, date, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { quotationsTable } from "./quotations";
@@ -78,6 +78,17 @@ export const operationReceiptsTable = pgTable("operation_receipts", {
   // 'not_started' | 'processed' | 'failed'
   correctedFields: text("corrected_fields"),
   // JSON: manually corrected overrides (preserves original OCR values in main columns)
+  // Structured OCR fields — mirrors accounting_transactions so a receipt can be
+  // promoted to a transaction (create-transaction) without losing detail.
+  taxAmount: real("tax_amount"),
+  taxRate: real("tax_rate"),
+  documentNumber: text("document_number"),
+  paymentMethod: text("payment_method"),
+  category: text("category"),
+  receiptTime: text("receipt_time"), // "HH:MM"
+  // Verbatim OCR API response — preserved for audit, distinct from the
+  // (editable) verified values in the columns above.
+  ocrRawResult: jsonb("ocr_raw_result"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

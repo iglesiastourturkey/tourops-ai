@@ -16,9 +16,28 @@ export interface OperationReceipt {
   /** @nullable */
   receiptDate?: string | null;
   /** @nullable */
+  receiptTime?: string | null;
+  /** @nullable */
+  taxAmount?: number | null;
+  /** @nullable */
+  taxRate?: number | null;
+  /** @nullable */
+  documentNumber?: string | null;
+  /** @nullable */
+  paymentMethod?: string | null;
+  /** @nullable */
+  category?: string | null;
+  /** @nullable */
   guideNote?: string | null;
   /** @nullable */
   photoObjectPath?: string | null;
+  reviewStatus?: string;
+  ocrStatus?: string;
+  ocrRawResult?: unknown;
+  /** @nullable */
+  correctedFields?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  /** @nullable */
+  possibleDuplicateOf?: number | null;
 }
