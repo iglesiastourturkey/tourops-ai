@@ -1,30 +1,30 @@
 import { useState } from 'react';
-import type { SignInResource } from '@clerk/react';
+import { useSignIn } from '@clerk/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ChevronLeft, Loader2, ShieldCheck } from 'lucide-react';
 
+// Derive the signIn resource type directly from the hook so it always matches
+// the installed Clerk version without importing non-exported legacy types.
+type FutureSignIn = ReturnType<typeof useSignIn>['signIn'];
+
 type VerificationKind = 'client-trust' | 'second-factor';
 
-type FactorStrategy =
-  | 'email_code'
-  | 'phone_code'
-  | 'email_link'
-  | 'totp'
-  | 'backup_code';
+// email_link has no equivalent in the v6 future API's mfa namespace.
+type FactorStrategy = 'email_code' | 'phone_code' | 'totp' | 'backup_code';
 
-type SecondFactor = { strategy: FactorStrategy };
+type SecondFactor = { strategy: string };
 
 interface SecondFactorVerificationProps {
-  signIn: Pick<SignInResource, 'status' | 'createdSessionId' | 'supportedSecondFactors' | 'prepareSecondFactor' | 'attemptSecondFactor'>;
+  signIn: FutureSignIn;
   kind: VerificationKind;
   onComplete: () => Promise<void>;
   onBack: () => void;
 }
 
-function clerkMessage(error: unknown, fallback: string) {
+function clerkMessage(error: unknown, fallback: string): string {
   if (error && typeof error === 'object') {
     const candidate = error as { longMessage?: string; message?: string };
     return candidate.longMessage ?? candidate.message ?? fallback;
@@ -33,10 +33,10 @@ function clerkMessage(error: unknown, fallback: string) {
 }
 
 function pickFactor(factors: readonly SecondFactor[] | null | undefined): FactorStrategy | null {
-  const strategies = new Set(factors?.map(factor => factor.strategy));
+  const strategies = new Set(factors?.map(f => f.strategy));
+  // Priority: email_code → phone_code → totp → backup_code
   if (strategies.has('email_code')) return 'email_code';
   if (strategies.has('phone_code')) return 'phone_code';
-  if (strategies.has('email_link')) return 'email_link';
   if (strategies.has('totp')) return 'totp';
   if (strategies.has('backup_code')) return 'backup_code';
   return null;
@@ -60,21 +60,27 @@ export function SecondFactorVerification({
   const canUseCode = strategy === 'email_code' || strategy === 'phone_code';
   const isManualCode = canUseCode || strategy === 'totp' || strategy === 'backup_code';
 
+  // ── Send / resend a one-time code ─────────────────────────────────────────
   async function prepareCode(resend = false) {
-    if (!signIn || !canUseCode || !strategy) return;
+    if (!canUseCode || !strategy) return;
     setLoading(true);
     setError(null);
 
     try {
-      const result = await signIn.prepareSecondFactor({ strategy });
-      if (result.status !== 'needs_client_trust' && result.status !== 'needs_second_factor') {
-        setError('Oturum doğrulaması sona erdi. Lütfen tekrar giriş yapın.');
+      // v6 future API: mfa.sendEmailCode() / mfa.sendPhoneCode()
+      // Methods return { error } rather than throwing.
+      const { error: sendErr } =
+        strategy === 'email_code'
+          ? await signIn.mfa.sendEmailCode()
+          : await signIn.mfa.sendPhoneCode();
+
+      if (sendErr) {
+        setError(clerkMessage(sendErr, 'Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.'));
         return;
       }
+
       setSent(true);
-      if (resend) {
-        setError(null);
-      }
+      if (resend) setError(null);
     } catch (err) {
       setError(clerkMessage(err, 'Doğrulama kodu gönderilemedi. Lütfen tekrar deneyin.'));
     } finally {
@@ -82,6 +88,7 @@ export function SecondFactorVerification({
     }
   }
 
+  // ── Verify the submitted code ─────────────────────────────────────────────
   async function verify(e: React.FormEvent) {
     e.preventDefault();
     if (!strategy || !isManualCode || !code.trim()) return;
@@ -89,13 +96,33 @@ export function SecondFactorVerification({
     setError(null);
 
     try {
-      const result = await signIn.attemptSecondFactor({ strategy, code: code.trim() });
-      if (result.status === 'complete' && result.createdSessionId) {
+      // v6 future API: strategy-specific verify methods under mfa.*
+      // Each returns { error }; the resource is mutated in-place on success.
+      let verifyErr: unknown | null = null;
+      const trimmed = code.trim();
+
+      if (strategy === 'email_code') {
+        ({ error: verifyErr } = await signIn.mfa.verifyEmailCode({ code: trimmed }));
+      } else if (strategy === 'phone_code') {
+        ({ error: verifyErr } = await signIn.mfa.verifyPhoneCode({ code: trimmed }));
+      } else if (strategy === 'totp') {
+        ({ error: verifyErr } = await signIn.mfa.verifyTOTP({ code: trimmed }));
+      } else if (strategy === 'backup_code') {
+        ({ error: verifyErr } = await signIn.mfa.verifyBackupCode({ code: trimmed }));
+      }
+
+      if (verifyErr) {
+        setError(clerkMessage(verifyErr, 'Doğrulama kodu geçersiz veya süresi dolmuş.'));
+        return;
+      }
+
+      // Resource is mutated in-place — check status directly.
+      if (signIn.status === 'complete' && signIn.createdSessionId) {
         await onComplete();
         return;
       }
 
-      if (result.status === 'needs_client_trust' || result.status === 'needs_second_factor') {
+      if (signIn.status === 'needs_client_trust' || signIn.status === 'needs_second_factor') {
         setError('Doğrulama kodu geçersiz veya süresi dolmuş.');
         return;
       }
@@ -103,24 +130,6 @@ export function SecondFactorVerification({
       setError('Oturum doğrulaması sona erdi. Lütfen tekrar giriş yapın.');
     } catch (err) {
       setError(clerkMessage(err, 'Doğrulama kodu geçersiz veya süresi dolmuş.'));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function startEmailLink() {
-    if (!strategy || strategy !== 'email_link') return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await signIn.prepareSecondFactor({ strategy: 'email_link' });
-      if (result.status !== 'needs_client_trust' && result.status !== 'needs_second_factor') {
-        setError('Oturum doğrulaması sona erdi. Lütfen tekrar giriş yapın.');
-        return;
-      }
-      setSent(true);
-    } catch (err) {
-      setError(clerkMessage(err, 'Doğrulama bağlantısı gönderilemedi. Lütfen tekrar deneyin.'));
     } finally {
       setLoading(false);
     }
@@ -156,7 +165,9 @@ export function SecondFactorVerification({
             <>
               {!sent ? (
                 <Button className="w-full" onClick={() => prepareCode()} disabled={loading}>
-                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Kod gönderiliyor…</> : 'Doğrulama Kodu Gönder'}
+                  {loading
+                    ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Kod gönderiliyor…</>
+                    : 'Doğrulama Kodu Gönder'}
                 </Button>
               ) : (
                 <form onSubmit={verify} className="space-y-3">
@@ -173,9 +184,17 @@ export function SecondFactorVerification({
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading || !code.trim()}>
-                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Doğrulanıyor…</> : 'Doğrula'}
+                    {loading
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Doğrulanıyor…</>
+                      : 'Doğrula'}
                   </Button>
-                  <Button type="button" variant="outline" className="w-full" onClick={() => prepareCode(true)} disabled={loading}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={() => prepareCode(true)}
+                    disabled={loading}
+                  >
                     Kodu Yeniden Gönder
                   </Button>
                 </form>
@@ -199,21 +218,11 @@ export function SecondFactorVerification({
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading || !code.trim()}>
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Doğrulanıyor…</> : 'Doğrula'}
+                {loading
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Doğrulanıyor…</>
+                  : 'Doğrula'}
               </Button>
             </form>
-          )}
-
-          {strategy === 'email_link' && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Hesabınıza kayıtlı e-posta adresine gönderilecek güvenli bağlantıyı kullanın.
-              </p>
-              <Button className="w-full" onClick={startEmailLink} disabled={loading}>
-                {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Bağlantı gönderiliyor…</> : sent ? 'Bağlantıyı Yeniden Gönder' : 'Doğrulama Bağlantısı Gönder'}
-              </Button>
-              {sent && <p className="text-xs text-muted-foreground text-center">Bağlantıyı e-posta kutunuzda açtıktan sonra bu sayfaya geri dönün.</p>}
-            </div>
           )}
 
           {error && (
@@ -222,7 +231,13 @@ export function SecondFactorVerification({
             </div>
           )}
 
-          <Button type="button" variant="ghost" className="w-full" onClick={onBack} disabled={loading}>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={onBack}
+            disabled={loading}
+          >
             <ChevronLeft className="w-4 h-4 mr-1" />Geri
           </Button>
         </CardContent>
