@@ -64,8 +64,16 @@ export default defineConfig(async () => {
           navigateFallbackDenylist: [/^\/api\//],
           runtimeCaching: [
             // Field & guide read endpoints — NetworkFirst with 5-min stale window
+            //
+            // Anchored at `^` (with an optional scheme+host prefix) rather than a
+            // bare `/api/...` match: Workbox's RegExpRoute only honors a match
+            // against a cross-origin URL (e.g. the Render API host, distinct from
+            // the Vercel-hosted app) when the match starts at index 0 of the full
+            // href. An unanchored pattern silently stops matching once frontend
+            // and backend are split across origins. See
+            // https://github.com/GoogleChrome/workbox/issues/281
             {
-              urlPattern: /\/api\/(field|guide)\/.+/i,
+              urlPattern: /^(?:https?:\/\/[^/]+)?\/api\/(field|guide)\/.+/i,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'field-guide-api',
@@ -77,7 +85,7 @@ export default defineConfig(async () => {
             },
             // Notifications & dashboard — NetworkFirst, 2-min stale
             {
-              urlPattern: /\/api\/(notifications|dashboard)\b/i,
+              urlPattern: /^(?:https?:\/\/[^/]+)?\/api\/(notifications|dashboard)\b/i,
               handler: 'NetworkFirst',
               options: {
                 cacheName: 'app-api',

@@ -10,8 +10,7 @@ import {
 } from 'lucide-react';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

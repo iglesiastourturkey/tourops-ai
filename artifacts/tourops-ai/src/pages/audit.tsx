@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { customFetch } from '@workspace/api-client-react';
 import { AppShell } from '@/components/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,15 +67,6 @@ const EVENT_LABELS: Record<string, string> = {
 const getEventLabel = (type: string) => EVENT_LABELS[type] || type;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-async function customFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? r.statusText);
-  }
-  return r.json() as Promise<T>;
-}
 
 function parseLogEntry(row: any): ParsedLog {
   const logData = row.log || row;

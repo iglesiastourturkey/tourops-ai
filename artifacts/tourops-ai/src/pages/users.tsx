@@ -28,8 +28,7 @@ import {
   UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign, Lock,
 } from 'lucide-react';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations'];
 const MANUAL_CREATION_ROLES: UserRole[] = ['admin', 'operations', 'guide', 'accounting', 'field_operations'];

@@ -22,8 +22,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@clerk/react';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 interface Transaction {
   id: number; type: string; category: string; amount: number; currency: string;

@@ -4,12 +4,13 @@
  */
 import { shadcn } from '@clerk/themes';
 
+import { API_BASE } from './api-base';
+
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const base     = import.meta.env.BASE_URL ?? '/';
 
 export const VITE_BASE = basePath;
 
-export const API_BASE = base.endsWith('/') ? `${base}api` : `${base}/api`;
+export { API_BASE };
 
 export const clerkAppearance = {
   baseTheme: shadcn,

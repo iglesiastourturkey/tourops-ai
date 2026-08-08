@@ -21,8 +21,7 @@ import {
   MapPin, Navigation2, AlertTriangle, CheckCircle2, ExternalLink, Loader2,
 } from 'lucide-react';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

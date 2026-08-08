@@ -13,8 +13,7 @@
  *   getStorageObjectUrl(objectPath) → /api/storage/objects/<path>
  */
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 /**
  * Ask the API server for a presigned GCS upload URL. Requires Clerk auth.

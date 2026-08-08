@@ -26,8 +26,7 @@ import {
   FIELD_NOTE_CATEGORY_LABELS, TASK_STATUS_LABELS, formatDate,
 } from '@/lib/labels';
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

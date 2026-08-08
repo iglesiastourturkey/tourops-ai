@@ -20,8 +20,9 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@clerk/react';
 
+import { API_BASE } from '@/lib/api-base';
+
 const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
 
 interface Receipt {
   id: number; _source: string; operationId: number;

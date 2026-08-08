@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { customFetch } from '@workspace/api-client-react';
 import { AppShell } from '@/components/AppShell';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -63,15 +64,6 @@ const MODES: {
     icon: Power, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-300',
   },
 ];
-
-async function customFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? r.statusText);
-  }
-  return r.json() as Promise<T>;
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function SystemControlPage() {

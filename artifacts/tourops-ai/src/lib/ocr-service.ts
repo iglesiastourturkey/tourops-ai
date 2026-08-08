@@ -10,8 +10,7 @@
  * and should be flagged for human review.
  */
 
-const BASE = import.meta.env.BASE_URL ?? '/';
-const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
+import { API_BASE } from '@/lib/api-base';
 
 /** Confidence below this value should be flagged as "Kontrol Edilmeli". */
 export const OCR_LOW_CONFIDENCE_THRESHOLD = 0.7;

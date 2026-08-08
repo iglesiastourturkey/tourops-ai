@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { customFetch } from '@workspace/api-client-react';
 import { AppShell } from '@/components/AppShell';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -69,15 +70,6 @@ const ACTION_BADGE: Record<string, string> = {
 
 // Roles shown in matrix (super_admin always has everything)
 const MATRIX_ROLES = ['admin', 'operations', 'accounting', 'guide', 'field_operations'];
-
-async function customFetch<T>(url: string, opts?: RequestInit): Promise<T> {
-  const r = await fetch(url, opts);
-  if (!r.ok) {
-    const body = await r.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error ?? r.statusText);
-  }
-  return r.json() as Promise<T>;
-}
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export default function RolesPage() {
