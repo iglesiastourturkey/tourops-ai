@@ -39,4 +39,13 @@
 19. U-ETDS Preparation
 20. AI Operations Assistant
 
-Do not skip prerequisite modules without justification.
+Do not skip prerequisite modules without justification.# TourPilot Roadmap Notes
+
+## Faz 0 sonrası, Iglesias pilotundan önce yapılacaklar
+
+- [ ] Clerk'i Development mode'dan Production mode'a geçir
+  - Clerk Dashboard → ilgili instance → Production key'lerine geç (sk_live_..., pk_live_...)
+  - Render'da CLERK_SECRET_KEY güncelle
+  - Vercel'de VITE_CLERK_PUBLISHABLE_KEY güncelle
+  - Neden: development modunda invitation/reset e-postaları ve bot koruması gerçek kullanıcı senaryosuna uygun davranmayabilir
+  - Ne zaman: gerçek Iglesias Tour kullanıcıları sisteme girmeden hemen önce
