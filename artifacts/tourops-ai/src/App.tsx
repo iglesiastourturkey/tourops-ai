@@ -12,6 +12,7 @@ import { setAuthTokenGetter } from '@workspace/api-client-react';
 import { ProfileProvider, useProfile, type UserRole } from '@/contexts/ProfileContext';
 import { OfflineQueueProvider } from '@/contexts/OfflineQueueContext';
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt';
+import { SwUpdateNotice } from '@/components/SwUpdateNotice';
 import { useNotificationSync } from '@/hooks/useNotificationSync';
 
 // ── Eagerly loaded: needed on first paint for unauthenticated + core flows ─────
@@ -446,6 +447,7 @@ export default function App() {
                 <AppServices />
                 <Toaster />
                 <PwaInstallPrompt />
+                <SwUpdateNotice />
               </TooltipProvider>
             </ProfileProvider>
           </OfflineQueueProvider>

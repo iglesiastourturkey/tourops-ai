@@ -43,6 +43,11 @@ import { useProfile } from '@/contexts/ProfileContext';
 const BASE = import.meta.env.BASE_URL ?? '/';
 const API_BASE = BASE.endsWith('/') ? `${BASE}api` : `${BASE}/api`;
 
+/** Greys out an input that mirrors a selected record instead of accepting input. */
+function readOnlyFieldClass(readOnly: boolean): string {
+  return readOnly ? 'bg-muted text-muted-foreground cursor-default focus-visible:ring-0' : '';
+}
+
 // ─── AuthenticatedImage ───────────────────────────────────────────────────────
 // Fetches a protected storage object with a Clerk Bearer token and renders it
 // as a blob URL. Necessary because plain <img> tags cannot attach auth headers.
@@ -168,6 +173,13 @@ export default function OperationDetailPage() {
   });
   const [isSavingGuide, setIsSavingGuide] = useState(false);
   const [assignmentWarnings, setAssignmentWarnings] = useState<string[]>([]);
+  // Assignment dialog mode. Name/phone/plate are auto-filled and read-only when
+  // a registered record is picked; they only become editable under the explicit
+  // "kayıtlı olmayan birini elle gir" option, so the same person is never both
+  // selected from a list and retyped by hand.
+  const [guideManual, setGuideManual] = useState(false);
+  const [driverSupplierId, setDriverSupplierId] = useState<number | null>(null);
+  const [driverManual, setDriverManual] = useState(false);
 
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
   const [receiptForm, setReceiptForm] = useState<ReceiptForm>(EMPTY_RECEIPT_FORM);
@@ -315,6 +327,80 @@ export default function OperationDetailPage() {
     { category: 'driver', isActive: true },
     { query: { enabled: canEdit, queryKey: getListSuppliersQueryKey({ category: 'driver', isActive: true }) } },
   );
+
+  // ── Assignment dialog mode ──────────────────────────────────────────────
+  // The operation stores only the resulting name/phone/plate, not which record
+  // they came from, so the mode is re-derived on load: a guide name without a
+  // linked account, or a driver whose name+phone matches no registered driver,
+  // must stay editable rather than silently locking existing free-text data.
+  useEffect(() => {
+    if (!operation) return;
+    setGuideManual(!operation.assignedGuideUserId && !!operation.guideName);
+  }, [operation]);
+
+  useEffect(() => {
+    if (!operation) return;
+    const name = operation.driverName ?? '';
+    if (!name) { setDriverSupplierId(null); setDriverManual(false); return; }
+    const match = (driverSuppliers ?? []).find(
+      s => (s.contactPerson || s.name) === name && (s.phone ?? '') === (operation.driverPhone ?? ''),
+    );
+    setDriverSupplierId(match?.id ?? null);
+    setDriverManual(!match);
+  }, [operation, driverSuppliers]);
+
+  const guideSelectValue = guideForm.assignedGuideUserId ?? (guideManual ? '__manual__' : '__none__');
+  const guideIsManual = guideManual;
+  const guideAccountSelected = !!guideForm.assignedGuideUserId;
+
+  const driverSelectValue =
+    driverSupplierId != null ? String(driverSupplierId) : (driverManual ? '__manual__' : '__none__');
+  const driverIsManual = driverManual;
+  const driverSupplierSelected = driverSupplierId != null;
+
+  function handleGuideSelect(value: string) {
+    if (value === '__manual__') {
+      setGuideManual(true);
+      setGuideForm(f => ({ ...f, assignedGuideUserId: null }));
+      return;
+    }
+    if (value === '__none__') {
+      setGuideManual(false);
+      setGuideForm(f => ({ ...f, assignedGuideUserId: null, guideName: '', guidePhone: '' }));
+      return;
+    }
+    const profile = (guideProfiles ?? []).find(p => p.clerkUserId === value);
+    setGuideManual(false);
+    setGuideForm(f => ({
+      ...f,
+      assignedGuideUserId: value,
+      guideName: profile?.name || profile?.email || '',
+    }));
+  }
+
+  function handleDriverSelect(value: string) {
+    if (value === '__manual__') {
+      setDriverManual(true);
+      setDriverSupplierId(null);
+      return;
+    }
+    if (value === '__none__') {
+      setDriverManual(false);
+      setDriverSupplierId(null);
+      setGuideForm(f => ({ ...f, driverName: '', driverPhone: '', vehiclePlate: '' }));
+      return;
+    }
+    const supplier = (driverSuppliers ?? []).find(s => String(s.id) === value);
+    if (!supplier) return;
+    setDriverManual(false);
+    setDriverSupplierId(supplier.id);
+    setGuideForm(f => ({
+      ...f,
+      driverName:   supplier.contactPerson || supplier.name,
+      driverPhone:  supplier.phone ?? '',
+      vehiclePlate: supplier.vehiclePlate ?? '',
+    }));
+  }
 
   // ── Sync guide form when operation loads ────────────────────────────────
   useEffect(() => {
@@ -1192,85 +1278,143 @@ export default function OperationDetailPage() {
       <Dialog open={guideEditOpen} onOpenChange={open => { setGuideEditOpen(open); if (!open) setAssignmentWarnings([]); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader><DialogTitle>Rehber & Şoför Bilgileri</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-5">
+            {/* ── Guide ───────────────────────────────────────────────────── */}
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5" />Rehber
               </p>
-              {/* ── Assigned guide user account ─────────────────────────────── */}
-              <div className="mb-2">
-                <label className="text-xs text-muted-foreground mb-1 block">Kullanıcı Hesabı</label>
-                <Select
-                  value={guideForm.assignedGuideUserId ?? '__none__'}
-                  onValueChange={v => setGuideForm(f => ({ ...f, assignedGuideUserId: v === '__none__' ? null : v }))}
-                >
-                  <SelectTrigger data-testid="select-assigned-guide-user">
-                    <SelectValue placeholder="Rehber hesabı seç..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">— Atanmadı —</SelectItem>
-                    {(guideProfiles ?? []).map(p => (
-                      <SelectItem key={p.clerkUserId} value={p.clerkUserId}>
-                        {p.name || p.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label><Input value={guideForm.guideName} onChange={e => setGuideForm(f => ({ ...f, guideName: e.target.value }))} placeholder="Rehber adı" data-testid="input-guide-name" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Telefon</label><Input value={guideForm.guidePhone} onChange={e => setGuideForm(f => ({ ...f, guidePhone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-guide-phone" /></div>
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Rehber Seç</label>
+                  <Select
+                    value={guideSelectValue}
+                    onValueChange={handleGuideSelect}
+                  >
+                    <SelectTrigger data-testid="select-assigned-guide-user">
+                      <SelectValue placeholder="Rehber seç..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Atanmadı —</SelectItem>
+                      {(guideProfiles ?? []).map(p => (
+                        <SelectItem key={p.clerkUserId} value={p.clerkUserId}>
+                          {p.name || p.email}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__manual__">Kayıtlı olmayan birini elle gir…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label>
+                    <Input
+                      value={guideForm.guideName}
+                      onChange={e => setGuideForm(f => ({ ...f, guideName: e.target.value }))}
+                      placeholder={guideIsManual ? 'Rehber adı' : 'Rehber seçin'}
+                      readOnly={!guideIsManual}
+                      className={readOnlyFieldClass(!guideIsManual)}
+                      data-testid="input-guide-name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">
+                      Telefon
+                      {guideAccountSelected && <span className="ml-1 normal-case font-normal">(hesapta kayıtlı değil)</span>}
+                    </label>
+                    <Input
+                      value={guideForm.guidePhone}
+                      onChange={e => setGuideForm(f => ({ ...f, guidePhone: e.target.value }))}
+                      placeholder="+90 5xx..."
+                      data-testid="input-guide-phone"
+                    />
+                  </div>
+                </div>
+                {guideAccountSelected && (
+                  <p className="text-xs text-muted-foreground">
+                    Ad, seçilen kullanıcı hesabından geliyor. Telefon numarası hesapta tutulmadığı için elle girilir.
+                  </p>
+                )}
               </div>
             </div>
+
+            {/* ── Driver & vehicle ────────────────────────────────────────── */}
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <Car className="w-3.5 h-3.5" />Şoför & Araç
               </p>
-              {/* ── Assign from registered drivers (suppliers, category=driver) ── */}
-              <div className="mb-2">
-                <label className="text-xs text-muted-foreground mb-1 block">Kayıtlı Şoförden Seç</label>
-                <Select
-                  value="__pick__"
-                  onValueChange={v => {
-                    if (v === '__pick__') return;
-                    const supplier = (driverSuppliers ?? []).find(s => String(s.id) === v);
-                    if (!supplier) return;
-                    setGuideForm(f => ({
-                      ...f,
-                      driverName: supplier.contactPerson || supplier.name,
-                      driverPhone: supplier.phone ?? '',
-                    }));
-                  }}
-                >
-                  <SelectTrigger data-testid="select-driver-supplier">
-                    <SelectValue placeholder="Kayıtlı şoförden doldur..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__pick__" disabled>Kayıtlı şoförden doldur...</SelectItem>
-                    {(driverSuppliers ?? []).map(s => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        {(s.contactPerson || s.name)}{s.phone ? ` · ${s.phone}` : ''}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {(driverSuppliers ?? []).length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Kayıtlı aktif şoför yok — Tedarikçiler'den "Şoför" kategorisiyle ekleyebilirsiniz.
+              <div className="space-y-2">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Şoför Seç</label>
+                  <Select value={driverSelectValue} onValueChange={handleDriverSelect}>
+                    <SelectTrigger data-testid="select-driver-supplier">
+                      <SelectValue placeholder="Şoför seç..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">— Atanmadı —</SelectItem>
+                      {(driverSuppliers ?? []).map(s => (
+                        <SelectItem key={s.id} value={String(s.id)}>
+                          {(s.contactPerson || s.name)}{s.vehiclePlate ? ` · ${s.vehiclePlate}` : ''}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__manual__">Kayıtlı olmayan birini elle gir…</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(driverSuppliers ?? []).length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Kayıtlı aktif şoför yok — Tedarikçiler → Şoförler sekmesinden ekleyebilirsiniz.
+                    </p>
+                  )}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label>
+                    <Input
+                      value={guideForm.driverName}
+                      onChange={e => setGuideForm(f => ({ ...f, driverName: e.target.value }))}
+                      placeholder={driverIsManual ? 'Şoför adı' : 'Şoför seçin'}
+                      readOnly={!driverIsManual}
+                      className={readOnlyFieldClass(!driverIsManual)}
+                      data-testid="input-driver-name"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Telefon</label>
+                    <Input
+                      value={guideForm.driverPhone}
+                      onChange={e => setGuideForm(f => ({ ...f, driverPhone: e.target.value }))}
+                      placeholder="+90 5xx..."
+                      readOnly={!driverIsManual}
+                      className={readOnlyFieldClass(!driverIsManual)}
+                      data-testid="input-driver-phone"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-xs text-muted-foreground mb-1 block">Plaka</label>
+                    <Input
+                      value={guideForm.vehiclePlate}
+                      onChange={e => setGuideForm(f => ({ ...f, vehiclePlate: e.target.value }))}
+                      placeholder="35 AA 000"
+                      readOnly={!driverIsManual}
+                      className={`font-mono ${readOnlyFieldClass(!driverIsManual)}`}
+                      data-testid="input-vehicle-plate"
+                    />
+                  </div>
+                </div>
+                {driverSupplierSelected && (
+                  <p className="text-xs text-muted-foreground">
+                    Bilgiler kayıtlı şoför kaydından geliyor. Değiştirmek için Tedarikçiler → Şoförler sekmesini kullanın.
                   </p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><label className="text-xs text-muted-foreground mb-1 block">Ad Soyad</label><Input value={guideForm.driverName} onChange={e => setGuideForm(f => ({ ...f, driverName: e.target.value }))} placeholder="Şoför adı" data-testid="input-driver-name" /></div>
-                <div><label className="text-xs text-muted-foreground mb-1 block">Telefon</label><Input value={guideForm.driverPhone} onChange={e => setGuideForm(f => ({ ...f, driverPhone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-driver-phone" /></div>
-                <div className="col-span-2"><label className="text-xs text-muted-foreground mb-1 block">Plaka</label><Input value={guideForm.vehiclePlate} onChange={e => setGuideForm(f => ({ ...f, vehiclePlate: e.target.value }))} placeholder="35 AA 000" data-testid="input-vehicle-plate" /></div>
-              </div>
             </div>
+
+            {/* ── Emergency contacts ──────────────────────────────────────── */}
             <div>
               <p className="text-xs font-semibold text-destructive uppercase tracking-wide mb-2 flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5" />Acil İrtibat
               </p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
                 <div><label className="text-xs text-muted-foreground mb-1 block">1. Kişi Adı</label><Input value={guideForm.emergencyContact1Name} onChange={e => setGuideForm(f => ({ ...f, emergencyContact1Name: e.target.value }))} placeholder="Ad Soyad" data-testid="input-emergency1-name" /></div>
                 <div><label className="text-xs text-muted-foreground mb-1 block">1. Kişi Tel.</label><Input value={guideForm.emergencyContact1Phone} onChange={e => setGuideForm(f => ({ ...f, emergencyContact1Phone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-emergency1-phone" /></div>
                 <div><label className="text-xs text-muted-foreground mb-1 block">2. Kişi Adı</label><Input value={guideForm.emergencyContact2Name} onChange={e => setGuideForm(f => ({ ...f, emergencyContact2Name: e.target.value }))} placeholder="Ad Soyad" data-testid="input-emergency2-name" /></div>

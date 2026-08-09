@@ -14,6 +14,14 @@ export const suppliersTable = pgTable("suppliers", {
   category: text("category").notNull().default("other"),
   currency: text("currency").notNull().default("TRY"),
   rating: real("rating"),
+  /**
+   * Vehicle details, only meaningful for category="driver" rows. Drivers are
+   * modeled as suppliers (no dedicated driver entity), so these live here
+   * rather than in a parallel table — the operation assignment dialog reads
+   * them to auto-fill the vehicle plate.
+   */
+  vehiclePlate: text("vehicle_plate"),
+  vehicleInfo: text("vehicle_info"),
   notes: text("notes"),
   bankDetails: text("bank_details"),
   taxNumber: text("tax_number"),

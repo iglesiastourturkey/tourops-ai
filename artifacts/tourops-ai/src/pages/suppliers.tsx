@@ -7,16 +7,25 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier } from '@workspace/api-client-react';
 import { getListSuppliersQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star, Car, Info, Users } from 'lucide-react';
 import { SUPPLIER_CATEGORY_LABELS } from '@/lib/labels';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
+
+/**
+ * Drivers have no dedicated entity — they are suppliers tagged category='driver',
+ * the same way freelance guides are modeled. The Şoförler tab is a focused view
+ * over the very same CRUD endpoints, not a separate resource.
+ */
+const DRIVER_CATEGORY = 'driver';
+const EMPTY_DRIVER_FORM = { name: '', phone: '', vehiclePlate: '', vehicleInfo: '' };
 
 export default function SuppliersPage() {
   const { toast } = useToast();
@@ -27,6 +36,9 @@ export default function SuppliersPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: number; name: string } | null>(null);
   const [form, setForm] = useState({ name: '', contactPerson: '', phone: '', email: '', city: '', category: 'hotel', currency: 'TRY', notes: '' });
+  const [tab, setTab] = useState('all');
+  const [driverDialogOpen, setDriverDialogOpen] = useState(false);
+  const [driverForm, setDriverForm] = useState(EMPTY_DRIVER_FORM);
 
   const { data: suppliers, isLoading } = useListSuppliers();
   const createMutation = useCreateSupplier();
@@ -50,6 +62,36 @@ export default function SuppliersPage() {
     });
   }
 
+  // Active (non-archived) drivers, newest first — the list order the API already returns.
+  const drivers = (suppliers ?? []).filter(s => s.category === DRIVER_CATEGORY && !s.archivedAt);
+
+  function handleCreateDriver() {
+    const name = driverForm.name.trim();
+    if (!name) { toast({ title: 'Ad Soyad zorunludur', variant: 'destructive' }); return; }
+    if (createMutation.isPending) return;
+    createMutation.mutate({
+      data: {
+        name,
+        // contactPerson mirrors the name so the operation assignment dialog,
+        // which reads `contactPerson || name`, shows the driver either way.
+        contactPerson: name,
+        phone:         driverForm.phone.trim(),
+        vehiclePlate:  driverForm.vehiclePlate.trim().toUpperCase(),
+        vehicleInfo:   driverForm.vehicleInfo.trim(),
+        category:      DRIVER_CATEGORY,
+        currency:      'TRY',
+      },
+    }, {
+      onSuccess: () => {
+        toast({ title: 'Şoför eklendi' });
+        qc.invalidateQueries({ queryKey: getListSuppliersQueryKey() });
+        setDriverDialogOpen(false);
+        setDriverForm(EMPTY_DRIVER_FORM);
+      },
+      onError: () => toast({ title: 'Hata', description: 'Şoför eklenemedi', variant: 'destructive' }),
+    });
+  }
+
   function handleArchive(id: number, name: string) {
     archiveMutation.mutate({ id, data: { archivedAt: new Date().toISOString() } }, {
       onSuccess: () => { toast({ title: `"${name}" arşivlendi` }); qc.invalidateQueries({ queryKey: getListSuppliersQueryKey() }); },
@@ -68,6 +110,15 @@ export default function SuppliersPage() {
 
   return (
     <AppShell title="Tedarikçiler">
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-4">
+          <TabsTrigger value="all" data-testid="tab-suppliers-all">Tümü</TabsTrigger>
+          <TabsTrigger value="drivers" className="gap-1.5" data-testid="tab-suppliers-drivers">
+            <Car className="w-3.5 h-3.5" />Şoförler
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all">
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -163,6 +214,123 @@ export default function SuppliersPage() {
           </TableBody>
         </Table>
       </div>
+        </TabsContent>
+
+        {/* ── Drivers tab ─────────────────────────────────────────────────── */}
+        <TabsContent value="drivers">
+          {/* Guides are user accounts, not suppliers — point people to the right
+              page before they try to add one here. */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 mb-4">
+            <p className="text-sm text-blue-900 flex items-start gap-2 flex-1 min-w-0">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Burası yalnızca <strong>şoförler</strong> içindir. Rehberler sistemde kullanıcı hesabı
+                olarak tutulur — rehber eklemek için Kullanıcılar sayfasını kullanın.
+              </span>
+            </p>
+            <Button asChild variant="outline" size="sm" className="gap-1.5 shrink-0 bg-white">
+              <Link href="/users" data-testid="link-users-from-drivers">
+                <Users className="w-3.5 h-3.5" />Kullanıcılar
+              </Link>
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium text-sm">Kayıtlı Şoförler</h3>
+            <Button onClick={() => setDriverDialogOpen(true)} size="sm" className="gap-1.5" data-testid="button-new-driver">
+              <Plus className="w-3.5 h-3.5" />Şoför Ekle
+            </Button>
+          </div>
+
+          <div className="border rounded-lg overflow-x-auto bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ad Soyad</TableHead>
+                  <TableHead>Telefon</TableHead>
+                  <TableHead>Plaka</TableHead>
+                  <TableHead className="hidden md:table-cell">Araç</TableHead>
+                  <TableHead className="w-12">İşlemler</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? Array.from({ length: 3 }).map((_, i) => (
+                  <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                )) : drivers.length === 0 ? (
+                  <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                    Henüz şoför eklenmemiş
+                  </TableCell></TableRow>
+                ) : drivers.map(d => (
+                  <TableRow key={d.id} data-testid={`row-driver-${d.id}`}>
+                    <TableCell className="font-medium">{d.contactPerson || d.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{d.phone || '-'}</TableCell>
+                    <TableCell className="font-mono text-sm">{d.vehiclePlate || '-'}</TableCell>
+                    <TableCell className="hidden md:table-cell text-muted-foreground">{d.vehicleInfo || '-'}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-menu-driver-${d.id}`}>
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem asChild>
+                            <Link href={`/suppliers/${d.id}`} className="flex items-center gap-2 cursor-pointer">
+                              <ExternalLink className="w-3.5 h-3.5" />Görüntüle / Düzenle
+                            </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2" onClick={() => handleArchive(d.id, d.contactPerson || d.name)}>
+                            <Archive className="w-3.5 h-3.5" />Arşivle
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="gap-2 text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget({ id: d.id, name: d.contactPerson || d.name })}
+                            data-testid={`button-delete-driver-${d.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />Sil
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* ── Create driver dialog ───────────────────────────────────────────── */}
+      <Dialog open={driverDialogOpen} onOpenChange={open => { setDriverDialogOpen(open); if (!open) setDriverForm(EMPTY_DRIVER_FORM); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle>Yeni Şoför</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 py-2">
+            <div className="sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Ad Soyad *</label>
+              <Input value={driverForm.name} onChange={e => setDriverForm(f => ({ ...f, name: e.target.value }))} placeholder="Ad Soyad" data-testid="input-driver-supplier-name" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Telefon</label>
+              <Input value={driverForm.phone} onChange={e => setDriverForm(f => ({ ...f, phone: e.target.value }))} placeholder="+90 5xx..." data-testid="input-driver-supplier-phone" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Plaka</label>
+              <Input value={driverForm.vehiclePlate} onChange={e => setDriverForm(f => ({ ...f, vehiclePlate: e.target.value }))} placeholder="35 AA 000" className="font-mono" data-testid="input-driver-supplier-plate" />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Araç Bilgisi</label>
+              <Input value={driverForm.vehicleInfo} onChange={e => setDriverForm(f => ({ ...f, vehicleInfo: e.target.value }))} placeholder="Mercedes Sprinter · 16 kişilik" data-testid="input-driver-supplier-vehicle" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDriverDialogOpen(false)}>İptal</Button>
+            <Button onClick={handleCreateDriver} disabled={createMutation.isPending} data-testid="button-create-driver">
+              {createMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create dialog ──────────────────────────────────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

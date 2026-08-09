@@ -33,6 +33,10 @@ export interface Supplier {
   notes?: string | null;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  vehiclePlate?: string | null;
+  /** @nullable */
+  vehicleInfo?: string | null;
   isActive: boolean;
   /** @nullable */
   archivedAt?: Date | null;

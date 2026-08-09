@@ -304,6 +304,8 @@ export const ListSuppliersResponseItem = zod.object({
   "paymentTerms": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "vehicleInfo": zod.string().nullish(),
   "isActive": zod.boolean(),
   "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -333,6 +335,8 @@ export const CreateSupplierBody = zod.object({
   "paymentTerms": zod.string().optional(),
   "notes": zod.string().optional(),
   "rating": zod.number().optional(),
+  "vehiclePlate": zod.string().optional(),
+  "vehicleInfo": zod.string().optional(),
   "isActive": zod.boolean().optional()
 })
 
@@ -352,6 +356,8 @@ export const CreateSupplierResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "vehicleInfo": zod.string().nullish(),
   "isActive": zod.boolean(),
   "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -382,6 +388,8 @@ export const GetSupplierResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "vehicleInfo": zod.string().nullish(),
   "isActive": zod.boolean(),
   "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),
@@ -411,6 +419,8 @@ export const UpdateSupplierBody = zod.object({
   "paymentTerms": zod.string().optional(),
   "notes": zod.string().optional(),
   "rating": zod.number().optional(),
+  "vehiclePlate": zod.string().optional(),
+  "vehicleInfo": zod.string().optional(),
   "isActive": zod.boolean().optional(),
   "archivedAt": zod.coerce.date().optional()
 })
@@ -431,6 +441,8 @@ export const UpdateSupplierResponse = zod.object({
   "paymentTerms": zod.string().nullish(),
   "notes": zod.string().nullish(),
   "rating": zod.number().nullish(),
+  "vehiclePlate": zod.string().nullish(),
+  "vehicleInfo": zod.string().nullish(),
   "isActive": zod.boolean(),
   "archivedAt": zod.coerce.date().nullish(),
   "createdAt": zod.coerce.date(),

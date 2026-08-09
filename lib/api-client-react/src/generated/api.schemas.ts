@@ -184,6 +184,10 @@ export interface Supplier {
   notes?: string | null;
   /** @nullable */
   rating?: number | null;
+  /** @nullable */
+  vehiclePlate?: string | null;
+  /** @nullable */
+  vehicleInfo?: string | null;
   isActive: boolean;
   /** @nullable */
   archivedAt?: string | null;
@@ -207,6 +211,8 @@ export interface SupplierInput {
   paymentTerms?: string;
   notes?: string;
   rating?: number;
+  vehiclePlate?: string;
+  vehicleInfo?: string;
   isActive?: boolean;
 }
 
@@ -225,6 +231,8 @@ export interface SupplierUpdate {
   paymentTerms?: string;
   notes?: string;
   rating?: number;
+  vehiclePlate?: string;
+  vehicleInfo?: string;
   isActive?: boolean;
   archivedAt?: string;
 }

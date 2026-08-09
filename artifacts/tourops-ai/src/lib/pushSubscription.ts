@@ -49,15 +49,75 @@ async function fetchVapidPublicKey(): Promise<string | null> {
   return result.configured ? result.publicKey : null;
 }
 
+export type SubscribeFailureReason =
+  | 'unsupported'
+  | 'denied'
+  | 'not-configured'
+  | 'server-unavailable'
+  | 'offline'
+  | 'session'
+  | 'failed';
+
 export type SubscribeResult =
-  | { ok: true }
-  | { ok: false; reason: 'unsupported' | 'denied' | 'not-configured' | 'failed' };
+  | { ok: true; alreadySubscribed: boolean }
+  | { ok: false; reason: SubscribeFailureReason; detail?: string };
+
+/** Maps a customFetch rejection onto a reason the UI can explain honestly. */
+function classifyError(err: unknown): { reason: SubscribeFailureReason; detail?: string } {
+  const status = (err as { status?: number }).status;
+  const message = (err as { data?: { error?: string } }).data?.error;
+
+  if (status === undefined) {
+    // customFetch only omits status for a transport-level failure.
+    return typeof navigator !== 'undefined' && navigator.onLine === false
+      ? { reason: 'offline' }
+      : { reason: 'failed' };
+  }
+  if (status === 401 || status === 403) return { reason: 'session' };
+  if (status === 503) return { reason: 'server-unavailable', ...(message ? { detail: message } : {}) };
+  if (status >= 500) return { reason: 'server-unavailable', ...(message ? { detail: message } : {}) };
+  return { reason: 'failed', ...(message ? { detail: message } : {}) };
+}
+
+/** Registers an existing browser subscription with the API. Idempotent server-side. */
+async function registerWithServer(subscription: PushSubscription): Promise<boolean> {
+  const payload = subscription.toJSON() as {
+    endpoint?: string;
+    keys?: { p256dh?: string; auth?: string };
+  };
+  if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys?.auth) return false;
+
+  const result = await customFetch<{ ok: boolean; alreadySubscribed?: boolean }>(
+    `${API_BASE}/notifications/push/subscribe`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: payload.endpoint, keys: payload.keys }),
+    },
+  );
+  return !!result.alreadySubscribed;
+}
+
+// Guards against overlapping calls — a double tap, or the Settings card
+// mounting twice. Without it two subscribe flows race on the same PushManager
+// and the loser reports a spurious failure.
+let inFlight: Promise<SubscribeResult> | null = null;
 
 /**
  * Requests permission, subscribes with the push service and registers the
  * subscription with the API. Must be called from a click/tap handler.
+ *
+ * Already-subscribed browsers are re-registered with the server rather than
+ * treated as an error: that is what repairs the state after a failed attempt,
+ * where the browser kept its subscription but the server never stored the row.
  */
-export async function subscribeToPush(): Promise<SubscribeResult> {
+export function subscribeToPush(): Promise<SubscribeResult> {
+  if (inFlight) return inFlight;
+  inFlight = runSubscribe().finally(() => { inFlight = null; });
+  return inFlight;
+}
+
+async function runSubscribe(): Promise<SubscribeResult> {
   if (!isPushSupported()) return { ok: false, reason: 'unsupported' };
 
   // Ask the server first: without VAPID keys there is nothing to subscribe to,
@@ -65,27 +125,33 @@ export async function subscribeToPush(): Promise<SubscribeResult> {
   let publicKey: string | null;
   try {
     publicKey = await fetchVapidPublicKey();
-  } catch {
-    return { ok: false, reason: 'failed' };
+  } catch (err) {
+    return { ok: false, ...classifyError(err) };
   }
   if (!publicKey) return { ok: false, reason: 'not-configured' };
 
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return { ok: false, reason: 'denied' };
 
+  // Tracks whether this call is what created the browser subscription, so a
+  // server failure only rolls back a subscription we just made — never one the
+  // user already had from an earlier successful run.
+  let createdHere = false;
+  let subscription: PushSubscription | null = null;
+
   try {
     const registration = await navigator.serviceWorker.ready;
 
     // Reuse the existing subscription when there is one; re-subscribing with a
     // different applicationServerKey throws, so drop a mismatched one first.
-    let subscription = await registration.pushManager.getSubscription();
+    subscription = await registration.pushManager.getSubscription();
     if (subscription) {
       const current = subscription.options.applicationServerKey;
       const expected = urlBase64ToUint8Array(publicKey);
       const matches =
         current instanceof ArrayBuffer &&
-        new Uint8Array(current).every((byte, i) => byte === expected[i]) &&
-        current.byteLength === expected.byteLength;
+        current.byteLength === expected.byteLength &&
+        new Uint8Array(current).every((byte, i) => byte === expected[i]);
       if (!matches) {
         await subscription.unsubscribe().catch(() => {});
         subscription = null;
@@ -97,25 +163,37 @@ export async function subscribeToPush(): Promise<SubscribeResult> {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
       });
+      createdHere = true;
     }
-
-    const payload = subscription.toJSON() as {
-      endpoint?: string;
-      keys?: { p256dh?: string; auth?: string };
-    };
-    if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys?.auth) {
-      return { ok: false, reason: 'failed' };
-    }
-
-    await customFetch(`${API_BASE}/notifications/push/subscribe`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ endpoint: payload.endpoint, keys: payload.keys }),
-    });
-
-    return { ok: true };
   } catch {
     return { ok: false, reason: 'failed' };
+  }
+
+  try {
+    const alreadySubscribed = await registerWithServer(subscription);
+    return { ok: true, alreadySubscribed };
+  } catch (err) {
+    // The server did not record the subscription. Leaving the browser
+    // subscribed here is what previously made the UI report "on" after a
+    // reload while no push could ever arrive.
+    if (createdHere) await subscription.unsubscribe().catch(() => {});
+    return { ok: false, ...classifyError(err) };
+  }
+}
+
+/**
+ * Reconciles this browser against the server: returns true when a subscription
+ * exists AND the server holds a row for it. Safe to call on mount — the POST it
+ * performs is idempotent and repairs rows lost to an earlier failure.
+ */
+export async function verifySubscription(): Promise<boolean> {
+  const subscription = await getExistingSubscription();
+  if (!subscription) return false;
+  try {
+    await registerWithServer(subscription);
+    return true;
+  } catch {
+    return false;
   }
 }
 

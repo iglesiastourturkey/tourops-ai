@@ -4,6 +4,10 @@ import { createRoot } from 'react-dom/client';
 // (VITE_API_URL) into the shared api-client-react instance.
 import './lib/api-base';
 
+// Registers the service worker and starts listening for updates. Imported here
+// rather than inside a component so no update event fires before React mounts.
+import './lib/swUpdate';
+
 import App from './App';
 import { ErrorBoundary } from './components/ErrorBoundary';
 

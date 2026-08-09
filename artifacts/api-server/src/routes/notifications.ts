@@ -25,8 +25,12 @@ router.get("/push/public-key", (_req, res) => {
 
 // POST /api/notifications/push/subscribe
 // Body: { endpoint: string, keys: { p256dh: string, auth: string } }
-// Idempotent: re-subscribing the same browser updates the existing endpoint row
-// and re-points it at the current user (shared device, account switch).
+//
+// Idempotent by contract: a browser that is already subscribed may POST the
+// same endpoint any number of times and always gets 200. The frontend relies on
+// this to reconcile its state — re-sending an existing subscription is how it
+// repairs a row that was lost (or never written) after an earlier failure, so
+// this must never answer with an error for "already subscribed".
 router.post("/push/subscribe", async (req, res) => {
   try {
     const { userId } = getAuth(req);
@@ -46,6 +50,12 @@ router.post("/push/subscribe", async (req, res) => {
 
     const userAgent = req.get("user-agent")?.slice(0, 255) ?? null;
 
+    const [existing] = await db
+      .select({ id: pushSubscriptionsTable.id })
+      .from(pushSubscriptionsTable)
+      .where(eq(pushSubscriptionsTable.endpoint, endpoint))
+      .limit(1);
+
     await db
       .insert(pushSubscriptionsTable)
       .values({ userId: userId!, endpoint, keys: { p256dh: keys.p256dh, auth: keys.auth }, userAgent })
@@ -59,8 +69,22 @@ router.post("/push/subscribe", async (req, res) => {
         },
       });
 
-    res.status(201).json({ ok: true });
-  } catch {
+    res.json({ ok: true, alreadySubscribed: !!existing });
+  } catch (err) {
+    // 42P01 = undefined_table. Without this the caller only ever sees a generic
+    // 500 and the operator has no way to tell a real fault from "the
+    // push_subscriptions migration has not been applied to this database yet".
+    if ((err as { code?: string }).code === "42P01") {
+      req.log.error(
+        { eventType: "push_subscribe_failed", reason: "table_missing" },
+        "push_subscriptions table is missing — migration 0006 has not been applied",
+      );
+      res.status(503).json({
+        error: "Bildirim altyapısı bu sunucuda henüz hazır değil. Yönetici ile iletişime geçin.",
+      });
+      return;
+    }
+    req.log.error({ err, eventType: "push_subscribe_failed" }, "Push subscription could not be stored");
     res.status(500).json({ error: "Bildirim aboneliği kaydedilemedi" });
   }
 });
@@ -77,6 +101,8 @@ router.delete("/push/subscribe", async (req, res) => {
       return;
     }
 
+    // Deleting a row that is not there is a success: the caller's goal is
+    // "this browser is not subscribed", which already holds.
     await db.delete(pushSubscriptionsTable).where(
       and(
         eq(pushSubscriptionsTable.endpoint, endpoint),
@@ -85,7 +111,14 @@ router.delete("/push/subscribe", async (req, res) => {
     );
 
     res.json({ ok: true });
-  } catch {
+  } catch (err) {
+    if ((err as { code?: string }).code === "42P01") {
+      // Nothing is stored, so there is nothing to remove — report success
+      // rather than blocking the user from turning notifications off.
+      res.json({ ok: true });
+      return;
+    }
+    req.log.error({ err, eventType: "push_unsubscribe_failed" }, "Push subscription could not be removed");
     res.status(500).json({ error: "Bildirim aboneliği kaldırılamadı" });
   }
 });

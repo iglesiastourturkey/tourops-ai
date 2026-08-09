@@ -14,16 +14,21 @@ import { useToast } from '@/hooks/use-toast';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import {
   isPushSupported,
-  getExistingSubscription,
   subscribeToPush,
   unsubscribeFromPush,
+  verifySubscription,
 } from '@/lib/pushSubscription';
 
+// Each reason names the actual cause, so a server-side outage is never reported
+// as "try again" — retrying cannot fix it and the user just repeats the loop.
 const SUBSCRIBE_ERRORS: Record<string, string> = {
-  unsupported:      'Bu tarayıcı anlık bildirimleri desteklemiyor.',
-  denied:           'Bildirim izni reddedildi. Tarayıcı site ayarlarından açabilirsiniz.',
-  'not-configured': 'Anlık bildirimler sunucuda henüz yapılandırılmamış.',
-  failed:           'Bildirimler açılamadı. Lütfen tekrar deneyin.',
+  unsupported:          'Bu tarayıcı anlık bildirimleri desteklemiyor.',
+  denied:               'Bildirim izni reddedildi. Tarayıcı site ayarlarından izin verebilirsiniz.',
+  'not-configured':     'Anlık bildirimler sunucuda henüz yapılandırılmamış. Yönetici ile iletişime geçin.',
+  'server-unavailable': 'Sunucu bildirim aboneliğini kaydedemedi. Bu geçici bir sunucu sorunu, tekrar denemek çözmeyebilir.',
+  offline:              'İnternet bağlantısı yok. Bağlandığınızda tekrar deneyin.',
+  session:              'Oturumunuz doğrulanamadı. Sayfayı yenileyip tekrar deneyin.',
+  failed:               'Bildirimler açılamadı. Lütfen tekrar deneyin.',
 };
 
 export function DeviceSettingsCard() {
@@ -34,11 +39,15 @@ export function DeviceSettingsCard() {
   const [subscribed, setSubscribed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Reflects the *server's* view, not just the browser's. A browser can hold a
+  // push subscription the server never stored (an earlier attempt failed after
+  // the browser had already subscribed); showing that as "on" is what made the
+  // next action fail with a confusing error.
   useEffect(() => {
     if (!supported) { setSubscribed(false); return; }
     let cancelled = false;
-    void getExistingSubscription().then(sub => {
-      if (!cancelled) setSubscribed(!!sub);
+    void verifySubscription().then(ok => {
+      if (!cancelled) setSubscribed(ok);
     });
     return () => { cancelled = true; };
   }, [supported]);
@@ -50,11 +59,14 @@ export function DeviceSettingsCard() {
       const result = await subscribeToPush();
       if (result.ok) {
         setSubscribed(true);
-        toast({ title: 'Bildirimler açıldı', description: 'Bu cihaza anlık bildirim gönderilecek.' });
+        toast({
+          title: result.alreadySubscribed ? 'Bildirimler zaten açık' : 'Bildirimler açıldı',
+          description: 'Bu cihaza anlık bildirim gönderilecek.',
+        });
       } else {
         toast({
           title: 'Bildirimler açılamadı',
-          description: SUBSCRIBE_ERRORS[result.reason] ?? SUBSCRIBE_ERRORS['failed'],
+          description: result.detail ?? SUBSCRIBE_ERRORS[result.reason] ?? SUBSCRIBE_ERRORS['failed'],
           variant: 'destructive',
         });
       }

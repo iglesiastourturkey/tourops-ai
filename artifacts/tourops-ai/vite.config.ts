@@ -34,7 +34,16 @@ export default defineConfig(async () => {
       react(),
       tailwindcss(),
       VitePWA({
-        registerType: 'autoUpdate',
+        // 'prompt', not 'autoUpdate'. With autoUpdate the new service worker
+        // calls skipWaiting and takes over a tab that is still running the old
+        // build; that tab then lazy-loads route chunks whose hashed filenames
+        // no longer exist on Vercel, and the request falls through to Vercel's
+        // own 404 page. In prompt mode the new worker waits, the open tab keeps
+        // a self-consistent cache, and SwUpdateNotice offers the user a refresh.
+        registerType: 'prompt',
+        // The app registers explicitly (see main.tsx) so it can hook the
+        // update callback; the auto-injected script would register a second time.
+        injectRegister: null,
         includeAssets: ['favicon.svg', 'logo.svg', 'robots.txt'],
         manifest: {
           name: 'TourPilot',

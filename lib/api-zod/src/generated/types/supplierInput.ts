@@ -22,5 +22,7 @@ export interface SupplierInput {
   paymentTerms?: string;
   notes?: string;
   rating?: number;
+  vehiclePlate?: string;
+  vehicleInfo?: string;
   isActive?: boolean;
 }
