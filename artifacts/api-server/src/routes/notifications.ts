@@ -133,7 +133,10 @@ router.get("/", requirePermission("notifications", "view"), async (req, res) => 
       .limit(100);
     if (unreadOnly === "true") rows = rows.filter(r => !r.isRead);
     res.json(rows);
-  } catch { res.status(500).json({ error: "Failed to list notifications" }); }
+  } catch (err) {
+    req.log.error({ err, eventType: "notifications_list_failed" }, "Failed to list notifications");
+    res.status(500).json({ error: "Failed to list notifications" });
+  }
 });
 
 router.patch("/:id/read", requirePermission("notifications", "view"), async (req, res) => {
@@ -147,7 +150,10 @@ router.patch("/:id/read", requirePermission("notifications", "view"), async (req
       .returning();
     if (!row) { res.status(404).json({ error: "Notification not found" }); return; }
     res.json(row);
-  } catch { res.status(500).json({ error: "Failed to mark read" }); }
+  } catch (err) {
+    req.log.error({ err, eventType: "notification_read_failed" }, "Failed to mark read");
+    res.status(500).json({ error: "Failed to mark read" });
+  }
 });
 
 router.patch("/read-all", requirePermission("notifications", "view"), async (req, res) => {
@@ -157,7 +163,10 @@ router.patch("/read-all", requirePermission("notifications", "view"), async (req
       .set({ isRead: true, readAt: new Date() })
       .where(or(eq(notificationsTable.userId, userId!), isNull(notificationsTable.userId)));
     res.json({ success: true });
-  } catch { res.status(500).json({ error: "Failed to mark all read" }); }
+  } catch (err) {
+    req.log.error({ err, eventType: "notifications_read_all_failed" }, "Failed to mark all read");
+    res.status(500).json({ error: "Failed to mark all read" });
+  }
 });
 
 export default router;

@@ -1324,7 +1324,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Notification"
   /notifications/read-all:
-    post:
+    patch:
       operationId: markAllNotificationsRead
       tags: [notifications]
       summary: Mark all notifications as read

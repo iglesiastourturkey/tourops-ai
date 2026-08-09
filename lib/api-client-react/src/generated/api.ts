@@ -5292,7 +5292,7 @@ export const markAllNotificationsRead = async ( options?: Parameters<typeof cust
   return customFetch<SuccessResponse>(getMarkAllNotificationsReadUrl(),
   {
     ...options,
-    method: 'POST'
+    method: 'PATCH'
 
 
   }
