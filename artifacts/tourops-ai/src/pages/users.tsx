@@ -24,13 +24,13 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { customFetch } from '@workspace/api-client-react';
+import { InviteUserDialog, VALID_ROLES } from '@/components/InviteUserDialog';
 import {
   UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign, Lock,
 } from 'lucide-react';
 
 import { API_BASE } from '@/lib/api-base';
 
-const VALID_ROLES: UserRole[] = ['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations'];
 const MANUAL_CREATION_ROLES: UserRole[] = ['admin', 'operations', 'guide', 'accounting', 'field_operations'];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -105,9 +105,6 @@ export default function UsersPage() {
 
   // ── Invite dialog ────────────────────────────────────────────────────────
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [inviteRole, setInviteRole] = useState<UserRole>('guide');
 
   // ── Password link dialog (setup or reset) ────────────────────────────────
   const [resetLink,      setResetLink]      = useState<string | null>(null);
@@ -147,20 +144,6 @@ export default function UsersPage() {
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast({ title: 'Kullanıcı güncellendi' }); },
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
-  });
-
-  // ── Invite mutation ──────────────────────────────────────────────────────
-  const inviteMutation = useMutation({
-    mutationFn: () => customFetch<{ ok: boolean }>(`${API_BASE}/users/invite`, {
-      method: 'POST',
-      body: JSON.stringify({ email: inviteEmail, name: inviteName, role: inviteRole }),
-    }),
-    onSuccess: () => {
-      toast({ title: 'Davet gönderildi', description: `${inviteEmail} adresine davet iletildi.` });
-      setInviteOpen(false); setInviteEmail(''); setInviteName(''); setInviteRole('guide');
-      qc.invalidateQueries({ queryKey: ['invitations'] });
-    },
-    onError: (err) => toast({ title: 'Davet gönderilemedi', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
   const manualUserMutation = useMutation({
@@ -259,15 +242,6 @@ export default function UsersPage() {
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
-  function handleInviteSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!inviteEmail.trim() || !inviteEmail.includes('@')) {
-      toast({ title: 'Hata', description: 'Geçerli bir e-posta adresi giriniz', variant: 'destructive' });
-      return;
-    }
-    inviteMutation.mutate();
-  }
-
   function handleManualSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!manualName.trim() || manualUsername.length < 3) {
@@ -281,41 +255,7 @@ export default function UsersPage() {
     <AppShell title="Kullanıcı Yönetimi">
 
       {/* ── Invite dialog ───────────────────────────────────────── */}
-      <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Kullanıcı Davet Et</DialogTitle></DialogHeader>
-          <form onSubmit={handleInviteSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="inv-name">Ad Soyad</Label>
-              <Input id="inv-name" placeholder="Ahmet Yılmaz" value={inviteName}
-                onChange={e => setInviteName(e.target.value)} disabled={inviteMutation.isPending} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="inv-email">E-posta <span className="text-destructive">*</span></Label>
-              <Input id="inv-email" type="email" placeholder="ornek@sirket.com" value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)} disabled={inviteMutation.isPending} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="inv-role">Rol <span className="text-destructive">*</span></Label>
-              <Select value={inviteRole} onValueChange={v => setInviteRole(v as UserRole)} disabled={inviteMutation.isPending}>
-                <SelectTrigger id="inv-role"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {VALID_ROLES.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Davetiye Clerk üzerinden iletilecektir. Kullanıcı ilk girişte bu role atanacaktır.
-            </p>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setInviteOpen(false)} disabled={inviteMutation.isPending}>İptal</Button>
-              <Button type="submit" disabled={inviteMutation.isPending}>
-                {inviteMutation.isPending ? 'Gönderiliyor…' : 'Davet Gönder'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
       <Dialog open={manualOpen} onOpenChange={setManualOpen}>
         <DialogContent className="sm:max-w-md">

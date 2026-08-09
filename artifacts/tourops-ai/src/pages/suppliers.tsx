@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier, useListProfiles } from '@workspace/api-client-react';
 import { getListSuppliersQueryKey, getListProfilesQueryKey } from '@workspace/api-client-react';
 import { usePermission } from '@/hooks/usePermission';
+import { InviteUserDialog } from '@/components/InviteUserDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star, Car, Info, Users, UserCog } from 'lucide-react';
@@ -40,6 +41,7 @@ export default function SuppliersPage() {
   const [tab, setTab] = useState('all');
   const [driverDialogOpen, setDriverDialogOpen] = useState(false);
   const [driverForm, setDriverForm] = useState(EMPTY_DRIVER_FORM);
+  const [inviteGuideOpen, setInviteGuideOpen] = useState(false);
 
   const { data: suppliers, isLoading } = useListSuppliers();
   const createMutation = useCreateSupplier();
@@ -67,11 +69,11 @@ export default function SuppliersPage() {
   const drivers = (suppliers ?? []).filter(s => s.category === DRIVER_CATEGORY && !s.archivedAt);
 
   // ── Guides ────────────────────────────────────────────────────────────────
-  // Guides are user accounts, not suppliers, so this tab is a read-only view.
-  // Creating/inviting/editing a user is gated on users.manage, which the seed
-  // matrix grants to no role — only super_admin passes it. Rendering those
-  // actions here would show buttons that 403 for every role that can actually
-  // reach this page, so management stays on /users and is linked, not copied.
+  // Guides are user accounts, not suppliers, so this tab is read-only for
+  // everyone except users.manage holders — which the seed matrix grants to no
+  // role but super_admin. For that role only, an inline "Rehber Ekle" button
+  // opens the shared InviteUserDialog with the role locked to 'guide'; role
+  // changes, deactivation, etc. still require the full /users page.
   const canManageUsers = usePermission('users', 'manage');
   const guidesQuery = useListProfiles(
     { role: 'guide' },
@@ -339,9 +341,16 @@ export default function SuppliersPage() {
 
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Kayıtlı Rehberler</h3>
-            {guides.length > 0 && (
-              <span className="text-xs text-muted-foreground">{guides.length} rehber</span>
-            )}
+            <div className="flex items-center gap-3">
+              {guides.length > 0 && (
+                <span className="text-xs text-muted-foreground">{guides.length} rehber</span>
+              )}
+              {canManageUsers && (
+                <Button onClick={() => setInviteGuideOpen(true)} size="sm" className="gap-1.5" data-testid="button-invite-guide">
+                  <Plus className="w-3.5 h-3.5" />Rehber Ekle
+                </Button>
+              )}
+            </div>
           </div>
 
           {guidesQuery.isError ? (
@@ -388,6 +397,9 @@ export default function SuppliersPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* ── Invite guide dialog (super_admin only) ──────────────────────────── */}
+      <InviteUserDialog open={inviteGuideOpen} onOpenChange={setInviteGuideOpen} lockedRole="guide" />
 
       {/* ── Create driver dialog ───────────────────────────────────────────── */}
       <Dialog open={driverDialogOpen} onOpenChange={open => { setDriverDialogOpen(open); if (!open) setDriverForm(EMPTY_DRIVER_FORM); }}>
