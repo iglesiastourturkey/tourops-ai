@@ -49,3 +49,12 @@ Do not skip prerequisite modules without justification.# TourPilot Roadmap Notes
   - Vercel'de VITE_CLERK_PUBLISHABLE_KEY güncelle
   - Neden: development modunda invitation/reset e-postaları ve bot koruması gerçek kullanıcı senaryosuna uygun davranmayabilir
   - Ne zaman: gerçek Iglesias Tour kullanıcıları sisteme girmeden hemen önce
+
+## PR-based feature branch akışına geçince değerlendirilecek
+
+- [ ] Vercel Marketplace üzerinden Neon native entegrasyonunu bağla
+  - Her Preview Deployment (her PR) için otomatik izole Neon branch oluşturur (copy-on-write)
+  - DATABASE_URL otomatik Vercel env'e enjekte edilir, elle kopyalamaya gerek kalmaz
+  - Neon-Managed seçeneğini tercih et (Vercel-Managed değil) — mevcut Neon hesabımız zaten var, faturalamayı ayrı tutmak daha temiz
+  - Not: Bu entegrasyon Render'ı kapsamaz, backend-database bağlantısı (Render → Neon) her koşulda elle yönetilecek
+  - Ne zaman: main'e doğrudan push yerine gerçek feature-branch + PR review akışına geçilince (master plan Bölüm 15)
