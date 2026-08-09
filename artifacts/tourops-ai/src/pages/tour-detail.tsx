@@ -33,11 +33,11 @@ export default function TourDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { role } = useProfile();
+  const { role, allPermissions } = useProfile();
   /** Can create/update/delete tours, days, costs (admin or operations) */
-  const canEdit = ['admin', 'operations'].includes(role ?? '');
+  const canEdit = allPermissions || ['admin', 'operations'].includes(role ?? '');
   /** Can view cost financial data (admin, operations, accounting — not guide) */
-  const canSeeCosts = ['admin', 'operations', 'accounting'].includes(role ?? '');
+  const canSeeCosts = allPermissions || ['admin', 'operations', 'accounting'].includes(role ?? '');
 
   const { data: tour, isLoading } = useGetTour(id, { query: { enabled: !!id, queryKey: getGetTourQueryKey(id) } });
   const { data: days } = useListTourDays(id, { query: { enabled: !!id, queryKey: getListTourDaysQueryKey(id) } });

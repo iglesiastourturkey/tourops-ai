@@ -141,11 +141,11 @@ export default function OperationDetailPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const { getToken } = useAuth();
-  const { role } = useProfile();
-  /** Can create/delete tasks and edit whole operation (admin or operations) */
-  const canEdit = ['admin', 'operations'].includes(role ?? '');
+  const { role, allPermissions } = useProfile();
+  /** Can create/delete tasks and edit whole operation (admin, operations, or super_admin/all-permission users) */
+  const canEdit = allPermissions || ['admin', 'operations'].includes(role ?? '');
   /** Can add/delete receipts (admin, operations, guide) */
-  const canManageReceipts = ['admin', 'operations', 'guide'].includes(role ?? '');
+  const canManageReceipts = allPermissions || ['admin', 'operations', 'guide'].includes(role ?? '');
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
