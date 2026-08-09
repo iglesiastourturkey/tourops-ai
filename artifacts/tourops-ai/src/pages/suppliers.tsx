@@ -10,11 +10,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier } from '@workspace/api-client-react';
-import { getListSuppliersQueryKey } from '@workspace/api-client-react';
+import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier, useListProfiles } from '@workspace/api-client-react';
+import { getListSuppliersQueryKey, getListProfilesQueryKey } from '@workspace/api-client-react';
+import { usePermission } from '@/hooks/usePermission';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star, Car, Info, Users } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star, Car, Info, Users, UserCog } from 'lucide-react';
 import { SUPPLIER_CATEGORY_LABELS } from '@/lib/labels';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
@@ -64,6 +65,19 @@ export default function SuppliersPage() {
 
   // Active (non-archived) drivers, newest first — the list order the API already returns.
   const drivers = (suppliers ?? []).filter(s => s.category === DRIVER_CATEGORY && !s.archivedAt);
+
+  // ── Guides ────────────────────────────────────────────────────────────────
+  // Guides are user accounts, not suppliers, so this tab is a read-only view.
+  // Creating/inviting/editing a user is gated on users.manage, which the seed
+  // matrix grants to no role — only super_admin passes it. Rendering those
+  // actions here would show buttons that 403 for every role that can actually
+  // reach this page, so management stays on /users and is linked, not copied.
+  const canManageUsers = usePermission('users', 'manage');
+  const guidesQuery = useListProfiles(
+    { role: 'guide' },
+    { query: { enabled: tab === 'guides', queryKey: getListProfilesQueryKey({ role: 'guide' }) } },
+  );
+  const guides = guidesQuery.data ?? [];
 
   function handleCreateDriver() {
     const name = driverForm.name.trim();
@@ -115,6 +129,9 @@ export default function SuppliersPage() {
           <TabsTrigger value="all" data-testid="tab-suppliers-all">Tümü</TabsTrigger>
           <TabsTrigger value="drivers" className="gap-1.5" data-testid="tab-suppliers-drivers">
             <Car className="w-3.5 h-3.5" />Şoförler
+          </TabsTrigger>
+          <TabsTrigger value="guides" className="gap-1.5" data-testid="tab-suppliers-guides">
+            <UserCog className="w-3.5 h-3.5" />Rehberler
           </TabsTrigger>
         </TabsList>
 
@@ -298,6 +315,77 @@ export default function SuppliersPage() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        {/* ── Guides tab (read-only) ──────────────────────────────────────── */}
+        <TabsContent value="guides">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 mb-4">
+            <p className="text-sm text-blue-900 flex items-start gap-2 flex-1 min-w-0">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Rehberler tedarikçi değil, <strong>kullanıcı hesabıdır</strong>. Buradaki liste yalnızca
+                görüntülemek içindir; rehber davet etme, rol ve aktiflik değişiklikleri Kullanıcılar
+                sayfasından yapılır.
+              </span>
+            </p>
+            {canManageUsers && (
+              <Button asChild variant="outline" size="sm" className="gap-1.5 shrink-0 bg-white">
+                <Link href="/users" data-testid="link-users-from-guides">
+                  <Users className="w-3.5 h-3.5" />Kullanıcılar'da Yönet
+                </Link>
+              </Button>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-medium text-sm">Kayıtlı Rehberler</h3>
+            {guides.length > 0 && (
+              <span className="text-xs text-muted-foreground">{guides.length} rehber</span>
+            )}
+          </div>
+
+          {guidesQuery.isError ? (
+            // Listing guides needs profile read access (admin, operations,
+            // super_admin); accounting can open this page but not this list.
+            // Anything else is a fault, not a permission boundary — saying
+            // "you are not authorised" for a network blip would be a lie.
+            <div className="border rounded-lg bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+              {(guidesQuery.error as { status?: number } | null)?.status === 403
+                ? 'Rehber listesini görüntüleme yetkiniz bulunmuyor.'
+                : 'Rehber listesi yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.'}
+            </div>
+          ) : (
+            <div className="border rounded-lg overflow-x-auto bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Ad Soyad</TableHead>
+                    <TableHead>E-posta</TableHead>
+                    <TableHead className="w-28">Durum</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {guidesQuery.isLoading ? Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                  )) : guides.length === 0 ? (
+                    <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-10">
+                      Henüz rehber hesabı yok
+                    </TableCell></TableRow>
+                  ) : guides.map(g => (
+                    <TableRow key={g.id} data-testid={`row-guide-${g.id}`}>
+                      <TableCell className="font-medium">{g.name || '-'}</TableCell>
+                      <TableCell className="text-muted-foreground break-all">{g.email}</TableCell>
+                      <TableCell>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${g.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                          {g.isActive ? 'Aktif' : 'Pasif'}
+                        </span>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
