@@ -19,6 +19,7 @@ import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { usePermission } from '@/hooks/usePermission';
 import { reservationApi, type GoogleIntegration } from '@/lib/reservation-api';
 import { GoogleIntegrationCard } from '@/components/GoogleIntegrationCard';
+import { DeviceSettingsCard } from '@/components/DeviceSettingsCard';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
 const EMAIL_TYPES = ['quotation', 'follow_up', 'confirmation', 'cancellation', 'welcome', 'custom'];
@@ -283,7 +284,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         {/* ACCOUNT */}
-        <TabsContent value="account">
+        <TabsContent value="account" className="space-y-4">
           {profileLoading ? <Skeleton className="h-40 rounded-xl max-w-md" /> : (
             <Card className="max-w-md">
               <CardHeader className="flex flex-row items-center justify-between">
@@ -314,6 +315,7 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           )}
+          <DeviceSettingsCard />
         </TabsContent>
 
         {canManageSettings && <TabsContent value="google">

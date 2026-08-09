@@ -15,7 +15,6 @@ import {
   fieldIncidentsTable,
   operationFieldNotesTable,
   operationLocationsTable,
-  notificationsTable,
   profilesTable,
   toursTable,
   customersTable,
@@ -27,6 +26,7 @@ import { requireAuth, requirePermission } from "../lib/auth";
 import { replayIdempotentResponse, rememberIdempotentResponse } from "../lib/idempotency";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { createAuditLog } from "../lib/audit";
+import { createNotification as createNotificationEntry } from "../lib/notifications";
 import multer from "multer";
 import type { Request, Response } from "express";
 
@@ -54,6 +54,9 @@ function plusDays(n: number) {
   return d.toISOString().split("T")[0];
 }
 
+// Thin wrapper over the shared helper in lib/notifications.ts, which owns both
+// the DB row and Web Push delivery. Kept as a local function so the four
+// call sites below (and notifyRoles) keep their existing positional signature.
 async function createNotification(
   recipientProfileId: number | null,
   type: string,
@@ -62,25 +65,13 @@ async function createNotification(
   relatedId?: number,
 ) {
   if (!recipientProfileId) return;
-  try {
-    // The notifications table uses userId (Clerk ID); look it up from the profile ID.
-    const [profile] = await db
-      .select({ clerkUserId: profilesTable.clerkUserId })
-      .from(profilesTable)
-      .where(eq(profilesTable.id, recipientProfileId))
-      .limit(1);
-    if (!profile?.clerkUserId) return;
-    await db.insert(notificationsTable).values({
-      userId: profile.clerkUserId,
-      type: type as "quotation" | "operation" | "receipt" | "document" | "payment" | "system",
-      title,
-      message,
-      isRead: false,
-      relatedId,
-    });
-  } catch {
-    // notifications are best-effort
-  }
+  await createNotificationEntry({
+    profileId: recipientProfileId,
+    type,
+    title,
+    message,
+    relatedId,
+  });
 }
 
 // Notify all users with relevant roles about an operation event

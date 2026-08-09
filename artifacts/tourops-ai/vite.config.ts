@@ -56,6 +56,11 @@ export default defineConfig(async () => {
           ],
         },
         workbox: {
+          // Web Push listeners. generateSW owns the service worker file, so the
+          // push/notificationclick handlers are pulled in as a separate script
+          // rather than switching to injectManifest — that would mean rewriting
+          // the precache and runtimeCaching setup below by hand.
+          importScripts: ['push-sw.js'],
           // Precache all Vite build outputs
           globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
           // Navigation fallback → serve cached SPA shell when offline
