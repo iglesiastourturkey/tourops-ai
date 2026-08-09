@@ -12,6 +12,7 @@
 import { Router } from "express";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { invalidatePermissionsFor, invalidateAllPermissions } from "../lib/permissions";
+import { seedDefaultGranted } from "../lib/seed-permissions";
 import { createAuditLog } from "../lib/audit";
 import { db } from "@workspace/db";
 import {
@@ -87,24 +88,37 @@ router.patch("/:roleName/permissions/:permId", async (req, res) => {
     return;
   }
 
+  const [perm] = await db.select().from(permissionsTable).where(eq(permissionsTable.id, permId)).limit(1);
+  if (!perm) {
+    res.status(404).json({ error: "Yetki girişi bulunamadı" });
+    return;
+  }
+
+  // Flag the row only while it actually diverges from the seed matrix, so the
+  // startup seed skips it (see seed-permissions.ts). Toggling a permission back
+  // to its default clears the flag and returns the row to seed management —
+  // otherwise a one-off change would freeze it against every future default
+  // change with no way to undo it from the UI.
+  const defaultGranted = seedDefaultGranted(roleName, perm.module, perm.action);
+  const manuallySet    = defaultGranted === null || granted !== defaultGranted;
+
   await db
     .update(rolePermissionsTable)
-    .set({ granted })
+    .set({ granted, manuallySet })
     .where(and(eq(rolePermissionsTable.roleName, roleName), eq(rolePermissionsTable.permissionId, permId)));
 
   // Invalidate cache for this role
   invalidateAllPermissions();
 
   // Audit
-  const [perm] = await db.select().from(permissionsTable).where(eq(permissionsTable.id, permId)).limit(1);
   await createAuditLog({
     eventType:      "permission_changed",
     actorProfileId: actor.id,
-    oldValue:       { roleName, module: perm?.module, action: perm?.action, granted: existing.granted },
-    newValue:       { roleName, module: perm?.module, action: perm?.action, granted },
+    oldValue:       { roleName, module: perm.module, action: perm.action, granted: existing.granted, manuallySet: existing.manuallySet },
+    newValue:       { roleName, module: perm.module, action: perm.action, granted, manuallySet },
   });
 
-  res.json({ ok: true });
+  res.json({ ok: true, manuallySet });
 });
 
 // ── GET /roles/user-overrides/:profileId ───────────────────────────────────────

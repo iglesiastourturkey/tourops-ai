@@ -10,12 +10,13 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useGetAgencySettings, useUpdateAgencySettings, useListExchangeRates, useUpdateExchangeRate, useCreateExchangeRate, useDeleteExchangeRate, useListEmailTemplates, useUpdateEmailTemplate, useCreateEmailTemplate, useGetMyProfile } from '@workspace/api-client-react';
-import { getGetAgencySettingsQueryKey, getListExchangeRatesQueryKey, getListEmailTemplatesQueryKey } from '@workspace/api-client-react';
+import { useGetAgencySettings, useUpdateAgencySettings, useListExchangeRates, useUpdateExchangeRate, useCreateExchangeRate, useDeleteExchangeRate, useListEmailTemplates, useUpdateEmailTemplate, useCreateEmailTemplate, useGetMyProfile, useUpdateMyProfile } from '@workspace/api-client-react';
+import { getGetAgencySettingsQueryKey, getListExchangeRatesQueryKey, getListEmailTemplatesQueryKey, getGetMyProfileQueryKey } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Save, Plus, Trash2, Mail, HardDrive, RefreshCw, Unplug, ShieldCheck } from 'lucide-react';
-import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
+import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
+import { usePermission } from '@/hooks/usePermission';
 import { reservationApi, type GoogleIntegration } from '@/lib/reservation-api';
 import { GoogleIntegrationCard } from '@/components/GoogleIntegrationCard';
 
@@ -27,9 +28,14 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const qc = useQueryClient();
 
-  const { role } = useProfile();
-  /** Only admin can mutate settings; operations can read */
-  const isAdmin = role === 'admin';
+  /**
+   * Reads the same permission the server enforces via
+   * requirePermission("settings", "manage"), instead of a hardcoded role list —
+   * so seed-matrix or /roles changes propagate without editing this file.
+   * usePermission returns true for super_admin (allPermissions) and fails
+   * closed while the permission set is still loading.
+   */
+  const canManageSettings = usePermission('settings', 'manage');
 
   const { data: agencySettings, isLoading: agencyLoading } = useGetAgencySettings();
   const { data: exchangeRates, isLoading: ratesLoading } = useListExchangeRates();
@@ -42,7 +48,8 @@ export default function SettingsPage() {
   const deleteRateMutation = useDeleteExchangeRate();
   const updateTemplateMutation = useUpdateEmailTemplate();
   const createTemplateMutation = useCreateEmailTemplate();
-  const googleConnection = useQuery({ queryKey: ['google-connection'], queryFn: reservationApi.googleStatus, enabled: isAdmin || role === 'super_admin' });
+  const updateProfileMutation = useUpdateMyProfile();
+  const googleConnection = useQuery({ queryKey: ['google-connection'], queryFn: reservationApi.googleStatus, enabled: canManageSettings });
   const connectGoogle = useMutation({
     mutationFn: reservationApi.authorize,
     onSuccess: ({ authorizationUrl }) => { window.location.assign(authorizationUrl); },
@@ -63,6 +70,13 @@ export default function SettingsPage() {
   const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', type: 'quotation', subject: '', body: '', language: 'tr' });
   const [disconnectTarget, setDisconnectTarget] = useState<GoogleIntegration | null>(null);
+  const [nameForm, setNameForm] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setNameForm(profile?.name ?? '');
+    setNameError(null);
+  }, [profile?.name]);
 
   useEffect(() => {
     if (agencySettings) {
@@ -124,6 +138,29 @@ export default function SettingsPage() {
     });
   }
 
+  // Display name is editable by every signed-in user for their own account.
+  // The server (PATCH /api/profiles/me) applies the same normalisation and
+  // length rules and is the authority; this only avoids a pointless round-trip.
+  const normalizedName = nameForm.trim().replace(/\s+/g, ' ');
+  const nameDirty = normalizedName !== (profile?.name ?? '');
+  const canSaveName = nameDirty && normalizedName.length >= 2 && !updateProfileMutation.isPending;
+
+  function handleSaveName() {
+    if (!canSaveName) return;
+    if (normalizedName.length > 120) { setNameError('Ad en fazla 120 karakter olabilir'); return; }
+    setNameError(null);
+    updateProfileMutation.mutate({ data: { name: normalizedName } }, {
+      onSuccess: () => {
+        toast({ title: 'Ad güncellendi' });
+        qc.invalidateQueries({ queryKey: getGetMyProfileQueryKey() });
+      },
+      onError: () => {
+        setNameError('Ad güncellenemedi. Lütfen tekrar deneyin.');
+        toast({ title: 'Hata', description: 'Ad güncellenemedi', variant: 'destructive' });
+      },
+    });
+  }
+
   const AF = ({ label, field, type = 'text' }: { label: string; field: keyof typeof agencyForm; type?: string }) => (
     <div>
       <label className="text-xs font-medium text-muted-foreground mb-1 block">{label}</label>
@@ -139,7 +176,7 @@ export default function SettingsPage() {
           <TabsTrigger value="rates" data-testid="tab-rates">Kur Tablosu</TabsTrigger>
           <TabsTrigger value="templates" data-testid="tab-templates">E-posta Şablonları</TabsTrigger>
           <TabsTrigger value="account" data-testid="tab-account">Hesap</TabsTrigger>
-          {(isAdmin || role === 'super_admin') && <TabsTrigger value="google" data-testid="tab-google">Google Workspace</TabsTrigger>}
+          {canManageSettings && <TabsTrigger value="google" data-testid="tab-google">Google Workspace</TabsTrigger>}
         </TabsList>
 
         {/* AGENCY */}
@@ -148,7 +185,7 @@ export default function SettingsPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-base">Ajans Bilgileri</CardTitle>
-                {isAdmin && <Button onClick={handleSaveAgency} disabled={updateAgencyMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-agency"><Save className="w-4 h-4" />{updateAgencyMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>}
+                {canManageSettings && <Button onClick={handleSaveAgency} disabled={updateAgencyMutation.isPending} size="sm" className="gap-1.5" data-testid="button-save-agency"><Save className="w-4 h-4" />{updateAgencyMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>}
               </CardHeader>
               <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <AF label="Ajans Adı" field="name" />
@@ -184,7 +221,7 @@ export default function SettingsPage() {
         <TabsContent value="rates">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">Döviz Kurları</h3>
-            {isAdmin && <Button size="sm" onClick={() => setRateDialogOpen(true)} className="gap-1.5" data-testid="button-add-rate"><Plus className="w-3.5 h-3.5" />Kur Ekle</Button>}
+            {canManageSettings && <Button size="sm" onClick={() => setRateDialogOpen(true)} className="gap-1.5" data-testid="button-add-rate"><Plus className="w-3.5 h-3.5" />Kur Ekle</Button>}
           </div>
           {ratesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="border rounded-lg overflow-hidden bg-card">
@@ -208,7 +245,7 @@ export default function SettingsPage() {
                       <Input type="number" step="0.001" className="h-7 w-28 text-sm" value={editRates[rate.id] ?? rate.rate} onChange={e => setEditRates(r => ({ ...r, [rate.id]: parseFloat(e.target.value) }))} data-testid={`input-rate-${rate.id}`} />
                     </TableCell>
                     <TableCell>
-                      {isAdmin && (
+                      {canManageSettings && (
                         <div className="flex gap-1">
                           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleSaveRate(rate.id)} data-testid={`button-save-rate-${rate.id}`}>Kaydet</Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => handleDeleteRate(rate.id)} data-testid={`button-delete-rate-${rate.id}`}><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -226,7 +263,7 @@ export default function SettingsPage() {
         <TabsContent value="templates">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium text-sm">E-posta Şablonları</h3>
-            {isAdmin && <Button size="sm" onClick={() => setNewTemplateDialogOpen(true)} className="gap-1.5" data-testid="button-add-template"><Plus className="w-3.5 h-3.5" />Yeni Şablon</Button>}
+            {canManageSettings && <Button size="sm" onClick={() => setNewTemplateDialogOpen(true)} className="gap-1.5" data-testid="button-add-template"><Plus className="w-3.5 h-3.5" />Yeni Şablon</Button>}
           </div>
           {templatesLoading && <Skeleton className="h-32 rounded-xl mb-3" />}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -249,9 +286,29 @@ export default function SettingsPage() {
         <TabsContent value="account">
           {profileLoading ? <Skeleton className="h-40 rounded-xl max-w-md" /> : (
             <Card className="max-w-md">
-              <CardHeader><CardTitle className="text-base">Hesap Bilgileri</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base">Hesap Bilgileri</CardTitle>
+                <Button onClick={handleSaveName} disabled={!canSaveName} size="sm" className="gap-1.5" data-testid="button-save-name"><Save className="w-4 h-4" />{updateProfileMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}</Button>
+              </CardHeader>
               <CardContent className="space-y-3">
-                <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Ad</label><p className="text-sm font-medium">{profile?.name ?? '-'}</p></div>
+                <div>
+                  <label htmlFor="profile-name" className="text-xs font-medium text-muted-foreground mb-1 block">Ad</label>
+                  <Input
+                    id="profile-name"
+                    value={nameForm}
+                    maxLength={120}
+                    onChange={e => { setNameForm(e.target.value); setNameError(null); }}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSaveName(); } }}
+                    placeholder="Ad Soyad"
+                    aria-invalid={!!nameError}
+                    data-testid="input-profile-name"
+                  />
+                  {nameError
+                    ? <p className="text-xs text-destructive mt-1" data-testid="text-name-error">{nameError}</p>
+                    : nameDirty && normalizedName.length < 2
+                      ? <p className="text-xs text-muted-foreground mt-1">Ad en az 2 karakter olmalıdır.</p>
+                      : null}
+                </div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">E-posta</label><p className="text-sm font-medium">{profile?.email ?? '-'}</p></div>
                 <div><label className="text-xs font-medium text-muted-foreground mb-1 block">Rol</label><span className="text-xs px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">{ROLE_LABELS[profile?.role as UserRole] ?? 'Personel'}</span></div>
               </CardContent>
@@ -259,7 +316,7 @@ export default function SettingsPage() {
           )}
         </TabsContent>
 
-        {(isAdmin || role === 'super_admin') && <TabsContent value="google">
+        {canManageSettings && <TabsContent value="google">
           {googleConnection.isLoading ? <Skeleton className="h-72 w-full" /> : (
             <div className="max-w-4xl space-y-4">
               {!googleConnection.data?.configured && (

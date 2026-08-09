@@ -89,6 +89,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Profile"
+    patch:
+      operationId: updateMyProfile
+      tags: [profiles]
+      summary: Update current user profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProfileUpdate"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+        "400":
+          description: Invalid profile data
   /profiles/me/complete-invitation:
     post:
       operationId: completeInvitationProfile
@@ -107,23 +126,6 @@ paths:
           description: No matching pending invitation
         "409":
           description: Invitation email unavailable
-    patch:
-      operationId: updateMyProfile
-      tags: [profiles]
-      summary: Update current user profile
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ProfileUpdate"
-      responses:
-        "200":
-          description: Updated profile
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Profile"
   /profiles:
     get:
       operationId: listProfiles
@@ -1686,7 +1688,8 @@ components:
     ProfileUpdate:
       type: object
       properties:
-        name: { type: string }
+        name: { type: string, minLength: 2, maxLength: 120 }
+      required: [name]
     InvitationCompletion:
       type: object
       properties:

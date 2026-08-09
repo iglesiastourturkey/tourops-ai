@@ -176,15 +176,72 @@ router.post("/me/clear-password-change", requireAuth, requireActive(), async (re
 });
 
 // PATCH /api/profiles/me — only name is allowed; role/isActive changes go through /api/users (admin only)
+//
+// The profile row is the source of truth for the display name.  Clerk is kept
+// in sync on a best-effort basis: a Clerk failure must not roll back or block
+// the profile update, otherwise a transient Clerk outage would make the user's
+// own name uneditable.  A failed sync is audited so it can be reconciled.
 router.patch("/me", requireAuth, requireActive(), async (req, res) => {
   try {
     const { userId } = getAuth(req);
+    const profile = res.locals.profile;
+
     // Whitelist: only allow updating display name
-    const { name } = req.body;
+    const rawName = (req.body as { name?: unknown }).name;
+    if (typeof rawName !== "string") {
+      res.status(400).json({ error: "Ad alanı zorunludur" });
+      return;
+    }
+    const name = rawName.trim().replace(/\s+/g, " ");
+    if (name.length < 2 || name.length > 120) {
+      res.status(400).json({ error: "Ad en az 2, en fazla 120 karakter olmalıdır" });
+      return;
+    }
+
     const [updated] = await db.update(profilesTable)
       .set({ name })
       .where(eq(profilesTable.clerkUserId, userId!))
       .returning();
+
+    if (!updated) {
+      res.status(404).json({ error: "Profil bulunamadı" });
+      return;
+    }
+
+    const nameParts = name.split(" ");
+    let clerkSynced = true;
+    try {
+      // lastName is sent as "" (not undefined) when the name collapses to a
+      // single word, so shortening "Mehmet Yılmaz" to "Mehmet" clears the old
+      // surname in Clerk instead of leaving it silently out of sync with the
+      // profile row.
+      await clerkClient.users.updateUser(userId!, {
+        firstName: nameParts[0],
+        lastName: nameParts.slice(1).join(" "),
+      });
+    } catch {
+      clerkSynced = false;
+      req.log.warn(
+        { eventType: "profile_name_clerk_sync_failed", profileId: updated.id },
+        "Profile name updated in database but Clerk sync failed",
+      );
+    }
+
+    await createAuditLog({
+      eventType: "profile_name_updated",
+      actorProfileId: profile?.id,
+      targetProfileId: updated.id,
+      oldValue: { name: profile?.name ?? null },
+      newValue: { name },
+      module: "profiles",
+      entityType: "profile",
+      entityId: updated.id,
+      result: clerkSynced ? "success" : "failure",
+      description: clerkSynced
+        ? "Kullanıcı kendi adını güncelledi"
+        : "Kullanıcı adını güncelledi, Clerk senkronizasyonu başarısız",
+    });
+
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: "Failed to update profile" });

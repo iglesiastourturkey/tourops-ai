@@ -13,7 +13,7 @@ import { ShieldCheck, Users, AlertCircle } from 'lucide-react';
 // ── Types ────────────────────────────────────────────────────────────────────
 interface RoleMeta  { name: string; displayName: string; sortOrder: number }
 interface Permission { id: number; module: string; action: string }
-interface RolePerm   { id: number; roleName: string; permissionId: number; granted: boolean }
+interface RolePerm   { id: number; roleName: string; permissionId: number; granted: boolean; manuallySet: boolean }
 
 interface MatrixData {
   roles:       RoleMeta[];
@@ -102,13 +102,14 @@ export default function RolesPage() {
     },
   });
 
-  // Build fast lookup: `${roleName}.${permId}` → granted
-  const lookup = new Map<string, boolean>();
+  // Build fast lookup: `${roleName}.${permId}` → row
+  const lookup = new Map<string, { granted: boolean; manuallySet: boolean }>();
   if (data) {
     for (const rp of data.matrix) {
-      lookup.set(`${rp.roleName}.${rp.permissionId}`, rp.granted);
+      lookup.set(`${rp.roleName}.${rp.permissionId}`, { granted: rp.granted, manuallySet: !!rp.manuallySet });
     }
   }
+  const overrideCount = data?.matrix.filter(rp => rp.manuallySet && MATRIX_ROLES.includes(rp.roleName)).length ?? 0;
 
   // Group permissions by module, maintaining action order
   const ACTION_ORDER = ['view','create','update','delete','approve','assign','upload','download','export','manage','archive'];
@@ -134,10 +135,19 @@ export default function RolesPage() {
         <Card className="border-amber-200 bg-amber-50">
           <CardContent className="flex items-start gap-3 py-3">
             <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <p className="text-sm text-amber-800">
-              Süper yönetici hesabının tüm yetkiler üzerinde kalıcı erişimi vardır ve bu matris aracılığıyla
-              kısıtlanamaz. Değişiklikler anında geçerli olur; izin önbelleği 5 dakika içinde yenilenir.
-            </p>
+            <div className="text-sm text-amber-800 space-y-1.5">
+              <p>
+                Süper yönetici hesabının tüm yetkiler üzerinde kalıcı erişimi vardır ve bu matris aracılığıyla
+                kısıtlanamaz. Değişiklikler anında geçerli olur; izin önbelleği 5 dakika içinde yenilenir.
+              </p>
+              <p className="flex items-center gap-1.5 flex-wrap">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
+                <span>
+                  işaretli hücreler varsayılandan elle değiştirilmiştir ve sunucu yeniden başlatmalarında korunur.
+                  Varsayılan değerine geri alındığında işaret kalkar.
+                </span>
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -166,7 +176,12 @@ export default function RolesPage() {
               <div className="flex items-center gap-2">
                 <ShieldCheck className="w-5 h-5 text-primary" />
                 <CardTitle className="text-base">Modül × Yetki Matrisi</CardTitle>
-                <Badge variant="secondary" className="ml-auto">
+                {overrideCount > 0 && (
+                  <Badge variant="outline" className="ml-auto border-amber-300 text-amber-700" data-testid="badge-override-count">
+                    {overrideCount} elle değiştirilmiş yetki
+                  </Badge>
+                )}
+                <Badge variant="secondary" className={overrideCount > 0 ? '' : 'ml-auto'}>
                   <Users className="w-3 h-3 mr-1" />
                   Süper Yönetici her yetkiye sahip
                 </Badge>
@@ -208,18 +223,34 @@ export default function RolesPage() {
                             </td>
                             {displayedRoles.map(role => {
                               const key     = `${role.name}.${perm.id}`;
-                              const granted = lookup.get(key) ?? false;
+                              const entry   = lookup.get(key);
+                              const granted = entry?.granted ?? false;
+                              const manual  = entry?.manuallySet ?? false;
                               const busy    = pending === key;
                               return (
-                                <td key={role.name} className="px-3 py-2 text-center">
-                                  <Checkbox
-                                    checked={granted}
-                                    disabled={busy || toggle.isPending}
-                                    onCheckedChange={checked => {
-                                      toggle.mutate({ roleName: role.name, permId: perm.id, granted: !!checked });
-                                    }}
-                                    className="mx-auto"
-                                  />
+                                <td
+                                  key={role.name}
+                                  className={`px-3 py-2 text-center${manual ? ' bg-amber-50' : ''}`}
+                                  title={manual ? 'Elle değiştirildi — varsayılana dönene kadar sunucu yeniden başlatmalarında korunur' : undefined}
+                                  data-testid={`cell-${role.name}-${perm.id}`}
+                                  data-manual={manual ? 'true' : 'false'}
+                                >
+                                  <span className="relative inline-flex">
+                                    <Checkbox
+                                      checked={granted}
+                                      disabled={busy || toggle.isPending}
+                                      onCheckedChange={checked => {
+                                        toggle.mutate({ roleName: role.name, permId: perm.id, granted: !!checked });
+                                      }}
+                                      className="mx-auto"
+                                    />
+                                    {manual && (
+                                      <span
+                                        aria-label="Elle değiştirildi"
+                                        className="absolute -top-1 -right-1.5 w-1.5 h-1.5 rounded-full bg-amber-500 ring-1 ring-background"
+                                      />
+                                    )}
+                                  </span>
                                 </td>
                               );
                             })}

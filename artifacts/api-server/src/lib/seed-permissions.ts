@@ -8,6 +8,9 @@
  *   system_settings  — creates the row if absent
  *
  * Safe to call on every server startup; uses ON CONFLICT DO NOTHING / DO UPDATE.
+ *
+ * role_permissions rows flagged manually_set are never overwritten here — see
+ * seedDefaultGranted() and the setWhere clause below.
  */
 
 import { db } from "@workspace/db";
@@ -154,7 +157,7 @@ const MATRIX: PermRow[] = [
 
   // settings
   ["settings", "view",   ["admin","operations"]],
-  ["settings", "manage", ["admin"]],
+  ["settings", "manage", ["admin","operations"]],
 
   // Gmail reservation intake
   ["reservations", "view",   ["admin","operations"]],
@@ -176,6 +179,33 @@ const MATRIX: PermRow[] = [
 
 // Non-super roles that appear in the matrix
 const SEEDABLE_ROLES = ["admin", "operations", "accounting", "guide", "field_operations"] as const;
+
+// ── Seed default lookup ───────────────────────────────────────────────────────
+// `${role}.${module}.${action}` → the granted value this matrix defines.
+const SEED_DEFAULTS = new Map<string, boolean>();
+for (const role of SEEDABLE_ROLES) {
+  for (const [module, action, grantedRoles] of MATRIX) {
+    SEED_DEFAULTS.set(`${role}.${module}.${action}`, grantedRoles.includes(role));
+  }
+}
+
+/**
+ * The value seedPermissions() would write for this (role, module, action),
+ * or null when the pair is not part of the seed matrix at all — e.g. a role
+ * outside SEEDABLE_ROLES, or a permission row left in the DB after being
+ * removed from MATRIX in a later release.
+ *
+ * Used by PATCH /api/roles/:roleName/permissions/:permId to decide whether a
+ * super_admin's change is an override (differs from the default → freeze the
+ * row) or a return to the default (→ hand the row back to the seed).
+ */
+export function seedDefaultGranted(
+  role:   string,
+  module: string,
+  action: string,
+): boolean | null {
+  return SEED_DEFAULTS.get(`${role}.${module}.${action}`) ?? null;
+}
 
 export async function seedPermissions(): Promise<void> {
   // 1. Upsert roles
@@ -225,9 +255,16 @@ export async function seedPermissions(): Promise<void> {
       // Permissions added in a later release must update the default matrix for
       // existing installations. A no-op conflict left already-created admin and
       // operations roles without the reservations grants.
+      //
+      // setWhere narrows that update to rows the seed still owns: a manually_set
+      // row was deliberately changed by a super_admin from the /roles screen and
+      // must survive restarts, which an unconditional DO UPDATE silently undid.
+      // Rows that do not exist yet are plain INSERTs and are unaffected, so new
+      // permissions keep rolling out to existing installations.
       .onConflictDoUpdate({
         target: [rolePermissionsTable.roleName, rolePermissionsTable.permissionId],
         set: { granted: sql`excluded.granted` },
+        setWhere: sql`${rolePermissionsTable.manuallySet} = false`,
       });
   }
 

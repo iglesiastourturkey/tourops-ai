@@ -27,6 +27,14 @@ export const rolePermissionsTable = pgTable("role_permissions", {
   roleName:     text("role_name").notNull().references(() => rolesTable.name),
   permissionId: integer("permission_id").notNull().references(() => permissionsTable.id),
   granted:      boolean("granted").notNull().default(true),
+  /**
+   * True when this row's `granted` value differs from the seed matrix default
+   * because a super_admin changed it from the /roles screen.  The startup seed
+   * skips flagged rows so manual overrides survive restarts and deploys.
+   * Set back to false automatically when the value is toggled to match the
+   * default again, which returns the row to seed management.
+   */
+  manuallySet:  boolean("manually_set").notNull().default(false),
 }, t => [
   unique("role_perm_unique").on(t.roleName, t.permissionId),
 ]);

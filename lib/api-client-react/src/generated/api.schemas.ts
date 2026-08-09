@@ -65,7 +65,11 @@ export interface Profile {
 }
 
 export interface ProfileUpdate {
-  name?: string;
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  name: string;
 }
 
 export type InvitationCompletionRole = typeof InvitationCompletionRole[keyof typeof InvitationCompletionRole];

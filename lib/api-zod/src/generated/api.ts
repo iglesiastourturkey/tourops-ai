@@ -66,21 +66,15 @@ export const GetMyProfileResponse = zod.object({
 
 
 /**
- * @summary Claim the pending invitation profile for the authenticated Clerk user
- */
-export const CompleteInvitationProfileResponse = zod.object({
-  "id": zod.number(),
-  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
-  "isActive": zod.boolean(),
-  "alreadyCompleted": zod.boolean()
-})
-
-
-/**
  * @summary Update current user profile
  */
+export const updateMyProfileBodyNameMin = 2;
+export const updateMyProfileBodyNameMax = 120;
+
+
+
 export const UpdateMyProfileBody = zod.object({
-  "name": zod.string().optional()
+  "name": zod.string().min(updateMyProfileBodyNameMin).max(updateMyProfileBodyNameMax)
 })
 
 export const UpdateMyProfileResponse = zod.object({
@@ -92,6 +86,17 @@ export const UpdateMyProfileResponse = zod.object({
   "isActive": zod.boolean(),
   "createdAt": zod.coerce.date(),
   "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Claim the pending invitation profile for the authenticated Clerk user
+ */
+export const CompleteInvitationProfileResponse = zod.object({
+  "id": zod.number(),
+  "role": zod.enum(['super_admin', 'admin', 'operations', 'guide', 'accounting', 'field_operations']),
+  "isActive": zod.boolean(),
+  "alreadyCompleted": zod.boolean()
 })
 
 

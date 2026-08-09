@@ -7,5 +7,9 @@
  */
 
 export interface ProfileUpdate {
-  name?: string;
+  /**
+     * @minLength 2
+     * @maxLength 120
+     */
+  name: string;
 }
