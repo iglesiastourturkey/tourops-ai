@@ -58,3 +58,22 @@ Do not skip prerequisite modules without justification.# TourPilot Roadmap Notes
   - Neon-Managed seçeneğini tercih et (Vercel-Managed değil) — mevcut Neon hesabımız zaten var, faturalamayı ayrı tutmak daha temiz
   - Not: Bu entegrasyon Render'ı kapsamaz, backend-database bağlantısı (Render → Neon) her koşulda elle yönetilecek
   - Ne zaman: main'e doğrudan push yerine gerçek feature-branch + PR review akışına geçilince (master plan Bölüm 15)
+
+## Clerk production geçişi — TAMAMLANDI (10 Ağustos 2026)
+
+- tourpilot.com.tr artık canonical domain, www apex'e 301 yönleniyor
+- Clerk production instance kuruldu, DNS doğrulandı (clerk./accounts./clkmail.tourpilot.com.tr)
+- İlk süper admin hesabı (aydin254@gmail.com) production'da oluşturuldu,
+  eski dev clerk_user_id yeni production ID'siyle güncellendi
+- publishableKeyFromHost kaldırıldı — artık sabit VITE_CLERK_PUBLISHABLE_KEY
+  kullanılıyor, host'a göre dinamik key üretimi yok
+
+## Bilinen kısıt: tourops-ai.vercel.app artık auth yapamaz
+- Clerk production instance, kendi domain'i dışındaki origin'leri reddediyor
+  (origin_invalid) — bu Clerk'in platform kısıtı, Satellite Domains
+  (ücretli) olmadan çözülemiyor
+- Bilinçli karar: .vercel.app'i Preview environment'a taşıyıp backend'e
+  dual-instance auth desteği eklemek yerine, sadece tourpilot.com.tr'nin
+  canonical adres olması kabul edildi
+- .vercel.app adresi artık sadece Vercel'in kendi deployment overview'unda
+  teknik bir referans, kullanıcıya açık bir giriş noktası değil
