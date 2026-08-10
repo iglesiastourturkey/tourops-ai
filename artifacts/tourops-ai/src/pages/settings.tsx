@@ -50,7 +50,11 @@ export default function SettingsPage() {
   const updateTemplateMutation = useUpdateEmailTemplate();
   const createTemplateMutation = useCreateEmailTemplate();
   const updateProfileMutation = useUpdateMyProfile();
-  const googleConnection = useQuery({ queryKey: ['google-connection'], queryFn: reservationApi.googleStatus, enabled: canManageSettings });
+  // Each provider has its own row in google_connections (unique on profileId+provider),
+  // so status must be fetched per provider — a single shared query would show one
+  // provider's connection state on both cards.
+  const gmailConnection = useQuery({ queryKey: ['google-connection', 'gmail'], queryFn: () => reservationApi.googleStatus('gmail'), enabled: canManageSettings });
+  const driveConnection = useQuery({ queryKey: ['google-connection', 'drive'], queryFn: () => reservationApi.googleStatus('drive'), enabled: canManageSettings });
   const connectGoogle = useMutation({
     mutationFn: reservationApi.authorize,
     onSuccess: ({ authorizationUrl }) => { window.location.assign(authorizationUrl); },
@@ -58,7 +62,7 @@ export default function SettingsPage() {
   });
   const disconnectGoogle = useMutation({
     mutationFn: reservationApi.disconnect,
-    onSuccess: () => { toast({ title: 'Google Workspace bağlantısı kaldırıldı' }); void googleConnection.refetch(); },
+    onSuccess: () => { toast({ title: 'Google Workspace bağlantısı kaldırıldı' }); void gmailConnection.refetch(); void driveConnection.refetch(); },
     onError: error => toast({ title: 'Bağlantı kaldırılamadı', description: error.message, variant: 'destructive' }),
   });
 
@@ -319,17 +323,17 @@ export default function SettingsPage() {
         </TabsContent>
 
         {canManageSettings && <TabsContent value="google">
-          {googleConnection.isLoading ? <Skeleton className="h-72 w-full" /> : (
+          {(gmailConnection.isLoading || driveConnection.isLoading) ? <Skeleton className="h-72 w-full" /> : (
             <div className="max-w-4xl space-y-4">
-              {!googleConnection.data?.configured && (
+              {!gmailConnection.data?.configured && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
                   <p className="font-medium">Google OAuth henüz yapılandırılmamış.</p>
-                  <p className="mt-1">Bağlantıları etkinleştirmek için şu sunucu ayarlarını ekleyin: {(googleConnection.data?.missingConfiguration ?? []).join(', ')}.</p>
+                  <p className="mt-1">Bağlantıları etkinleştirmek için şu sunucu ayarlarını ekleyin: {(gmailConnection.data?.missingConfiguration ?? []).join(', ')}.</p>
                 </div>
               )}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                <GoogleIntegrationCard integration="gmail" title="Gmail Rezervasyon Bağlantısı" description="TourPilot etiketli rezervasyon e-postalarını okumak ve sisteme aktarmak için Gmail hesabınızı bağlayın." icon={<Mail className="h-5 w-5" />} scope="https://www.googleapis.com/auth/gmail.readonly" connection={googleConnection.data?.connection ?? null} configured={googleConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('gmail')} onDisconnect={() => setDisconnectTarget('gmail')} />
-                <GoogleIntegrationCard integration="drive" title="Google Drive Bağlantısı" description="Rezervasyon dosyalarına ve TourPilot tarafından oluşturulan veya seçtiğiniz Drive dosyalarına erişmek için hesabınızı bağlayın." icon={<HardDrive className="h-5 w-5" />} scope="https://www.googleapis.com/auth/drive.file" connection={googleConnection.data?.connection ?? null} configured={googleConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('drive')} onDisconnect={() => setDisconnectTarget('drive')} />
+                <GoogleIntegrationCard integration="gmail" title="Gmail Rezervasyon Bağlantısı" description="TourPilot etiketli rezervasyon e-postalarını okumak ve sisteme aktarmak için Gmail hesabınızı bağlayın." icon={<Mail className="h-5 w-5" />} scope="https://www.googleapis.com/auth/gmail.readonly" connection={gmailConnection.data?.connection ?? null} configured={gmailConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('gmail')} onDisconnect={() => setDisconnectTarget('gmail')} />
+                <GoogleIntegrationCard integration="drive" title="Google Drive Bağlantısı" description="Rezervasyon dosyalarına ve TourPilot tarafından oluşturulan veya seçtiğiniz Drive dosyalarına erişmek için hesabınızı bağlayın." icon={<HardDrive className="h-5 w-5" />} scope="https://www.googleapis.com/auth/drive.file" connection={driveConnection.data?.connection ?? null} configured={driveConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('drive')} onDisconnect={() => setDisconnectTarget('drive')} />
               </div>
             </div>
           )}
@@ -342,7 +346,7 @@ export default function SettingsPage() {
             <DialogTitle>{disconnectTarget === 'gmail' ? 'Gmail bağlantısı kesilsin mi?' : 'Google Drive bağlantısı kesilsin mi?'}</DialogTitle>
             <DialogDescription>
               Bu işlem mevcut içe aktarılmış e-postaları, oluşturulmuş operasyonları veya önceki Drive kayıtlarını silmez.
-              {googleConnection.data?.connection?.grantedScopes?.filter(scope => scope === 'https://www.googleapis.com/auth/gmail.readonly' || scope === 'https://www.googleapis.com/auth/drive.file').length === 1 && ' Son Google izni kaldırıldığı için Google erişim belirteci de iptal edilir.'}
+              {(disconnectTarget === 'gmail' ? gmailConnection : driveConnection).data?.connection?.grantedScopes?.length === 1 && ' Bu izin kaldırıldığı için Google erişim belirteci de iptal edilir.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

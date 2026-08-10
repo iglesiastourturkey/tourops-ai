@@ -4,14 +4,12 @@ import express, { type Express } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
-import { publishableKeyFromHost } from "@clerk/shared/keys";
 import router from "./routes";
 import { logger } from "./lib/logger";
 import { systemModeMiddleware } from "./middlewares/systemMode";
 import {
   CLERK_PROXY_PATH,
   clerkProxyMiddleware,
-  getClerkProxyHost,
 } from "./middlewares/clerkProxyMiddleware";
 
 const app: Express = express();
@@ -73,15 +71,15 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Clerk auth middleware
-app.use(
-  clerkMiddleware((req) => ({
-    publishableKey: publishableKeyFromHost(
-      getClerkProxyHost(req) ?? "",
-      process.env.CLERK_PUBLISHABLE_KEY,
-    ),
-  })),
-);
+// Clerk auth middleware. With no argument it reads CLERK_PUBLISHABLE_KEY and
+// CLERK_SECRET_KEY from the environment — a single fixed instance.
+//
+// Deliberately NOT derived per-request from the incoming Host header. A
+// publishable key already encodes its Frontend API domain, so recomputing it as
+// `clerk.<request host>` produced a key pointing at a Frontend API that does not
+// exist (clerk.<render-host>) and that never matches the issuer of the tokens the
+// frontend actually sends.
+app.use(clerkMiddleware());
 
 // System-mode gate: runs before all API handlers
 app.use("/api", systemModeMiddleware);

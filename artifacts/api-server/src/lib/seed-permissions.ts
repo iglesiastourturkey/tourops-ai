@@ -144,12 +144,12 @@ const MATRIX: PermRow[] = [
   ["notifications", "view",   ["admin","operations","guide","accounting","field_operations"]],
   ["notifications", "manage", ["admin"]],
 
-  // users — super_admin only (bypasses permission check; no role defaults needed)
-  ["users", "view",   []],
-  ["users", "create", []],
-  ["users", "update", []],
-  ["users", "delete", []],
-  ["users", "manage", []],
+  // users — admin also gets full access; super_admin bypasses the check entirely
+  ["users", "view",   ["admin"]],
+  ["users", "create", ["admin"]],
+  ["users", "update", ["admin"]],
+  ["users", "delete", ["admin"]],
+  ["users", "manage", ["admin"]],
 
   // roles — super_admin only
   ["roles", "view",   []],

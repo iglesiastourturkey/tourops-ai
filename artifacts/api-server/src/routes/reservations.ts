@@ -86,7 +86,8 @@ router.get("/google-connection/callback", async (req, res) => {
       res.status(400).send("Google bağlantı isteği geçersiz veya süresi dolmuş."); return;
     }
     const [existing] = await db.select().from(googleConnectionsTable)
-      .where(eq(googleConnectionsTable.profileId, parsedState.profileId)).limit(1);
+      .where(and(eq(googleConnectionsTable.profileId, parsedState.profileId), eq(googleConnectionsTable.provider, parsedState.integration)))
+      .limit(1);
     const tokens = await exchangeAuthorizationCode(req.query.code);
     const email = await verifyGoogleAccount(tokens.access_token!, parsedState.integration);
     const grantedScopes = Array.from(new Set([
@@ -98,7 +99,7 @@ router.get("/google-connection/callback", async (req, res) => {
       : existing?.refreshTokenEncrypted ?? null;
     if (!refreshTokenEncrypted) throw new Error("Google refresh token is unavailable. Reconnect and approve offline access.");
     await db.insert(googleConnectionsTable).values({
-      profileId: parsedState.profileId, googleAccountEmail: email,
+      profileId: parsedState.profileId, provider: parsedState.integration, googleAccountEmail: email,
       accessTokenEncrypted: encryptCredential(tokens.access_token!), refreshTokenEncrypted,
       tokenExpiresAt: tokens.expiry_date ? new Date(tokens.expiry_date) : null, grantedScopes,
       driveAccessSummary: parsedState.integration === "drive" ? "Uygulamanın oluşturduğu veya seçtiğiniz Drive dosyalarına erişim" : null,
@@ -121,9 +122,12 @@ router.get("/google-connection/callback", async (req, res) => {
 
 router.use(requireAuth, requireActive());
 
-router.get("/google-connection", requirePermission("settings", "manage"), async (_req, res) => {
+router.get("/google-connection", requirePermission("settings", "manage"), async (req, res) => {
+  const provider = req.query.provider;
+  if (provider !== "gmail" && provider !== "drive") { res.status(400).json({ error: "Geçersiz Google entegrasyonu" }); return; }
   const [connection] = await db.select().from(googleConnectionsTable)
-    .where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+    .where(and(eq(googleConnectionsTable.profileId, res.locals.profile.id), eq(googleConnectionsTable.provider, provider)))
+    .limit(1);
   const configured = isGoogleOAuthConfigured();
   res.json({
     configured,
@@ -136,14 +140,18 @@ router.post("/google-connection/:integration/authorize", requirePermission("sett
   const integration = req.params.integration;
   if (integration !== "gmail" && integration !== "drive") { res.status(400).json({ error: "Geçersiz Google entegrasyonu" }); return; }
   if (!isGoogleOAuthConfigured()) { res.status(503).json({ error: "Google OAuth yapılandırılmamış" }); return; }
-  const [connection] = await db.select().from(googleConnectionsTable).where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+  const [connection] = await db.select().from(googleConnectionsTable)
+    .where(and(eq(googleConnectionsTable.profileId, res.locals.profile.id), eq(googleConnectionsTable.provider, integration)))
+    .limit(1);
   res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id, integration), integration, connectionScopes(connection ?? {} as typeof googleConnectionsTable.$inferSelect)) });
 });
 
 router.delete("/google-connection/:integration", requirePermission("settings", "manage"), async (req, res) => {
   const integration = req.params.integration;
   if (integration !== "gmail" && integration !== "drive") { res.status(400).json({ error: "Geçersiz Google entegrasyonu" }); return; }
-  const [connection] = await db.select().from(googleConnectionsTable).where(eq(googleConnectionsTable.profileId, res.locals.profile.id)).limit(1);
+  const [connection] = await db.select().from(googleConnectionsTable)
+    .where(and(eq(googleConnectionsTable.profileId, res.locals.profile.id), eq(googleConnectionsTable.provider, integration)))
+    .limit(1);
   if (!connection) { res.status(204).send(); return; }
   const scope = integration === "gmail" ? GMAIL_SCOPE : DRIVE_SCOPE;
   const retainedScopes = connectionScopes(connection).filter(item => item !== scope);
@@ -166,7 +174,9 @@ router.delete("/google-connection/:integration", requirePermission("settings", "
 });
 
 router.post("/scan", requirePermission("reservations", "create"), async (_req, res) => {
-  const [connection] = await db.select().from(googleConnectionsTable).orderBy(desc(googleConnectionsTable.updatedAt)).limit(1);
+  const [connection] = await db.select().from(googleConnectionsTable)
+    .where(and(eq(googleConnectionsTable.profileId, res.locals.profile.id), eq(googleConnectionsTable.provider, "gmail")))
+    .limit(1);
   if (!connection || connection.status !== "connected" || !connectionScopes(connection).includes(GMAIL_SCOPE)) { res.status(409).json({ error: "Yönetici önce Gmail rezervasyon bağlantısını kurmalıdır" }); return; }
   try {
     await createAuditLog({ eventType: "reservation_scan_started", actorProfileId: res.locals.profile.id, module: "reservations", description: "Gmail rezervasyon taraması başlatıldı" });

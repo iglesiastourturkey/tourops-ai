@@ -2,7 +2,6 @@ import { ClerkProvider, SignUp, Show, useAuth, useClerk } from '@clerk/react';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { publishableKeyFromHost } from '@clerk/react/internal';
 import { clerkAppearance } from '@/lib/clerk-appearance';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Switch, Route, Redirect, Router as WouterRouter, useLocation } from 'wouter';
@@ -65,7 +64,12 @@ const ChangePasswordPage           = lazy(() => import('@/pages/change-password'
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
-const clerkPubKey = publishableKeyFromHost(window.location.hostname, import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+// Use the configured key verbatim — never derive one from the current hostname.
+// A publishable key already encodes its Frontend API domain (clerk.tourpilot.com.tr),
+// so recomputing it as `clerk.${window.location.hostname}` only invents hosts that
+// do not resolve (e.g. clerk.tourops-ai.vercel.app on a preview deploy), which makes
+// clerk-js fail to load and the whole app render blank.
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
 
 /** Minimal full-screen spinner shown while a lazy page chunk is loading. */
@@ -421,7 +425,7 @@ function Router() {
       <Route path="/accounting/settings" component={() => <ProtectedRoleRoute component={AccountingSettingsPage} roles={['admin', 'accounting']} />} />
       <Route path="/accounting" component={() => <ProtectedRoleRoute component={AccountingDashboardPage} roles={['admin', 'accounting']} />} />
       <Route path="/settings" component={() => <ProtectedRoleRoute component={SettingsPage} roles={['admin', 'operations']} />} />
-      <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['super_admin']} />} />
+      <Route path="/users" component={() => <ProtectedRoleRoute component={UsersPage} roles={['admin', 'super_admin']} />} />
       <Route path="/roles" component={() => <ProtectedRoleRoute component={RolesPage} roles={['super_admin']} />} />
       <Route path="/system-control" component={() => <ProtectedRoleRoute component={SystemControlPage} roles={['super_admin']} />} />
       <Route path="/audit" component={() => <ProtectedRoleRoute component={AuditLogPage} roles={['super_admin']} />} />

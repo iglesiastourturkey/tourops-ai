@@ -13,7 +13,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { useListSuppliers, useCreateSupplier, useDeleteSupplier, useUpdateSupplier, useListProfiles } from '@workspace/api-client-react';
 import { getListSuppliersQueryKey, getListProfilesQueryKey } from '@workspace/api-client-react';
 import { usePermission } from '@/hooks/usePermission';
+import { useProfile } from '@/contexts/ProfileContext';
 import { InviteUserDialog } from '@/components/InviteUserDialog';
+import { CreateUserDialog } from '@/components/CreateUserDialog';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, MoreHorizontal, ExternalLink, Archive, Trash2, Star, Car, Info, Users, UserCog } from 'lucide-react';
@@ -42,6 +44,7 @@ export default function SuppliersPage() {
   const [driverDialogOpen, setDriverDialogOpen] = useState(false);
   const [driverForm, setDriverForm] = useState(EMPTY_DRIVER_FORM);
   const [inviteGuideOpen, setInviteGuideOpen] = useState(false);
+  const [createGuideOpen, setCreateGuideOpen] = useState(false);
 
   const { data: suppliers, isLoading } = useListSuppliers();
   const createMutation = useCreateSupplier();
@@ -69,12 +72,19 @@ export default function SuppliersPage() {
   const drivers = (suppliers ?? []).filter(s => s.category === DRIVER_CATEGORY && !s.archivedAt);
 
   // ── Guides ────────────────────────────────────────────────────────────────
-  // Guides are user accounts, not suppliers, so this tab is read-only for
-  // everyone except users.manage holders — which the seed matrix grants to no
-  // role but super_admin. For that role only, an inline "Rehber Ekle" button
-  // opens the shared InviteUserDialog with the role locked to 'guide'; role
-  // changes, deactivation, etc. still require the full /users page.
+  // Guides are user accounts, not suppliers, so this tab is read-only unless
+  // the caller holds users.manage (super_admin, and now admin — see the seed
+  // matrix in seed-permissions.ts; App.tsx's /users route was updated to
+  // match). Those roles get "Rehber Ekle" (invite) and "Kullanıcılar'da
+  // Yönet" (links to /users).
+  //
+  // "Manuel Oluştur" (CreateUserDialog, password set directly instead of a
+  // Clerk invite) stays gated on the caller's actual role instead of
+  // usePermission: it posts to /users/manual, which hard-rejects anyone but
+  // a real super_admin server-side regardless of the users.manage grant.
   const canManageUsers = usePermission('users', 'manage');
+  const { role: myRole } = useProfile();
+  const isSuperAdmin = myRole === 'super_admin';
   const guidesQuery = useListProfiles(
     { role: 'guide' },
     { query: { enabled: tab === 'guides', queryKey: getListProfilesQueryKey({ role: 'guide' }) } },
@@ -345,6 +355,11 @@ export default function SuppliersPage() {
               {guides.length > 0 && (
                 <span className="text-xs text-muted-foreground">{guides.length} rehber</span>
               )}
+              {isSuperAdmin && (
+                <Button onClick={() => setCreateGuideOpen(true)} variant="outline" size="sm" className="gap-1.5" data-testid="button-create-guide">
+                  <Plus className="w-3.5 h-3.5" />Manuel Oluştur
+                </Button>
+              )}
               {canManageUsers && (
                 <Button onClick={() => setInviteGuideOpen(true)} size="sm" className="gap-1.5" data-testid="button-invite-guide">
                   <Plus className="w-3.5 h-3.5" />Rehber Ekle
@@ -398,8 +413,11 @@ export default function SuppliersPage() {
         </TabsContent>
       </Tabs>
 
-      {/* ── Invite guide dialog (super_admin only) ──────────────────────────── */}
+      {/* ── Invite guide dialog (super_admin, admin) ─────────────────────────── */}
       <InviteUserDialog open={inviteGuideOpen} onOpenChange={setInviteGuideOpen} lockedRole="guide" />
+
+      {/* ── Manually create guide dialog (super_admin only, see comment above) ── */}
+      <CreateUserDialog open={createGuideOpen} onOpenChange={setCreateGuideOpen} lockedRole="guide" />
 
       {/* ── Create driver dialog ───────────────────────────────────────────── */}
       <Dialog open={driverDialogOpen} onOpenChange={open => { setDriverDialogOpen(open); if (!open) setDriverForm(EMPTY_DRIVER_FORM); }}>

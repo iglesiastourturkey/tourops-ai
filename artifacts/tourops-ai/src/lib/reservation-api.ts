@@ -34,7 +34,7 @@ export const reservationApi = {
   review: (id: number, data: ReservationData) => customFetch(`/api/reservations/${id}/review`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }) }),
   reject: (id: number) => customFetch(`/api/reservations/${id}/reject`, { method: 'POST' }),
   createDraft: (id: number) => customFetch<{ operation: { id: number }; duplicate: boolean }>(`/api/reservations/${id}/create-draft`, { method: 'POST' }),
-  googleStatus: () => customFetch<GoogleConnectionStatus>('/api/reservations/google-connection'),
+  googleStatus: (integration: GoogleIntegration) => customFetch<GoogleConnectionStatus>(`/api/reservations/google-connection?provider=${integration}`),
   authorize: (integration: GoogleIntegration) => customFetch<{ authorizationUrl: string }>(`/api/reservations/google-connection/${integration}/authorize`, { method: 'POST' }),
   disconnect: (integration: GoogleIntegration) => customFetch(`/api/reservations/google-connection/${integration}`, { method: 'DELETE' }),
 };

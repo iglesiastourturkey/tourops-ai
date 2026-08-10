@@ -25,13 +25,12 @@ import { useToast } from '@/hooks/use-toast';
 import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { customFetch } from '@workspace/api-client-react';
 import { InviteUserDialog, VALID_ROLES } from '@/components/InviteUserDialog';
+import { CreateUserDialog } from '@/components/CreateUserDialog';
 import {
   UserPlus, MoreVertical, ShieldOff, KeyRound, RefreshCw, UserCheck, UserX, AtSign, Lock,
 } from 'lucide-react';
 
 import { API_BASE } from '@/lib/api-base';
-
-const MANUAL_CREATION_ROLES: UserRole[] = ['admin', 'operations', 'guide', 'accounting', 'field_operations'];
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -97,11 +96,6 @@ export default function UsersPage() {
   const qc = useQueryClient();
   const { userId: myClerkUserId } = useAuth();
   const [manualOpen, setManualOpen] = useState(false);
-  const [manualName, setManualName] = useState('');
-  const [manualUsername, setManualUsername] = useState('');
-  const [manualEmail, setManualEmail] = useState('');
-  const [manualPhone, setManualPhone] = useState('');
-  const [manualRole, setManualRole] = useState<UserRole>('guide');
 
   // ── Invite dialog ────────────────────────────────────────────────────────
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -144,31 +138,6 @@ export default function UsersPage() {
       }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['users'] }); toast({ title: 'Kullanıcı güncellendi' }); },
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
-  });
-
-  const manualUserMutation = useMutation({
-    mutationFn: async () => {
-      const temporaryPassword = crypto.getRandomValues(new Uint32Array(4)).join('').slice(0, 12) + 'aA!';
-      return customFetch<{ temporaryPassword: string }>(`${API_BASE}/users/manual`, {
-        method: 'POST',
-        body: JSON.stringify({
-          name: manualName,
-          username: manualUsername,
-          email: manualEmail,
-          phone: manualPhone,
-          role: manualRole,
-          temporaryPassword,
-        }),
-      });
-    },
-    onSuccess: (data) => {
-      setManualOpen(false);
-      setManualName(''); setManualUsername(''); setManualEmail(''); setManualPhone(''); setManualRole('guide');
-      setTempPassword(data.temporaryPassword);
-      qc.invalidateQueries({ queryKey: ['users'] });
-      toast({ title: 'Kullanıcı oluşturuldu', description: 'Geçici şifreyi şimdi güvenli şekilde paylaşın.' });
-    },
-    onError: (err) => toast({ title: 'Kullanıcı oluşturulamadı', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
   // ── Assign username ──────────────────────────────────────────────────────
@@ -242,68 +211,13 @@ export default function UsersPage() {
     onError: (err) => toast({ title: 'Hata', description: apiErrMsg(err), variant: 'destructive' }),
   });
 
-  function handleManualSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!manualName.trim() || manualUsername.length < 3) {
-      toast({ title: 'Hata', description: 'Ad soyad ve en az 3 karakterlik kullanıcı adı zorunludur', variant: 'destructive' });
-      return;
-    }
-    manualUserMutation.mutate();
-  }
-
   return (
     <AppShell title="Kullanıcı Yönetimi">
 
       {/* ── Invite dialog ───────────────────────────────────────── */}
       <InviteUserDialog open={inviteOpen} onOpenChange={setInviteOpen} />
 
-      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Yeni Kullanıcı Oluştur</DialogTitle></DialogHeader>
-          <form onSubmit={handleManualSubmit} className="space-y-4 pt-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-name">Ad Soyad <span className="text-destructive">*</span></Label>
-              <Input id="manual-name" placeholder="Ahmet Yılmaz" value={manualName}
-                onChange={e => setManualName(e.target.value)} disabled={manualUserMutation.isPending} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-username">Kullanıcı Adı <span className="text-destructive">*</span></Label>
-              <Input id="manual-username" placeholder="ahmet_yilmaz" value={manualUsername}
-                onChange={e => setManualUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 32))}
-                disabled={manualUserMutation.isPending} autoCapitalize="none" autoCorrect="off" required />
-              <p className="text-xs text-muted-foreground">3–32 karakter: a-z, 0-9 ve alt çizgi.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-email">E-posta <span className="text-muted-foreground">(opsiyonel)</span></Label>
-              <Input id="manual-email" type="email" placeholder="ornek@sirket.com" value={manualEmail}
-                onChange={e => setManualEmail(e.target.value)} disabled={manualUserMutation.isPending} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-phone">Telefon <span className="text-muted-foreground">(opsiyonel)</span></Label>
-              <Input id="manual-phone" type="tel" placeholder="+90 555 555 55 55" value={manualPhone}
-                onChange={e => setManualPhone(e.target.value)} disabled={manualUserMutation.isPending} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-role">Rol <span className="text-destructive">*</span></Label>
-              <Select value={manualRole} onValueChange={v => setManualRole(v as UserRole)} disabled={manualUserMutation.isPending}>
-                <SelectTrigger id="manual-role"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {MANUAL_CREATION_ROLES.map(r => <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Geçici şifre oluşturulacak ve kullanıcı ilk girişinde değiştirmek zorunda olacaktır.
-            </p>
-            <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" onClick={() => setManualOpen(false)} disabled={manualUserMutation.isPending}>İptal</Button>
-              <Button type="submit" disabled={manualUserMutation.isPending}>
-                {manualUserMutation.isPending ? 'Oluşturuluyor…' : 'Kullanıcı Oluştur'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <CreateUserDialog open={manualOpen} onOpenChange={setManualOpen} />
 
       {/* ── Password link dialog (setup or reset) ──────────────── */}
       <Dialog open={!!resetLink} onOpenChange={() => setResetLink(null)}>
