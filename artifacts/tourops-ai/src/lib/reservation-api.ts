@@ -26,6 +26,24 @@ export type GoogleConnectionStatus = {
   } | null;
 };
 
+/**
+ * Structured 400 body returned by POST /api/reservations/:id/create-draft when a
+ * pre-condition fails (missing approval, unfilled required fields, no tour date).
+ * Read off ApiError.data — that class is not exported from the api client package,
+ * so the shape is checked structurally rather than via instanceof.
+ */
+export type CreateDraftErrorCode =
+  | 'approval_required' | 'invalid_approved_data' | 'missing_fields'
+  | 'customer_name_required' | 'tour_date_required';
+export type CreateDraftError = { error?: string; code?: CreateDraftErrorCode; missingFields?: string[] };
+
+export function createDraftError(error: unknown): CreateDraftError | null {
+  const data = (error as { data?: unknown } | null | undefined)?.data;
+  if (!data || typeof data !== 'object') return null;
+  const body = data as CreateDraftError;
+  return typeof body.error === 'string' || typeof body.code === 'string' ? body : null;
+}
+
 export const reservationApi = {
   list: (search = '', status = '') => customFetch<ReservationImport[]>(`/api/reservations?search=${encodeURIComponent(search)}&status=${encodeURIComponent(status)}`),
   get: (id: number) => customFetch<ReservationImport>(`/api/reservations/${id}`),

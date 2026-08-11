@@ -41,6 +41,15 @@ type ReservationFields = z.infer<typeof reservationFields>;
 function cleanAiJson(raw: string) {
   return raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
 }
+// Field keys a reviewer can actually fill in through the review form. The AI is
+// free to name anything in missingFields, but blocking on a key that has no
+// corresponding input would leave the record permanently stuck.
+const REVIEWABLE_FIELDS = new Set(Object.keys(reservationFields.shape));
+// 0 and false are meaningful values (childCount: 0, transferRequired: false);
+// only null/undefined/blank strings count as "not filled in".
+function isBlankValue(value: unknown) {
+  return value === null || value === undefined || (typeof value === "string" && value.trim() === "");
+}
 function noBodyAuditMetadata(importId: number, messageId?: string) {
   return { importId, gmailMessageId: messageId };
 }
@@ -271,8 +280,55 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   const [extraction] = await db.select().from(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, id)).limit(1);
   if (!item || !extraction) { res.status(409).json({ error: "İnceleme verisi bulunamadı" }); return; }
   if (item.operationId) { const [existing] = await db.select().from(operationsTable).where(eq(operationsTable.id, item.operationId)).limit(1); res.json({ operation: existing, duplicate: true }); return; }
-  const data = reservationFields.parse(extraction.approvedData ?? extraction.extractedData) as ReservationFields;
-  if (!data.customerName) { res.status(400).json({ error: "Taslak için müşteri adı zorunludur" }); return; }
+
+  // ── Human-approval gate ───────────────────────────────────────────────────
+  // An operation may only be built from data a reviewer has explicitly approved
+  // via PATCH /:id/review. Never fall back to raw AI output (extractedData):
+  // that would let unreviewed model guesses become real operational records.
+  if (extraction.approvedData == null) {
+    res.status(400).json({
+      error: "Taslak oluşturmadan önce rezervasyon verilerini incelemeniz ve onaylamanız gerekiyor.",
+      code: "approval_required",
+    });
+    return;
+  }
+  const approved = reservationFields.safeParse(extraction.approvedData);
+  if (!approved.success) {
+    res.status(400).json({
+      error: "Onaylanan rezervasyon verileri geçersiz. Lütfen alanları tekrar gözden geçirip kaydedin.",
+      code: "invalid_approved_data",
+    });
+    return;
+  }
+  const data: ReservationFields = approved.data;
+
+  // Required fields the extraction flagged as missing. Evaluated against the
+  // approved data rather than the stored list, because PATCH /:id/review does
+  // not recompute missingFields — checking the raw list would keep blocking a
+  // record the reviewer has already completed.
+  const unresolvedFields = extraction.missingFields.filter(
+    (field) => REVIEWABLE_FIELDS.has(field) && isBlankValue((data as Record<string, unknown>)[field]),
+  );
+  if (unresolvedFields.length) {
+    res.status(400).json({
+      error: "Zorunlu alanlar eksik. Taslak oluşturmadan önce bu alanları tamamlayıp kaydedin.",
+      code: "missing_fields",
+      missingFields: unresolvedFields,
+    });
+    return;
+  }
+
+  if (!data.customerName) { res.status(400).json({ error: "Taslak için müşteri adı zorunludur", code: "customer_name_required" }); return; }
+  // operations.startDate is nullable at the schema level, but a dateless
+  // operation is unusable downstream (daily ops, sheet sync), so this endpoint
+  // must never create one.
+  if (isBlankValue(data.tourDate)) {
+    res.status(400).json({
+      error: "Tur tarihi olmadan operasyon taslağı oluşturulamaz. Lütfen tur tarihini girip kaydedin.",
+      code: "tour_date_required",
+    });
+    return;
+  }
   const identifier = data.customerEmail ? eq(customersTable.email, data.customerEmail) : data.customerPhone ? eq(customersTable.phone, data.customerPhone) : undefined;
   let customer = identifier ? (await db.select().from(customersTable).where(identifier).limit(1))[0] : undefined;
   if (!customer) [customer] = await db.insert(customersTable).values({ name: data.customerName, email: data.customerEmail, phone: data.customerPhone, notes: data.internalNotes }).returning();

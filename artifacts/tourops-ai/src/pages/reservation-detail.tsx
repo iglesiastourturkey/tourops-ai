@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
-import { reservationApi, type ReservationData } from '@/lib/reservation-api';
+import { reservationApi, createDraftError, type ReservationData } from '@/lib/reservation-api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,25 @@ const FIELDS: Array<[key: string, label: string, type?: string]> = [
   ['hotelName', 'Otel'], ['pickupLocation', 'Alış Noktası'], ['pickupTime', 'Alış Saati'], ['dropoffLocation', 'Bırakış Noktası'], ['flightNumber', 'Uçuş Numarası'],
   ['guideLanguage', 'Rehber Dili'], ['vehicleType', 'Araç Tipi'], ['amount', 'Tutar', 'number'], ['currency', 'Para Birimi'],
 ];
+
+const FIELD_LABELS: Record<string, string> = {
+  ...Object.fromEntries(FIELDS.map(([key, label]) => [key, label])),
+  transferRequired: 'Transfer Gerekli', specialRequests: 'Özel İstekler', internalNotes: 'İç Notlar',
+};
+
+/**
+ * Turns a create-draft pre-condition failure into a message that names the
+ * failing check, instead of a generic "hata oluştu".
+ */
+function draftErrorDescription(error: Error): string {
+  const body = createDraftError(error);
+  if (!body) return error.message;
+  if (body.code === 'missing_fields' && body.missingFields?.length) {
+    const labels = body.missingFields.map(field => FIELD_LABELS[field] ?? field).join(', ');
+    return `${body.error ?? 'Zorunlu alanlar eksik.'} Eksik alanlar: ${labels}.`;
+  }
+  return body.error ?? error.message;
+}
 
 function normalize(data: ReservationData | null | undefined): ReservationData {
   return Object.fromEntries(FIELDS.map(([key]) => [key, data?.[key] ?? null]).concat([['transferRequired', data?.transferRequired ?? null], ['specialRequests', data?.specialRequests ?? null], ['internalNotes', data?.internalNotes ?? null]]));
@@ -36,7 +55,7 @@ export default function ReservationDetailPage() {
   const analyze = useMutation({ mutationFn: () => reservationApi.analyze(id), onSuccess: () => { toast({ title: 'AI analizi tamamlandı' }); refresh(); }, onError: error => toast({ title: 'Analiz başarısız', description: error.message, variant: 'destructive' }) });
   const save = useMutation({ mutationFn: () => reservationApi.review(id, form), onSuccess: () => { toast({ title: 'İnceleme kaydedildi' }); refresh(); }, onError: error => toast({ title: 'Kayıt başarısız', description: error.message, variant: 'destructive' }) });
   const reject = useMutation({ mutationFn: () => reservationApi.reject(id), onSuccess: () => { toast({ title: 'Rezervasyon reddedildi' }); refresh(); }, onError: () => toast({ title: 'İşlem başarısız', variant: 'destructive' }) });
-  const draft = useMutation({ mutationFn: () => reservationApi.createDraft(id), onSuccess: result => { toast({ title: result.duplicate ? 'Mevcut taslak açıldı' : 'Operasyon taslağı oluşturuldu' }); navigate(`/operations/${result.operation.id}`); }, onError: error => toast({ title: 'Taslak oluşturulamadı', description: error.message, variant: 'destructive' }) });
+  const draft = useMutation({ mutationFn: () => reservationApi.createDraft(id), onSuccess: result => { toast({ title: result.duplicate ? 'Mevcut taslak açıldı' : 'Operasyon taslağı oluşturuldu' }); navigate(`/operations/${result.operation.id}`); }, onError: error => toast({ title: 'Taslak oluşturulamadı', description: draftErrorDescription(error), variant: 'destructive' }) });
   const item = detail.data;
   if (detail.isLoading) return <AppShell title="Rezervasyon"><div className="space-y-4"><div className="h-24 bg-muted animate-pulse rounded-xl" /><div className="h-96 bg-muted animate-pulse rounded-xl" /></div></AppShell>;
   if (!item) return <AppShell title="Rezervasyon"><Card><CardContent className="py-12 text-center">Rezervasyon bulunamadı.</CardContent></Card></AppShell>;
