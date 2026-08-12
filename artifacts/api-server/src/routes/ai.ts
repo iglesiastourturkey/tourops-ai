@@ -1,39 +1,34 @@
 import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requireActive, requirePermission, getUserId } from "../lib/auth";
+import {
+  aiSchemaError, logAiFailure, parseAiJson, requestOpenRouterContent,
+} from "../lib/ai-extraction";
 
 const router = Router();
 router.use(requireAuth);
 router.use(requireActive());
 
-const DEFAULT_AI_MODEL = "openai/gpt-4o-mini";
-const AI_MODEL = process.env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
-
-async function callOpenRouter(systemPrompt: string, userPrompt: string): Promise<string> {
-  const key = process.env.OPENROUTER_API_KEY;
-  if (!key) throw new Error("No API key");
-
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${key}`,
-      "HTTP-Referer": "https://tourpilot.com.tr",
-      "X-Title": "TourPilot",
-    },
-    body: JSON.stringify({
-      model: AI_MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
-      max_tokens: 2000,
-    }),
+/**
+ * Thin wrapper over the shared helper. Previously this threw away the provider's
+ * response body on a non-2xx, so every OpenRouter problem reached the caller as
+ * a bare "OpenRouter error: <status>"; the shared helper reports the stage and
+ * the provider's own message instead.
+ */
+async function callOpenRouter(
+  systemPrompt: string,
+  userPrompt: string,
+  jsonMode = false,
+): Promise<{ content: string; finishReason?: string }> {
+  return requestOpenRouterContent({
+    messages: [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userPrompt },
+    ],
+    temperature: 0.7,
+    maxTokens: 2000,
+    jsonMode,
   });
-  if (!res.ok) throw new Error(`OpenRouter error: ${res.status}`);
-  const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0].message.content;
 }
 
 // POST /api/ai/analyze-request
@@ -62,10 +57,10 @@ Sadece JSON döndür, başka açıklama yapma.
 Şema: { customerName, startDate (YYYY-MM-DD), endDate (YYYY-MM-DD), adultCount, childCount, destination, duration (gün), budget, hotelCategory, transferRequired, guideLanguage, activities, mealPreferences, specialRequests, customerType, missingFields: string[] }
 Bulamadığın alanları null olarak bırak ve missingFields listesine ekle.`;
 
-    const raw = await callOpenRouter(systemPrompt, message);
-    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-    res.json(JSON.parse(cleaned));
+    const { content, finishReason } = await callOpenRouter(systemPrompt, message, true);
+    res.json(parseAiJson(content, finishReason));
   } catch (err) {
+    logAiFailure(req.log, err, { eventType: "ai_analyze_request_failed" });
     res.status(500).json({ error: "AI analysis failed", details: String(err) });
   }
 });
@@ -101,10 +96,10 @@ Verilen bilgilere göre gün gün tur programı oluştur. JSON formatında dönd
 Şema: { days: [{ dayNumber, title, summary, startTime, endTime, locations, activities, mealPlan, transportPlan, estimatedDrivingMinutes, estimatedActivityMinutes, accessibilityNotes, operationalNotes }], cruiseWarning: string | null }
 Sadece JSON döndür.`;
 
-    const raw = await callOpenRouter(systemPrompt, JSON.stringify(body));
-    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-    res.json(JSON.parse(cleaned));
+    const { content, finishReason } = await callOpenRouter(systemPrompt, JSON.stringify(body), true);
+    res.json(parseAiJson(content, finishReason));
   } catch (err) {
+    logAiFailure(req.log, err, { eventType: "ai_generate_itinerary_failed" });
     res.status(500).json({ error: "Itinerary generation failed", details: String(err) });
   }
 });
@@ -129,10 +124,10 @@ Profesyonel, sıcak ve ikna edici bir e-posta yaz.
 JSON döndür: { subject: string, body: string }
 Sadece JSON döndür.`;
 
-    const raw = await callOpenRouter(systemPrompt, context);
-    const cleaned = raw.replace(/```json\n?|\n?```/g, "").trim();
-    res.json(JSON.parse(cleaned));
+    const { content, finishReason } = await callOpenRouter(systemPrompt, context, true);
+    res.json(parseAiJson(content, finishReason));
   } catch (err) {
+    logAiFailure(req.log, err, { eventType: "ai_generate_email_failed" });
     res.status(500).json({ error: "Email generation failed", details: String(err) });
   }
 });
@@ -150,9 +145,11 @@ router.post("/assist", requirePermission("ai", "view"), async (req, res) => {
     const systemPrompt = `Sen TourPilot seyahat acentesi yönetim sisteminin yapay zeka asistanısın. 
 Türkçe cevap ver. Kısa ve öz ol. Seyahat, tur operasyonu ve acente yönetimi konularında uzmansın.${context ? `\n\nBağlam: ${context}` : ""}`;
 
-    const result = await callOpenRouter(systemPrompt, prompt);
-    res.json({ result, type: "text" });
+    // Free-text answer, so no JSON mode and no JSON parsing.
+    const { content } = await callOpenRouter(systemPrompt, prompt);
+    res.json({ result: content, type: "text" });
   } catch (err) {
+    logAiFailure(req.log, err, { eventType: "ai_assist_failed" });
     res.status(500).json({ error: "AI assist failed", details: String(err) });
   }
 });
@@ -278,67 +275,39 @@ router.post("/ocr-receipt", requirePermission("ai", "view"), async (req, res) =>
       return;
     }
 
-    // Call OpenRouter gpt-4o-mini with vision — image sent as a data URL (never logged by this server)
+    // Vision call — the image goes out as a data URL and is never logged here.
     const dataUrl = `data:${cleanMime};base64,${imageBase64}`;
-    const ocrRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        "HTTP-Referer": "https://tourpilot.com.tr",
-        "X-Title": "TourPilot",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        max_tokens: 800,
-        temperature: 0,
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: OCR_SYSTEM_PROMPT },
-              { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
-            ],
-          },
-        ],
-      }),
+    const { content, finishReason } = await requestOpenRouterContent({
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: OCR_SYSTEM_PROMPT },
+            { type: "image_url", image_url: { url: dataUrl, detail: "high" } },
+          ],
+        },
+      ],
+      maxTokens: 800,
+      temperature: 0,
+      jsonMode: true,
     });
 
-    if (!ocrRes.ok) {
-      const errBody = await ocrRes.text();
-      console.error("[ocr-receipt] OpenRouter error", ocrRes.status, errBody.slice(0, 200));
-      res.status(502).json({ error: "OCR servisi şu an kullanılamıyor. Lütfen tekrar deneyin." });
-      return;
-    }
-
-    const ocrData = await ocrRes.json() as {
-      choices: Array<{ message: { content: string } }>;
-    };
-    const raw = ocrData.choices[0]?.message?.content ?? "{}";
-
-    // Strip optional markdown fences if the model ignores the instruction
-    const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      console.error("[ocr-receipt] JSON parse error:", cleaned.slice(0, 300));
-      res.status(502).json({ error: "OCR yanıtı işlenemedi. Lütfen tekrar deneyin." });
-      return;
-    }
-
-    // Validate + coerce with Zod
-    const validated = ocrResultSchema.safeParse(parsed);
-    if (!validated.success) {
-      console.error("[ocr-receipt] Zod validation failed:", validated.error.issues);
-      res.status(502).json({ error: "OCR yanıtı geçersiz format. Lütfen tekrar deneyin." });
-      return;
-    }
+    const validated = ocrResultSchema.safeParse(parseAiJson(content, finishReason));
+    if (!validated.success) throw aiSchemaError(validated.error.issues, finishReason);
 
     res.json(validated.data);
   } catch (err) {
-    console.error("[ocr-receipt] Unexpected error:", err);
+    // Replaces the previous console.error calls, one of which logged 300
+    // characters of model output — that output is extracted receipt data
+    // (supplier, amount, invoice number) and must not reach the logs.
+    logAiFailure(req.log, err, { eventType: "ai_ocr_receipt_failed" });
+    // The failure stages that used to answer 502 still do; only an unexpected
+    // error (rate-limit bookkeeping, JSON body handling) falls through to 500.
+    const isAiFailure = err instanceof Error && err.name === "AiExtractionError";
+    if (isAiFailure || (typeof err === "object" && err !== null && (err as { name?: unknown }).name === "TimeoutError")) {
+      res.status(502).json({ error: "OCR servisi şu an kullanılamıyor. Lütfen tekrar deneyin." });
+      return;
+    }
     res.status(500).json({ error: "OCR başarısız. Lütfen tekrar deneyin." });
   }
 });

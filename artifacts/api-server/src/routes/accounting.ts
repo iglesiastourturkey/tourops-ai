@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { aiSchemaError, logAiFailure, parseAiJson, requestOpenRouterContent } from "../lib/ai-extraction";
 import { db } from "@workspace/db";
 import {
   accountingTransactionsTable,
@@ -1352,40 +1353,28 @@ router.get("/ai-summary", requirePermission("accounting", "view"), async (req, r
 
         const userPrompt = `Dönem muhasebe verileri (${fromParam} – ${toParam}):\n${JSON.stringify(agg)}`;
 
-        const aiRes = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-            "HTTP-Referer": "https://tourpilot.com.tr",
-            "X-Title": "TourPilot",
-          },
-          body: JSON.stringify({
-            model: ACCOUNTING_AI_MODEL,
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: userPrompt },
-            ],
-            temperature: 0.3,
-            max_tokens: 2000,
-          }),
-          signal: AbortSignal.timeout(30_000),
+        const { content, finishReason } = await requestOpenRouterContent({
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          model: ACCOUNTING_AI_MODEL,
+          temperature: 0.3,
+          maxTokens: 2000,
+          jsonMode: true,
         });
 
-        if (!aiRes.ok) throw new Error(`OpenRouter ${aiRes.status}`);
-
-        const aiData = await aiRes.json() as { choices: Array<{ message: { content: string } }> };
-        const raw = aiData.choices[0]?.message?.content ?? "{}";
-        const cleaned = raw.replace(/^```json\s*/i, "").replace(/\s*```$/i, "").trim();
-        const validated = aiSummarySchema.safeParse(JSON.parse(cleaned));
-        if (validated.success) {
-          result = validated.data;
-        } else {
-          console.error("[ai-summary] Zod validation failed (first 3):", validated.error.issues.slice(0, 3));
-        }
+        const validated = aiSummarySchema.safeParse(parseAiJson(content, finishReason));
+        if (!validated.success) throw aiSchemaError(validated.error.issues, finishReason);
+        result = validated.data;
       } catch (aiErr) {
-        // Do not log business data; log only the error type
-        console.error("[ai-summary] AI call failed:", String(aiErr).slice(0, 120));
+        // Business data is never logged — only the failure stage and the
+        // provider's own error fields. `result` stays null, so the request still
+        // answers with the deterministic summary below.
+        logAiFailure(req.log, aiErr, {
+          eventType: "accounting_ai_summary_failed",
+          model: ACCOUNTING_AI_MODEL,
+        });
       }
     }
 
