@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { aiSchemaError, logAiFailure, parseAiJson, requestOpenRouterContent } from "../lib/ai-extraction";
+import { AI_MODELS, aiSchemaError, logAiFailure, parseAiJson, parseModelList, requestOpenRouterContent } from "../lib/ai-extraction";
 import { db } from "@workspace/db";
 import {
   accountingTransactionsTable,
@@ -1050,10 +1050,11 @@ router.get("/documents/:type/:id/file", requirePermission("accounting", "view"),
 const aiSummaryCache = new Map<string, { data: unknown; expiresAt: number }>();
 const AI_SUMMARY_TTL_MS = 10 * 60 * 1000;
 
-const ACCOUNTING_AI_MODEL =
-  process.env.AI_ACCOUNTING_MODEL?.trim() ||
-  process.env.AI_MODEL?.trim() ||
-  "openai/gpt-4o-mini";
+// Both variables accept a comma-separated fallback chain. Reading AI_MODEL raw
+// here would send the whole "a,b,c" string as one model name once a chain is
+// configured, so the shared parser owns the splitting for every call site.
+const accountingModels = parseModelList(process.env.AI_ACCOUNTING_MODEL);
+const ACCOUNTING_AI_MODELS = accountingModels.length > 0 ? accountingModels : AI_MODELS;
 
 const aiSummaryWarningSchema = z.object({
   severity: z.enum(["critical", "high", "medium", "low"]),
@@ -1358,10 +1359,12 @@ router.get("/ai-summary", requirePermission("accounting", "view"), async (req, r
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          model: ACCOUNTING_AI_MODEL,
+          model: ACCOUNTING_AI_MODELS,
           temperature: 0.3,
           maxTokens: 2000,
           jsonMode: true,
+          logger: req.log,
+          logContext: { eventType: "accounting_ai_summary_attempt_failed" },
         });
 
         const validated = aiSummarySchema.safeParse(parseAiJson(content, finishReason));
@@ -1373,7 +1376,8 @@ router.get("/ai-summary", requirePermission("accounting", "view"), async (req, r
         // answers with the deterministic summary below.
         logAiFailure(req.log, aiErr, {
           eventType: "accounting_ai_summary_failed",
-          model: ACCOUNTING_AI_MODEL,
+          model: ACCOUNTING_AI_MODELS[0],
+          models: ACCOUNTING_AI_MODELS,
         });
       }
     }

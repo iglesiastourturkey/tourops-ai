@@ -15,11 +15,46 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 export const DEFAULT_AI_MODEL = "openai/gpt-4o-mini";
-export const AI_MODEL = process.env.AI_MODEL?.trim() || DEFAULT_AI_MODEL;
+
+/**
+ * AI_MODEL holds either one model or a comma-separated fallback chain
+ * ("primary,second,third"). The free OpenRouter tier shares capacity between
+ * users, so the primary model intermittently answers with a timeout, a 5xx or
+ * JSON that does not match the schema; the later entries are tried in order
+ * when that happens. A value without a comma behaves exactly as before.
+ */
+export function parseModelList(raw: string | undefined): string[] {
+  return (raw ?? "").split(",").map(model => model.trim()).filter(Boolean);
+}
+
+const configuredModels = parseModelList(process.env.AI_MODEL);
+export const AI_MODELS: string[] = configuredModels.length > 0 ? configuredModels : [DEFAULT_AI_MODEL];
+
+/** First model of the chain. Kept as a plain string for logs and for callers
+ *  that report a single model. */
+export const AI_MODEL = AI_MODELS[0];
 
 // undici applies no overall request deadline, so without this an unresponsive
-// OpenRouter would keep a handler open indefinitely.
+// OpenRouter would keep a handler open indefinitely. Applied per attempt: every
+// model in the chain gets its own budget.
 export const OPENROUTER_TIMEOUT_MS = 30_000;
+
+function positiveMs(raw: string | undefined, fallback: number): number {
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
+ * Ceiling for a whole fallback chain. Three 30s attempts would be 90s, close
+ * enough to the platform proxy's ~100s response limit that the connection could
+ * drop mid-chain and the caller would see no diagnosis at all. 75s leaves room
+ * for two full attempts plus a partial third and still answers in time.
+ */
+export const AI_TOTAL_TIMEOUT_MS = positiveMs(process.env.AI_TOTAL_TIMEOUT_MS, 75_000);
+
+/** Below this much remaining budget a further attempt cannot finish, so it is
+ *  recorded as skipped instead of started and immediately aborted. */
+const MIN_ATTEMPT_BUDGET_MS = 5_000;
 
 /** Failure that carries the stage it happened at and provider-side detail. */
 export class AiExtractionError extends Error {
@@ -63,10 +98,12 @@ export function summarizeOpenRouterError(body: string): Record<string, unknown> 
  * a DOMException named "TimeoutError", which is not an AiExtractionError, so it
  * gets its own stage rather than falling into "unexpected".
  */
-export function failureDiagnostics(error: unknown): Record<string, unknown> {
+export function failureDiagnostics(error: unknown, timeoutMs?: number): Record<string, unknown> {
   if (error instanceof AiExtractionError) return error.diagnostics;
   if (typeof error === "object" && error !== null && (error as { name?: unknown }).name === "TimeoutError") {
-    return { stage: "timeout", timeoutMs: OPENROUTER_TIMEOUT_MS };
+    // timeoutMs is passed by the fallback chain, whose later attempts run on a
+    // shorter budget than the per-attempt default.
+    return { stage: "timeout", timeoutMs: timeoutMs ?? OPENROUTER_TIMEOUT_MS };
   }
   return { stage: "unexpected" };
 }
@@ -79,7 +116,8 @@ export interface AiFailureLogger {
 
 /**
  * One structured line per AI failure. `context` is spread last, so a caller using
- * a non-default model (accounting) can override the reported `model`.
+ * a non-default model (accounting) or reporting one attempt of a fallback chain
+ * can override the reported `model`.
  */
 export function logAiFailure(
   logger: AiFailureLogger,
@@ -171,29 +209,95 @@ export function aiSchemaError(
   });
 }
 
+export interface OpenRouterResponse {
+  content: string;
+  finishReason?: string;
+  /**
+   * The model that actually answered. With a fallback chain this is not
+   * necessarily AI_MODELS[0], and diagnosing a bad extraction starts here.
+   */
+  model: string;
+}
+
 export interface OpenRouterRequestOptions {
   /** Chat messages, caller-shaped — vision calls pass a content array. */
   messages: unknown[];
   maxTokens: number;
   temperature?: number;
-  /** Defaults to AI_MODEL. */
-  model?: string;
+  /** One model, or an ordered fallback chain. Defaults to AI_MODELS. */
+  model?: string | string[];
   /**
    * Adds `response_format: { type: "json_object" }`. OpenRouter drops parameters
    * a model does not list in `supported_parameters`, so this is inert on models
    * without JSON mode and enforced on the ones that have it.
    */
   jsonMode?: boolean;
+  /** Per-attempt timeout — each model in the chain gets its own. */
   timeoutMs?: number;
+  /** Ceiling for the whole chain, defaults to AI_TOTAL_TIMEOUT_MS. */
+  totalTimeoutMs?: number;
+  /** When set (and more than one model is configured), one line per failed attempt. */
+  logger?: AiFailureLogger;
+  logContext?: { eventType: string } & Record<string, unknown>;
+}
+
+/** One model's failure, as recorded in the combined error's diagnostics. */
+export interface AiAttemptFailure extends Record<string, unknown> {
+  model: string;
 }
 
 /**
- * Performs the OpenRouter call and returns the assistant message, throwing an
- * AiExtractionError with a `stage` for every distinguishable failure.
+ * Decides whether the next model is worth trying.
+ *
+ * Retried: timeouts, socket failures, 5xx/429 (provider-side), 401/402/403/404
+ * (the key may be entitled to one model and not another), and answers that were
+ * unusable — an error payload behind HTTP 200, empty content, unparseable JSON
+ * or a schema mismatch. All of those are properties of one model's capacity or
+ * output, so another model can plausibly succeed.
+ *
+ * Not retried: a missing API key (identical for every model) and OpenRouter's
+ * own 400, which means the request we built is malformed — retrying it against
+ * two more models just burns the remaining budget on the same rejection.
+ *
+ * Note this covers only OpenRouter failures. The route-level 400s (
+ * approval_required and friends) return before any AI call is made and never
+ * reach this function.
  */
-export async function requestOpenRouterContent(
+function isRetryableFailure(error: unknown): boolean {
+  if (error instanceof AiExtractionError) {
+    const { stage, httpStatus } = error.diagnostics;
+    if (stage === "not_configured") return false;
+    if (stage === "http_status" && httpStatus === 400) return false;
+    return true;
+  }
+  const name = (error as { name?: unknown } | null)?.name;
+  if (name === "TimeoutError" || name === "AbortError") return true;
+  // undici surfaces socket-level problems as `TypeError: fetch failed` with the
+  // real reason in `cause`. An Error without a cause is our own bug (a throwing
+  // validate callback, say) and must not be replayed against every model.
+  return error instanceof Error && error.cause !== undefined;
+}
+
+/** Combined failure after every model in the chain was tried or skipped. */
+function allModelsFailedError(attempts: AiAttemptFailure[]): AiExtractionError {
+  // Kept short on purpose: the route stores this message in processingError,
+  // which is truncated to 250 characters. The full per-attempt detail lives in
+  // `attempts` for the log.
+  const summary = attempts
+    .map(attempt => `${attempt.model} (${attempt.stage}${attempt.httpStatus ? ` ${attempt.httpStatus}` : ""})`)
+    .join(", ");
+  return new AiExtractionError(`All ${attempts.length} AI models failed: ${summary}`, {
+    stage: "all_models_failed",
+    attempts,
+  });
+}
+
+/** Single OpenRouter call against one model. */
+async function requestOneModel(
+  model: string,
   options: OpenRouterRequestOptions,
-): Promise<{ content: string; finishReason?: string }> {
+  timeoutMs: number,
+): Promise<OpenRouterResponse> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) {
     throw new AiExtractionError("OPENROUTER_API_KEY is not configured", { stage: "not_configured" });
@@ -208,13 +312,13 @@ export async function requestOpenRouterContent(
       "X-Title": "TourPilot",
     },
     body: JSON.stringify({
-      model: options.model ?? AI_MODEL,
+      model,
       messages: options.messages,
       temperature: options.temperature,
       max_tokens: options.maxTokens,
       ...(options.jsonMode ? { response_format: { type: "json_object" } } : {}),
     }),
-    signal: AbortSignal.timeout(options.timeoutMs ?? OPENROUTER_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 
   // Non-2xx: the status and the provider's own error payload are the whole answer
@@ -246,5 +350,75 @@ export async function requestOpenRouterContent(
   if (!content.trim()) {
     throw new AiExtractionError("Model returned empty content", { stage: "empty_content", finishReason });
   }
-  return { content, finishReason };
+  return { content, finishReason, model };
+}
+
+/**
+ * Runs the configured models in order and returns the first usable answer.
+ *
+ * `validate` (optional) runs inside the attempt, so a caller that parses and
+ * schema-checks the response there gets the next model tried when the output is
+ * unusable — the previous arrangement validated after the call returned, which
+ * made a schema mismatch unrecoverable. Callers without `validate` keep exactly
+ * their old behaviour, plus transport-level fallback.
+ *
+ * With a single configured model the original error is rethrown untouched, so
+ * nothing about the one-model setup changes.
+ */
+export function requestOpenRouterContent(
+  options: OpenRouterRequestOptions & { validate?: undefined },
+): Promise<OpenRouterResponse>;
+export function requestOpenRouterContent<T>(
+  options: OpenRouterRequestOptions & { validate: (response: OpenRouterResponse) => T },
+): Promise<OpenRouterResponse & { data: T }>;
+export async function requestOpenRouterContent(
+  options: OpenRouterRequestOptions & { validate?: (response: OpenRouterResponse) => unknown },
+): Promise<OpenRouterResponse & { data?: unknown }> {
+  const requested = typeof options.model === "string" ? [options.model] : options.model ?? [];
+  const models = requested.length > 0 ? requested : AI_MODELS;
+  const perAttemptMs = options.timeoutMs ?? OPENROUTER_TIMEOUT_MS;
+  const totalTimeoutMs = options.totalTimeoutMs ?? AI_TOTAL_TIMEOUT_MS;
+  const deadline = Date.now() + totalTimeoutMs;
+  const attempts: AiAttemptFailure[] = [];
+
+  for (let index = 0; index < models.length; index++) {
+    const model = models[index];
+    const remaining = deadline - Date.now();
+    if (index > 0 && remaining < MIN_ATTEMPT_BUDGET_MS) {
+      // Report every model that never got a turn, so the log shows the chain was
+      // cut by the budget rather than by the models themselves.
+      for (const skipped of models.slice(index)) {
+        attempts.push({ model: skipped, stage: "skipped_total_timeout", totalTimeoutMs });
+      }
+      break;
+    }
+    // The first attempt always gets the full per-attempt timeout; only the
+    // later ones are clamped to what is left of the overall budget.
+    const timeoutMs = index === 0 ? perAttemptMs : Math.min(perAttemptMs, remaining);
+
+    try {
+      const response = await requestOneModel(model, options, timeoutMs);
+      const data = options.validate?.(response);
+      return options.validate ? { ...response, data } : response;
+    } catch (error) {
+      if (!isRetryableFailure(error) || models.length === 1) throw error;
+      if (options.logger) {
+        logAiFailure(
+          options.logger,
+          error,
+          {
+            eventType: "ai_model_attempt_failed",
+            ...options.logContext,
+            model,
+            attempt: index + 1,
+            attemptCount: models.length,
+          },
+          "AI model attempt failed, trying the next model",
+        );
+      }
+      attempts.push({ model, ...failureDiagnostics(error, timeoutMs) });
+    }
+  }
+
+  throw allModelsFailedError(attempts);
 }

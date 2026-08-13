@@ -436,10 +436,20 @@ SESSION_SECRET=replace-with-a-long-random-string
 OPENROUTER_API_KEY=sk-or-...
 
 # Override the default model for general AI features (default: openai/gpt-4o-mini).
-AI_MODEL=openai/gpt-4o-mini
+# Accepts a comma-separated fallback chain: the models are tried in order, and
+# the next one runs when the previous times out, returns 4xx/5xx, or answers
+# with JSON that does not match the expected schema. A single value (no comma)
+# behaves exactly as before.
+AI_MODEL=nvidia/nemotron-nano-9b-v2:free,openai/gpt-oss-20b:free
 
 # Override the model used specifically for the AI Accounting Assistant.
+# Also accepts a comma-separated chain; falls back to AI_MODEL when unset.
 AI_ACCOUNTING_MODEL=openai/gpt-4o-mini
+
+# Ceiling for one fallback chain, in milliseconds (default: 75000). Each model
+# gets its own 30s attempt; later attempts are clamped to what is left of this
+# budget, and models that can no longer finish are reported as skipped.
+AI_TOTAL_TIMEOUT_MS=75000
 
 # ── Object Storage ────────────────────────────────────────────────────────────
 # Bucket ID for private document storage.
