@@ -75,8 +75,39 @@ function isBlankValue(value: unknown) {
 // (finishReason "length"). Well inside every candidate model's completion cap.
 const AI_MAX_TOKENS = 3000;
 
-function noBodyAuditMetadata(importId: number, messageId?: string) {
-  return { importId, gmailMessageId: messageId };
+// ── Inbox state machine ─────────────────────────────────────────────────────
+// Which statuses each action may act on. Enforced server-side; the UI hides the
+// same actions, but that is convenience, not the guarantee.
+type ImportAction = "analyze" | "review" | "create-draft" | "reject" | "reopen";
+
+const ALLOWED_FROM: Record<ImportAction, ReadonlySet<string>> = {
+  analyze: new Set(["new", "pending_review", "missing_information", "error"]),
+  review: new Set(["pending_review", "missing_information"]),
+  "create-draft": new Set(["pending_review", "missing_information"]),
+  // Rejecting after a draft exists is blocked: the operation row would stay
+  // behind and the two sides would disagree. Cancelling that is an operations
+  // action, not an inbox one.
+  reject: new Set(["new", "analyzing", "pending_review", "missing_information", "error"]),
+  reopen: new Set(["rejected"]),
+};
+
+const STATUS_BLOCK_MESSAGE: Record<string, string> = {
+  new: "Bu rezervasyon henüz analiz edilmedi. Önce AI analizini çalıştırın.",
+  analyzing: "Bu rezervasyon şu anda analiz ediliyor. Lütfen işlem tamamlanana kadar bekleyin.",
+  error: "Bu rezervasyonun analizi başarısız oldu. Önce yeniden analiz edin.",
+  rejected: "Bu rezervasyon reddedilmiş. İşlem yapabilmek için önce yeniden açmanız gerekiyor.",
+  draft_created: "Bu rezervasyondan zaten operasyon taslağı oluşturulmuş, üzerinde değişiklik yapılamaz.",
+};
+
+/** Turkish reason when `action` is not allowed from `status`, otherwise null. */
+function transitionBlock(action: ImportAction, status: string): string | null {
+  if (ALLOWED_FROM[action].has(status)) return null;
+  return STATUS_BLOCK_MESSAGE[status] ?? `Bu rezervasyon "${status}" durumundayken bu işlem yapılamaz.`;
+}
+
+// messageId is null for manually entered reservations, which have no Gmail identity.
+function noBodyAuditMetadata(importId: number, messageId?: string | null) {
+  return { importId, gmailMessageId: messageId ?? null };
 }
 function oauthState(profileId: number, integration: GoogleIntegration) {
   const payload = Buffer.from(JSON.stringify({ profileId, integration, issuedAt: Date.now() })).toString("base64url");
@@ -254,10 +285,64 @@ router.get("/:id", requirePermission("reservations", "view"), async (req, res) =
   res.json({ ...item, extraction: extraction ?? null });
 });
 
+/**
+ * Manual reservation entry — a booking that never arrived as an email.
+ *
+ * Starts at "pending_review" rather than "new": there is no AI step to run, so
+ * the record goes straight into the normal review flow. The operator typed the
+ * data, so it is stored as `approvedData` — human approval is already satisfied
+ * and create-draft's guards (customer name, tour date) still apply on top.
+ * confidenceScore / evidence / summaryTr stay empty; they describe an extraction
+ * that never happened.
+ */
+router.post("/", requirePermission("reservations", "create"), async (req, res) => {
+  const parsed = reservationFields.safeParse((req.body as { data?: unknown } | undefined)?.data);
+  if (!parsed.success) { res.status(400).json({ error: "Geçersiz rezervasyon alanları", code: "invalid_fields" }); return; }
+  const data = parsed.data;
+  if (!data.customerName?.trim()) {
+    res.status(400).json({ error: "Müşteri adı zorunludur.", code: "customer_name_required" });
+    return;
+  }
+
+  const now = new Date();
+  // receivedAt drives the inbox ordering (DESC puts NULLs first in Postgres), and
+  // subject is the list's primary column — both need a value or manual rows land
+  // at the top of the list with an empty title.
+  const subject = [data.customerName.trim(), data.tourName?.trim()].filter(Boolean).join(" — ");
+
+  const created = await db.transaction(async (tx) => {
+    const [imported] = await tx.insert(reservationEmailImportsTable).values({
+      source: "manual", status: "pending_review", subject, receivedAt: now,
+    }).returning();
+    await tx.insert(reservationExtractionsTable).values({
+      importId: imported.id, approvedData: data, missingFields: [], uncertainFields: [], evidence: {}, editedAt: now,
+    });
+    return imported;
+  });
+
+  await createAuditLog({ eventType: "reservation_manual_created", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "reservation_import", entityId: created.id, metadata: { importId: created.id, source: "manual" }, description: "Manuel rezervasyon oluşturuldu" });
+  res.status(201).json(created);
+});
+
+/** Explicit un-reject: rejected → pending_review. Never happens implicitly. */
+router.post("/:id/reopen", requirePermission("reservations", "update"), async (req, res) => {
+  const id = Number(req.params.id);
+  const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
+  if (!item) { res.status(404).json({ error: "Rezervasyon bulunamadı" }); return; }
+  const blocked = transitionBlock("reopen", item.status);
+  if (blocked) { res.status(409).json({ error: blocked, code: "invalid_status_transition", status: item.status }); return; }
+
+  await db.update(reservationEmailImportsTable).set({ status: "pending_review", processingError: null }).where(eq(reservationEmailImportsTable.id, id));
+  await createAuditLog({ eventType: "reservation_import_reopened", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "reservation_import", entityId: id, metadata: { importId: id }, description: "Reddedilen rezervasyon yeniden incelemeye alındı" });
+  res.status(204).send();
+});
+
 router.post("/:id/analyze", requirePermission("reservations", "update"), async (req, res) => {
   const id = Number(req.params.id);
   const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
   if (!item) { res.status(404).json({ error: "Rezervasyon bulunamadı" }); return; }
+  const blockedAnalyze = transitionBlock("analyze", item.status);
+  if (blockedAnalyze) { res.status(409).json({ error: blockedAnalyze, code: "invalid_status_transition", status: item.status }); return; }
   if (!process.env.OPENROUTER_API_KEY) { res.status(503).json({ error: "AI hizmeti yapılandırılmamış" }); return; }
   await db.update(reservationEmailImportsTable).set({ status: "analyzing", processingError: null }).where(eq(reservationEmailImportsTable.id, id));
   const source = `${item.subject ?? ""}\n\n${item.plainTextBody ?? item.sanitizedHtmlBody ?? ""}`.slice(0, 50_000);
@@ -273,7 +358,17 @@ router.post("/:id/analyze", requirePermission("reservations", "update"), async (
     const parsed = extractionSchema.safeParse(parseAiJson(content, finishReason));
     if (!parsed.success) throw aiSchemaError(parsed.error.issues, finishReason);
     const result = parsed.data;
-    await db.insert(reservationExtractionsTable).values({ importId: id, originalAiOutput: result, extractedData: result.data, confidenceScore: result.confidenceScore, missingFields: result.missingFields, uncertainFields: result.uncertainFields, summaryTr: result.summaryTr, evidence: result.evidence, analyzedAt: new Date() }).onConflictDoUpdate({ target: reservationExtractionsTable.importId, set: { originalAiOutput: result, extractedData: result.data, confidenceScore: result.confidenceScore, missingFields: result.missingFields, uncertainFields: result.uncertainFields, summaryTr: result.summaryTr, evidence: result.evidence, analyzedAt: new Date() } });
+    // Re-analysis clears approvedData. Keeping a previous approval next to fresh
+    // AI output would mean create-draft builds an operation from data nobody
+    // reviewed against the new extraction. Nulling it makes the reviewer look at
+    // the new output and approve again through PATCH /:id/review — the existing
+    // approval_required guard enforces that, no extra check needed.
+    //
+    // editedAt is deliberately NOT cleared: it is the only way to tell "never
+    // approved" from "approval invalidated by a re-analysis", and the review
+    // screen uses that distinction to warn the reviewer instead of silently
+    // dropping their approval.
+    await db.insert(reservationExtractionsTable).values({ importId: id, originalAiOutput: result, extractedData: result.data, confidenceScore: result.confidenceScore, missingFields: result.missingFields, uncertainFields: result.uncertainFields, summaryTr: result.summaryTr, evidence: result.evidence, analyzedAt: new Date() }).onConflictDoUpdate({ target: reservationExtractionsTable.importId, set: { originalAiOutput: result, extractedData: result.data, confidenceScore: result.confidenceScore, missingFields: result.missingFields, uncertainFields: result.uncertainFields, summaryTr: result.summaryTr, evidence: result.evidence, analyzedAt: new Date(), approvedData: null } });
     await db.update(reservationEmailImportsTable).set({ status: result.missingFields.length ? "missing_information" : "pending_review" }).where(eq(reservationEmailImportsTable.id, id));
     await createAuditLog({ eventType: "reservation_ai_extraction_completed", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "reservation_import", entityId: id, metadata: noBodyAuditMetadata(id, item.gmailMessageId), description: "Rezervasyon AI analizi tamamlandı" });
     res.json(result);
@@ -288,6 +383,10 @@ router.post("/:id/analyze", requirePermission("reservations", "update"), async (
 
 router.patch("/:id/review", requirePermission("reservations", "update"), async (req, res) => {
   const id = Number(req.params.id);
+  const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
+  if (!item) { res.status(404).json({ error: "Rezervasyon bulunamadı" }); return; }
+  const blockedReview = transitionBlock("review", item.status);
+  if (blockedReview) { res.status(409).json({ error: blockedReview, code: "invalid_status_transition", status: item.status }); return; }
   const data = reservationFields.safeParse(req.body.data);
   if (!data.success) { res.status(400).json({ error: "Geçersiz rezervasyon alanları" }); return; }
   const [updated] = await db.update(reservationExtractionsTable).set({ approvedData: data.data, editedAt: new Date() }).where(eq(reservationExtractionsTable.importId, id)).returning();
@@ -299,6 +398,12 @@ router.patch("/:id/review", requirePermission("reservations", "update"), async (
 
 router.post("/:id/reject", requirePermission("reservations", "update"), async (req, res) => {
   const id = Number(req.params.id);
+  const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
+  if (!item) { res.status(404).json({ error: "Rezervasyon bulunamadı" }); return; }
+  // Already rejected: answer as a no-op so a retry or double-click is harmless.
+  if (item.status === "rejected") { res.status(204).send(); return; }
+  const blockedReject = transitionBlock("reject", item.status);
+  if (blockedReject) { res.status(409).json({ error: blockedReject, code: "invalid_status_transition", status: item.status }); return; }
   await db.update(reservationEmailImportsTable).set({ status: "rejected" }).where(eq(reservationEmailImportsTable.id, id));
   await createAuditLog({ eventType: "reservation_import_rejected", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "reservation_import", entityId: id, metadata: { importId: id }, description: "Rezervasyon içe aktarımı reddedildi" });
   res.status(204).send();
@@ -310,6 +415,11 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   const [extraction] = await db.select().from(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, id)).limit(1);
   if (!item || !extraction) { res.status(409).json({ error: "İnceleme verisi bulunamadı" }); return; }
   if (item.operationId) { const [existing] = await db.select().from(operationsTable).where(eq(operationsTable.id, item.operationId)).limit(1); res.json({ operation: existing, duplicate: true }); return; }
+
+  // Runs after the idempotent replay above, so an already-processed import keeps
+  // returning its operation instead of a 409.
+  const blockedDraft = transitionBlock("create-draft", item.status);
+  if (blockedDraft) { res.status(409).json({ error: blockedDraft, code: "invalid_status_transition", status: item.status }); return; }
 
   // ── Human-approval gate ───────────────────────────────────────────────────
   // An operation may only be built from data a reviewer has explicitly approved
@@ -366,7 +476,9 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   const [operation] = await db.transaction(async (tx) => {
     const [fresh] = await tx.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
     if (fresh?.operationId) return [await tx.select().from(operationsTable).where(eq(operationsTable.id, fresh.operationId)).limit(1).then(rows => rows[0])];
-    const [created] = await tx.insert(operationsTable).values({ customerId: customer.id, startDate: data.tourDate, endDate: data.tourDate, status: "draft", sourceType: "gmail", sourceEmailImportId: id, sourceBookingReference: data.bookingReference, notes }).onConflictDoNothing().returning();
+    const [created] = await tx.insert(operationsTable).values({ customerId: customer.id, startDate: data.tourDate, endDate: data.tourDate, // Was hardcoded "gmail", which mislabelled every operation built from a
+    // manually entered reservation. Carry the import's own origin instead.
+    status: "draft", sourceType: item.source ?? "gmail", sourceEmailImportId: id, sourceBookingReference: data.bookingReference, notes }).onConflictDoNothing().returning();
     if (!created) {
       const [existing] = await tx.select().from(operationsTable).where(eq(operationsTable.sourceEmailImportId, id)).limit(1);
       return [existing];

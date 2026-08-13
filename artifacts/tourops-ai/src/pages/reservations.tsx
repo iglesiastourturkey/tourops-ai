@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
 import { reservationApi } from '@/lib/reservation-api';
@@ -9,23 +9,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Inbox, RefreshCw, Search, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  ReservationFieldsForm, normalizeReservationData,
+} from '@/components/reservations/reservation-fields-form';
+import { STATUS_LABELS } from '@/lib/reservation-status';
+import type { ReservationData } from '@/lib/reservation-api';
+import { Inbox, Plus, RefreshCw, Search, Sparkles } from 'lucide-react';
 
-const STATUS: Record<string, string> = {
-  new: 'Yeni', analyzing: 'Analiz Ediliyor', pending_review: 'Kontrol Bekliyor',
-  missing_information: 'Eksik Bilgi', draft_created: 'Operasyon Taslağı Oluşturuldu',
-  error: 'Hatalı', rejected: 'Reddedildi',
-};
+const STATUS = STATUS_LABELS;
 
 export default function ReservationsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('all');
   const reservations = useQuery({
     queryKey: ['reservations', search, status],
     queryFn: () => reservationApi.list(search, status === 'all' ? '' : status),
   });
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualForm, setManualForm] = useState<ReservationData>(() => normalizeReservationData(null));
+  const createManual = useMutation({
+    mutationFn: () => reservationApi.create(manualForm),
+    onSuccess: (created) => {
+      toast({ title: 'Rezervasyon oluşturuldu', description: 'İnceleme ekranında devam edebilirsiniz.' });
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      setManualOpen(false);
+      setManualForm(normalizeReservationData(null));
+      navigate(`/reservations/${created.id}`);
+    },
+    onError: (error) => toast({ title: 'Rezervasyon oluşturulamadı', description: error.message, variant: 'destructive' }),
+  });
+
   const scan = useMutation({
     mutationFn: reservationApi.scan,
     onSuccess: (result) => {
@@ -48,6 +65,9 @@ export default function ReservationsPage() {
       <Button className="gap-2" onClick={() => scan.mutate()} disabled={scan.isPending} data-testid="button-scan-reservations">
         <RefreshCw className={`w-4 h-4 ${scan.isPending ? 'animate-spin' : ''}`} />{scan.isPending ? 'Taranıyor...' : 'Gmail’i Tara'}
       </Button>
+      <Button variant="outline" className="gap-2" onClick={() => setManualOpen(true)} data-testid="button-new-reservation">
+        <Plus className="w-4 h-4" />Yeni Rezervasyon
+      </Button>
     </div>
     <p className="text-xs text-muted-foreground mb-4">Sadece Gmail’deki <strong>TourPilot</strong> etiketi manuel olarak taranır. E-postalar otomatik olarak operasyon oluşturmaz.</p>
     <div className="border rounded-lg overflow-hidden bg-card">
@@ -67,5 +87,34 @@ export default function ReservationsPage() {
         </TableBody>
       </Table>
     </div>
+
+    {/* Manual entry: same field set as the review screen, so the two cannot
+        drift. Saving lands the record in the normal review flow. */}
+    <Dialog open={manualOpen} onOpenChange={open => { if (!createManual.isPending) setManualOpen(open); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Yeni Rezervasyon</DialogTitle>
+          <DialogDescription>
+            E-postayla gelmeyen bir rezervasyonu elle girin. Kayıt, normal inceleme akışına
+            “Kontrol Bekliyor” durumunda eklenir.
+          </DialogDescription>
+        </DialogHeader>
+        <ReservationFieldsForm
+          value={manualForm}
+          onChange={setManualForm}
+          idPrefix="manual"
+          disabled={createManual.isPending}
+        />
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setManualOpen(false)} disabled={createManual.isPending}>İptal</Button>
+          <Button
+            onClick={() => createManual.mutate()}
+            disabled={createManual.isPending || !String(manualForm.customerName ?? '').trim()}
+          >
+            {createManual.isPending ? 'Kaydediliyor…' : 'Kaydet'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </AppShell>;
 }

@@ -215,4 +215,128 @@ assert.ok(
   "the item.operationId duplicate check must run before the approval guard",
 );
 
+// ── Re-analysis invalidates a previous approval ──────────────────────────────
+// /analyze nulls approvedData on conflict, so fresh AI output can never be
+// drafted on the strength of an approval that was given for the old output.
+const analyzeUpsert = ROUTE_SOURCE.slice(
+  ROUTE_SOURCE.indexOf("reservationExtractionsTable).values({ importId: id"),
+);
+const onConflictSet = analyzeUpsert.slice(
+  analyzeUpsert.indexOf("onConflictDoUpdate"),
+  analyzeUpsert.indexOf("});", analyzeUpsert.indexOf("onConflictDoUpdate")),
+);
+assert.ok(
+  /approvedData:\s*null/.test(onConflictSet),
+  "/analyze must clear approvedData when it overwrites an existing extraction",
+);
+// editedAt must survive: it is the only signal that separates "never approved"
+// from "approval invalidated", which the review screen warns on.
+assert.ok(
+  !/editedAt:/.test(onConflictSet),
+  "/analyze must not clear editedAt — the review screen needs it to warn the reviewer",
+);
+
+// Full sequence: approve → re-analyse → create-draft is refused.
+const reanalyse = (extraction) => ({
+  ...extraction,
+  extractedData: { customerName: "Ada Lovelace", tourDate: "2026-10-05" },
+  approvedData: null,          // mirrors the onConflictDoUpdate set list above
+  editedAt: extraction.editedAt,
+});
+
+const approved = { approvedData: complete, extractedData: complete, missingFields: [], editedAt: "2026-08-12T09:00:00Z" };
+assert.deepEqual(decideCreateDraft(noOp, approved), { status: 201, created: true });
+
+const afterReanalysis = reanalyse(approved);
+assert.equal(afterReanalysis.approvedData, null);
+assert.equal(afterReanalysis.editedAt, "2026-08-12T09:00:00Z");
+assert.deepEqual(
+  decideCreateDraft(noOp, afterReanalysis),
+  { status: 400, code: "approval_required" },
+);
+
+// Re-approving through PATCH /:id/review unblocks it again.
+assert.deepEqual(
+  decideCreateDraft(noOp, { ...afterReanalysis, approvedData: afterReanalysis.extractedData }),
+  { status: 201, created: true },
+);
+
+// The operation must carry the import's real origin. A hardcoded "gmail" here
+// mislabelled every operation built from a manually entered reservation.
+assert.ok(
+  !/sourceType:\s*"gmail"/.test(createDraftSource),
+  "create-draft must not hardcode sourceType — manual reservations would be labelled gmail",
+);
+assert.ok(
+  /sourceType:\s*item\.source/.test(createDraftSource),
+  "create-draft must take sourceType from the import row",
+);
+
+// ── Inbox state machine ──────────────────────────────────────────────────────
+// The allowed-status table is read out of the route file, so the test tracks the
+// real rules rather than a second copy of them.
+const allowedFromSource = ROUTE_SOURCE.match(/const ALLOWED_FROM[\s\S]*?\n\};/)?.[0];
+assert.ok(allowedFromSource, "ALLOWED_FROM table not found in the route file");
+// Drop the TS annotation between the name and `=` (it nests angle brackets, so
+// a `[^>]*` strip would cut it in the wrong place).
+const ALLOWED_FROM = new Function(
+  `${allowedFromSource.replace(/const ALLOWED_FROM[^=]*=/, "const ALLOWED_FROM =")}\nreturn ALLOWED_FROM;`,
+)();
+
+const allows = (action, status) => ALLOWED_FROM[action].has(status);
+
+// Every action the inbox exposes must be declared.
+assert.deepEqual(
+  Object.keys(ALLOWED_FROM).sort(),
+  ["analyze", "create-draft", "reject", "reopen", "review"],
+);
+
+// A rejected record is frozen until it is explicitly reopened.
+for (const action of ["analyze", "review", "create-draft"]) {
+  assert.equal(allows(action, "rejected"), false, `${action} must be blocked while rejected`);
+}
+assert.equal(allows("reopen", "rejected"), true);
+
+// draft_created is terminal: nothing may act on it. create-draft itself returns
+// the existing operation before the guard runs (asserted separately below).
+for (const action of ["analyze", "review", "create-draft", "reject", "reopen"]) {
+  assert.equal(allows(action, "draft_created"), false, `${action} must be blocked after a draft exists`);
+}
+
+// Reopen is only ever a rejected → pending_review move.
+for (const status of ["new", "analyzing", "pending_review", "missing_information", "error", "draft_created"]) {
+  assert.equal(allows("reopen", status), false, `reopen must not be offered from ${status}`);
+}
+
+// An in-flight analysis is not restartable, but it can still be rejected.
+assert.equal(allows("analyze", "analyzing"), false);
+assert.equal(allows("reject", "analyzing"), true);
+
+// Manual entry lands on pending_review, so the whole review flow must work there.
+for (const action of ["analyze", "review", "create-draft", "reject"]) {
+  assert.equal(allows(action, "pending_review"), true, `${action} must be available from pending_review`);
+}
+
+// A failed analysis can be retried or abandoned, but not reviewed or drafted.
+assert.equal(allows("analyze", "error"), true);
+assert.equal(allows("reject", "error"), true);
+assert.equal(allows("review", "error"), false);
+assert.equal(allows("create-draft", "error"), false);
+
+// The idempotent replay must still be reached before the transition guard,
+// otherwise an already-processed import would start answering 409.
+const operationIdAt = createDraftSource.indexOf("item.operationId");
+const draftGuardAt = createDraftSource.indexOf('transitionBlock("create-draft"');
+assert.ok(draftGuardAt >= 0, "create-draft is missing its transition guard");
+assert.ok(
+  operationIdAt < draftGuardAt,
+  "the duplicate replay must run before the create-draft transition guard",
+);
+
+// Every guarded endpoint answers 409 with a machine-readable code.
+assert.ok(
+  (ROUTE_SOURCE.match(/code: "invalid_status_transition"/g) ?? []).length >= 5,
+  "each guarded endpoint should report the invalid_status_transition code",
+);
+
 console.log("create-draft guard focused tests: passed");

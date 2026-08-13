@@ -23,8 +23,12 @@ export const googleConnectionsTable = pgTable("google_connections", {
 
 export const reservationEmailImportsTable = pgTable("reservation_email_imports", {
   id: serial("id").primaryKey(),
-  connectionId: integer("connection_id").notNull().references(() => googleConnectionsTable.id, { onDelete: "cascade" }),
-  gmailMessageId: text("gmail_message_id").notNull(),
+  // Origin of the row: "gmail" for scanned messages, "manual" for operator-entered
+  // reservations. Manual rows have no Gmail identity, so the two columns below are
+  // nullable — see migrations/0008_manual_reservations.sql.
+  source: text("source").notNull().default("gmail"),
+  connectionId: integer("connection_id").references(() => googleConnectionsTable.id, { onDelete: "cascade" }),
+  gmailMessageId: text("gmail_message_id"),
   gmailThreadId: text("gmail_thread_id"),
   sender: text("sender"),
   recipients: text("recipients"),
