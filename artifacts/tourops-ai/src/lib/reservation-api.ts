@@ -42,8 +42,28 @@ export type GoogleConnectionStatus = {
  */
 export type CreateDraftErrorCode =
   | 'approval_required' | 'invalid_approved_data' | 'missing_fields'
-  | 'customer_name_required' | 'tour_date_required' | 'invalid_status_transition';
-export type CreateDraftError = { error?: string; code?: CreateDraftErrorCode; missingFields?: string[] };
+  | 'customer_name_required' | 'tour_date_required' | 'invalid_status_transition'
+  | 'draft_confirmation_required' | 'invalid_date_range';
+
+/**
+ * A soft check the reviewer may override (duplicate booking reference, past
+ * tour date, inconsistent guest counts). Returned with 409
+ * "draft_confirmation_required"; the draft is only created once the same
+ * request is repeated with acknowledgeWarnings.
+ */
+export type DuplicateOperationRef = {
+  id: number; status: string; startDate: string | null; sourceType: string;
+  /** Whether that operation came from the same source as this import. */
+  sameSource: boolean;
+};
+export type DraftWarning = {
+  code: 'duplicate_booking_reference' | 'past_tour_date' | 'guest_count_mismatch';
+  message: string;
+  detail?: { operations?: DuplicateOperationRef[] } & Record<string, unknown>;
+};
+export type CreateDraftError = {
+  error?: string; code?: CreateDraftErrorCode; missingFields?: string[]; warnings?: DraftWarning[];
+};
 
 export function createDraftError(error: unknown): CreateDraftError | null {
   const data = (error as { data?: unknown } | null | undefined)?.data;
@@ -61,7 +81,12 @@ export const reservationApi = {
   reject: (id: number) => customFetch(`/api/reservations/${id}/reject`, { method: 'POST' }),
   reopen: (id: number) => customFetch(`/api/reservations/${id}/reopen`, { method: 'POST' }),
   create: (data: ReservationData) => customFetch<ReservationImport>('/api/reservations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }) }),
-  createDraft: (id: number) => customFetch<{ operation: { id: number }; duplicate: boolean }>(`/api/reservations/${id}/create-draft`, { method: 'POST' }),
+  /**
+   * `acknowledgedWarnings` names the warning codes the reviewer was actually
+   * shown. The server re-runs the checks and blocks again on anything not in
+   * this list, so a warning that appeared in the meantime cannot ride along.
+   */
+  createDraft: (id: number, acknowledgedWarnings: DraftWarning['code'][] = []) => customFetch<{ operation: { id: number }; duplicate: boolean }>(`/api/reservations/${id}/create-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acknowledgedWarnings }) }),
   googleStatus: (integration: GoogleIntegration) => customFetch<GoogleConnectionStatus>(`/api/reservations/google-connection?provider=${integration}`),
   authorize: (integration: GoogleIntegration) => customFetch<{ authorizationUrl: string }>(`/api/reservations/google-connection/${integration}/authorize`, { method: 'POST' }),
   disconnect: (integration: GoogleIntegration) => customFetch(`/api/reservations/google-connection/${integration}`, { method: 'DELETE' }),

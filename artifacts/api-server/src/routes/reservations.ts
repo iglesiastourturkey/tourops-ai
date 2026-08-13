@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { and, desc, eq, ilike, isNull, or } from "drizzle-orm";
+import { and, desc, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import crypto from "node:crypto";
 import { z } from "zod";
 import { db } from "@workspace/db";
@@ -10,6 +10,11 @@ import {
 import { requireAuth, requireActive, requirePermission } from "../lib/auth";
 import { createAuditLog } from "../lib/audit";
 import { aiSchemaError, logAiFailure, parseAiJson, requestOpenRouterContent } from "../lib/ai-extraction";
+import {
+  collectDraftWarnings, dateOrderBlock, normalizeBookingReference,
+  parseAcknowledgedWarnings, todayInIstanbul,
+  type DuplicateOperationMatch,
+} from "../lib/reservation-validation";
 import { decryptCredential, encryptCredential } from "../lib/credential-encryption";
 import {
   createAuthorizationUrl, exchangeAuthorizationCode, fetchTourPilotMessages,
@@ -478,6 +483,80 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
     });
     return;
   }
+  // ── M3 validation & duplicate engine ──────────────────────────────────────
+  // Everything below runs before the first write, so a rejected request leaves
+  // no customer row, no operation and no status change behind.
+
+  // Multi-day tours are not modelled on the reservation side yet, so both dates
+  // come from tourDate. The pair is still checked: an impossible range must
+  // never be written, and the day someone gives a reservation its own end date
+  // this guard is already in place.
+  const operationStartDate = data.tourDate;
+  const operationEndDate = data.tourDate;
+  const dateBlock = dateOrderBlock(operationStartDate, operationEndDate);
+  if (dateBlock) {
+    res.status(400).json({ error: dateBlock, code: "invalid_date_range" });
+    return;
+  }
+
+  // Soft duplicate: same booking reference already on another operation. Matched
+  // case- and whitespace-insensitively, because the same reference reaches us
+  // written differently by different agencies. Not a block — a reference can be
+  // legitimately reused after a cancellation.
+  const bookingReference = normalizeBookingReference(data.bookingReference);
+  let duplicates: DuplicateOperationMatch[] = [];
+  let moreDuplicates = false;
+  if (bookingReference) {
+    const matches = await db.select({
+      id: operationsTable.id, status: operationsTable.status,
+      startDate: operationsTable.startDate, sourceType: operationsTable.sourceType,
+    }).from(operationsTable).where(and(
+      sql`lower(trim(${operationsTable.sourceBookingReference})) = ${bookingReference}`,
+      // A half-created operation from an interrupted earlier attempt belongs to
+      // this import and is not a duplicate of itself. IS DISTINCT FROM keeps the
+      // rows whose sourceEmailImportId is NULL, which a plain <> would drop.
+      sql`${operationsTable.sourceEmailImportId} IS DISTINCT FROM ${id}`,
+      // One more than is displayed, so "and more" can be stated honestly
+      // without a second count query.
+    )).limit(6);
+    moreDuplicates = matches.length > 5;
+    duplicates = matches.slice(0, 5).map(match => ({
+      ...match,
+      sameSource: match.sourceType === (item.source ?? "gmail"),
+    }));
+  }
+
+  const warnings = collectDraftWarnings(data, { today: todayInIstanbul(), duplicates, moreDuplicates });
+  // The reviewer acknowledges named warnings, not "proceed regardless". If a
+  // new duplicate appeared between the 409 and this request, its code is not in
+  // the acknowledged list and the request is answered with 409 again — the
+  // alternative would create the operation and record an acknowledgement for a
+  // warning nobody ever saw.
+  const acknowledgedWarnings = parseAcknowledgedWarnings(req.body);
+  const unacknowledged = warnings.filter(warning => !acknowledgedWarnings.includes(warning.code));
+  if (unacknowledged.length) {
+    if (duplicates.length) {
+      // Cross-source matches are the interesting case for the coming platform
+      // split (Viator/GetYourGuide); logged now so there is history to reason
+      // about when that lands. The reference itself stays out of the log — the
+      // audit trail already records it against the actor.
+      req.log.info({
+        importId: id, source: item.source ?? "gmail",
+        duplicateOperationIds: duplicates.map(match => match.id),
+        crossSourceMatches: duplicates.filter(match => !match.sameSource).length,
+      }, "Reservation booking reference matched existing operations");
+    }
+    // The full current set is returned, not just the unacknowledged ones: the
+    // dialog re-renders from this response, and dropping the already-seen
+    // warnings would make them disappear from under the reviewer.
+    res.status(409).json({
+      error: "Taslak oluşturmadan önce onaylamanız gereken uyarılar var.",
+      code: "draft_confirmation_required",
+      warnings,
+    });
+    return;
+  }
+
   const identifier = data.customerEmail ? eq(customersTable.email, data.customerEmail) : data.customerPhone ? eq(customersTable.phone, data.customerPhone) : undefined;
   let customer = identifier ? (await db.select().from(customersTable).where(identifier).limit(1))[0] : undefined;
   if (!customer) [customer] = await db.insert(customersTable).values({ name: data.customerName, email: data.customerEmail, phone: data.customerPhone, notes: data.internalNotes }).returning();
@@ -485,7 +564,7 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   const [operation] = await db.transaction(async (tx) => {
     const [fresh] = await tx.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
     if (fresh?.operationId) return [await tx.select().from(operationsTable).where(eq(operationsTable.id, fresh.operationId)).limit(1).then(rows => rows[0])];
-    const [created] = await tx.insert(operationsTable).values({ customerId: customer.id, startDate: data.tourDate, endDate: data.tourDate, // Was hardcoded "gmail", which mislabelled every operation built from a
+    const [created] = await tx.insert(operationsTable).values({ customerId: customer.id, startDate: operationStartDate, endDate: operationEndDate, // Was hardcoded "gmail", which mislabelled every operation built from a
     // manually entered reservation. Carry the import's own origin instead.
     status: "draft", sourceType: item.source ?? "gmail", sourceEmailImportId: id, sourceBookingReference: data.bookingReference, notes }).onConflictDoNothing().returning();
     if (!created) {
@@ -495,7 +574,10 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
     await tx.update(reservationEmailImportsTable).set({ operationId: created.id, status: "draft_created" }).where(and(eq(reservationEmailImportsTable.id, id), isNull(reservationEmailImportsTable.operationId)));
     return [created];
   });
-  await createAuditLog({ eventType: "reservation_draft_created", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "operation", entityId: operation.id, metadata: { importId: id, operationId: operation.id, bookingReference: data.bookingReference }, description: "Gmail rezervasyonundan operasyon taslağı oluşturuldu" });
+  // acknowledgedWarnings records which soft checks the reviewer overrode, so a
+  // later "why was this duplicate processed" question has an answer naming the
+  // actor and what they were shown.
+  await createAuditLog({ eventType: "reservation_draft_created", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "operation", entityId: operation.id, metadata: { importId: id, operationId: operation.id, bookingReference: data.bookingReference, acknowledgedWarnings: warnings.map(warning => warning.code), duplicateOperationIds: duplicates.map(match => match.id) }, description: "Gmail rezervasyonundan operasyon taslağı oluşturuldu" });
   res.status(201).json({ operation, duplicate: false });
 });
 

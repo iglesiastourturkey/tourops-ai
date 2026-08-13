@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
-import { reservationApi, createDraftError, type ReservationData } from '@/lib/reservation-api';
+import { reservationApi, createDraftError, type DraftWarning, type ReservationData } from '@/lib/reservation-api';
 import {
   ReservationFieldsForm, FIELD_LABELS, normalizeReservationData,
 } from '@/components/reservations/reservation-fields-form';
 import { canRunAction } from '@/lib/reservation-status';
+import { OPERATION_STATUS_LABELS } from '@/lib/labels';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -35,13 +36,31 @@ export default function ReservationDetailPage() {
   const client = useQueryClient();
   const [form, setForm] = useState<ReservationData>({});
   const [confirmDraft, setConfirmDraft] = useState(false);
+  // Soft checks the server returned with 409. Present means the next attempt has
+  // to carry the reviewer's acknowledgement.
+  const [draftWarnings, setDraftWarnings] = useState<DraftWarning[]>([]);
   const detail = useQuery({ queryKey: ['reservation', id], queryFn: () => reservationApi.get(id), enabled: Boolean(id) });
   useEffect(() => { if (detail.data?.extraction) setForm(normalizeReservationData(detail.data.extraction.approvedData ?? detail.data.extraction.extractedData)); }, [detail.data]);
   const refresh = () => { client.invalidateQueries({ queryKey: ['reservation', id] }); client.invalidateQueries({ queryKey: ['reservations'] }); };
   const analyze = useMutation({ mutationFn: () => reservationApi.analyze(id), onSuccess: () => { toast({ title: 'AI analizi tamamlandı' }); refresh(); }, onError: error => toast({ title: 'Analiz başarısız', description: error.message, variant: 'destructive' }) });
   const save = useMutation({ mutationFn: () => reservationApi.review(id, form), onSuccess: () => { toast({ title: 'İnceleme kaydedildi' }); refresh(); }, onError: error => toast({ title: 'Kayıt başarısız', description: error.message, variant: 'destructive' }) });
   const reject = useMutation({ mutationFn: () => reservationApi.reject(id), onSuccess: () => { toast({ title: 'Rezervasyon reddedildi' }); refresh(); }, onError: () => toast({ title: 'İşlem başarısız', variant: 'destructive' }) });
-  const draft = useMutation({ mutationFn: () => reservationApi.createDraft(id), onSuccess: result => { toast({ title: result.duplicate ? 'Mevcut taslak açıldı' : 'Operasyon taslağı oluşturuldu' }); navigate(`/operations/${result.operation.id}`); }, onError: error => toast({ title: 'Taslak oluşturulamadı', description: draftErrorDescription(error), variant: 'destructive' }) });
+  const draft = useMutation({
+    mutationFn: (acknowledgedWarnings: DraftWarning['code'][]) => reservationApi.createDraft(id, acknowledgedWarnings),
+    onSuccess: result => { setDraftWarnings([]); toast({ title: result.duplicate ? 'Mevcut taslak açıldı' : 'Operasyon taslağı oluşturuldu' }); navigate(`/operations/${result.operation.id}`); },
+    onError: error => {
+      const body = createDraftError(error);
+      // Soft checks: nothing was created. Re-open the dialog with the warnings
+      // so the reviewer decides, instead of burying them in a toast.
+      if (body?.code === 'draft_confirmation_required' && body.warnings?.length) {
+        setDraftWarnings(body.warnings);
+        setConfirmDraft(true);
+        return;
+      }
+      setDraftWarnings([]);
+      toast({ title: 'Taslak oluşturulamadı', description: draftErrorDescription(error), variant: 'destructive' });
+    },
+  });
   const reopen = useMutation({ mutationFn: () => reservationApi.reopen(id), onSuccess: () => { toast({ title: 'Rezervasyon yeniden incelemeye alındı' }); refresh(); }, onError: error => toast({ title: 'Yeniden açılamadı', description: draftErrorDescription(error), variant: 'destructive' }) });
   const item = detail.data;
   if (detail.isLoading) return <AppShell title="Rezervasyon"><div className="space-y-4"><div className="h-24 bg-muted animate-pulse rounded-xl" /><div className="h-96 bg-muted animate-pulse rounded-xl" /></div></AppShell>;
@@ -119,6 +138,57 @@ export default function ReservationDetailPage() {
         <Card><CardHeader><CardTitle className="text-base flex gap-2 items-center"><FileText className="w-4 h-4" />Orijinal İçerik</CardTitle></CardHeader><CardContent><pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{item.plainTextBody ?? '(Düz metin içeriği yok)'}</pre></CardContent></Card>
       </div>
     </div>
-    <AlertDialog open={confirmDraft} onOpenChange={setConfirmDraft}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Operasyon taslağı oluşturulsun mu?</AlertDialogTitle><AlertDialogDescription>Bu işlem onaylanmış alanları kullanarak müşteriyi güvenilir iletişim bilgileriyle eşleştirir veya oluşturur. Bu e-posta için yalnızca bir taslak operasyon oluşturulabilir.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>İptal</AlertDialogCancel><AlertDialogAction onClick={() => draft.mutate()} disabled={draft.isPending}>{draft.isPending ? 'Oluşturuluyor...' : 'Taslak Oluştur'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    {/* Cancelling drops the warnings: the next attempt re-runs the checks
+        server-side, so a stale acknowledgement can never be carried forward. */}
+    <AlertDialog open={confirmDraft} onOpenChange={open => { setConfirmDraft(open); if (!open) setDraftWarnings([]); }}>
+      <AlertDialogContent className="max-h-[80vh] overflow-y-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>{draftWarnings.length ? 'Devam etmeden önce kontrol edin' : 'Operasyon taslağı oluşturulsun mu?'}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {draftWarnings.length
+              ? 'Aşağıdaki uyarılar taslak oluşturmayı engellemiyor, ancak devam etmeden önce onaylamanız gerekiyor. Henüz hiçbir kayıt oluşturulmadı.'
+              : 'Bu işlem onaylanmış alanları kullanarak müşteriyi güvenilir iletişim bilgileriyle eşleştirir veya oluşturur. Bu e-posta için yalnızca bir taslak operasyon oluşturulabilir.'}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {draftWarnings.length > 0 && (
+          <ul className="space-y-2">
+            {draftWarnings.map(warning => (
+              <li key={warning.code} className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2.5 flex gap-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
+                <div className="text-sm text-amber-900 leading-relaxed dark:text-amber-200 min-w-0">
+                  <p>{warning.message}</p>
+                  {/* "There is a duplicate" is not actionable on its own — the
+                      reviewer has to see which operation, from when, in what
+                      state. Opened in a new tab so the review in progress and
+                      its acknowledgement are not lost. */}
+                  {warning.detail?.operations?.length ? (
+                    <ul className="mt-1.5 space-y-1">
+                      {warning.detail.operations.map(operation => (
+                        <li key={operation.id}>
+                          <a href={`/operations/${operation.id}`} target="_blank" rel="noreferrer" className="underline underline-offset-2 break-words">
+                            #{operation.id}
+                          </a>
+                          <span className="text-xs"> · {OPERATION_STATUS_LABELS[operation.status] ?? operation.status}
+                            {operation.startDate ? ` · ${new Date(operation.startDate).toLocaleDateString('tr-TR')}` : ''}
+                            {operation.sameSource ? '' : ' · farklı kaynak'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel>İptal</AlertDialogCancel>
+          {/* Only the codes on screen are acknowledged — the server rejects the
+              request again if it finds a warning that is not among them. */}
+          <AlertDialogAction onClick={() => draft.mutate(draftWarnings.map(warning => warning.code))} disabled={draft.isPending}>
+            {draft.isPending ? 'Oluşturuluyor...' : draftWarnings.length ? 'Yine de Oluştur' : 'Taslak Oluştur'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   </AppShell>;
 }

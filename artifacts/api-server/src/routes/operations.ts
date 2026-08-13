@@ -7,6 +7,7 @@ import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
 import { createAuditLog } from "../lib/audit";
+import { dateOrderBlock } from "../lib/reservation-validation";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -64,6 +65,11 @@ router.get("/", requirePermission("operations", "view"), async (req, res) => {
 router.post("/", requirePermission("operations", "create"), async (req, res) => {
   try {
     const { quotationId: _quotationId, sourceQuoteId: _sourceQuoteId, sourceType: _sourceType, ...manualInput } = req.body;
+    // An end date before the start date is not a judgement call, it is an
+    // impossible operation: every downstream consumer (daily ops, sheet sync)
+    // reads the range as a span.
+    const dateBlock = dateOrderBlock(manualInput.startDate, manualInput.endDate);
+    if (dateBlock) { res.status(400).json({ error: dateBlock, code: "invalid_date_range" }); return; }
     const [row] = await db.insert(operationsTable).values({
       ...manualInput,
       sourceType: "manual",
@@ -101,14 +107,30 @@ router.get("/:id", requirePermission("operations", "view"), async (req, res) => 
 router.patch("/:id", requirePermission("operations", "update"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
-    const [before] = await db.select({ status: operationsTable.status, assignedGuideUserId: operationsTable.assignedGuideUserId })
-      .from(operationsTable).where(eq(operationsTable.id, operationId));
+    const [before] = await db.select({
+      status: operationsTable.status, assignedGuideUserId: operationsTable.assignedGuideUserId,
+      startDate: operationsTable.startDate, endDate: operationsTable.endDate,
+    }).from(operationsTable).where(eq(operationsTable.id, operationId));
+    // A PATCH may move only one end of the range, so the check runs against the
+    // merged result rather than the request body alone — otherwise moving
+    // startDate past an untouched endDate would slip through.
+    if (before) {
+      const body = req.body as Record<string, unknown>;
+      const dateBlock = dateOrderBlock(
+        "startDate" in body ? body.startDate : before.startDate,
+        "endDate" in body ? body.endDate : before.endDate,
+      );
+      if (dateBlock) { res.status(400).json({ error: dateBlock, code: "invalid_date_range" }); return; }
+    }
     const [row] = await db.update(operationsTable).set(req.body).where(eq(operationsTable.id, operationId)).returning();
     if (!row) { res.status(404).json({ error: "Not found" }); return; }
     await createAuditLog({
       eventType: before?.status !== row.status ? "operation_status_changed" : "operation_updated",
       actorProfileId: res.locals.profile.id,
-      oldValue: before,
+      // Spelled out rather than passing `before` straight through: that object
+      // now also carries the dates read for the range check, which do not belong
+      // in the status-change audit payload.
+      oldValue: before ? { status: before.status, assignedGuideUserId: before.assignedGuideUserId } : undefined,
       newValue: { status: row.status, assignedGuideUserId: row.assignedGuideUserId },
       metadata: { changedFields: Object.keys(req.body) },
       module: "operations",

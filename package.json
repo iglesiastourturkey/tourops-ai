@@ -9,6 +9,7 @@
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
     ,"test:offline-sync": "node scripts/offline-sync-focused-tests.mjs"
     ,"test:reservation-guards": "node scripts/reservation-guard-focused-tests.mjs"
+    ,"test:reservation-validation": "node scripts/reservation-validation-focused-tests.mjs"
   },
   "private": true,
   "dependencies": {

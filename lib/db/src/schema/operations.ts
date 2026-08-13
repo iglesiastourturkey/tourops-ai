@@ -1,4 +1,5 @@
-import { pgTable, text, serial, timestamp, integer, real, date, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, real, date, index, uniqueIndex, jsonb } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { quotationsTable } from "./quotations";
@@ -40,6 +41,14 @@ export const operationsTable = pgTable("operations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
   gmailImportUnique: uniqueIndex("operations_source_email_import_idx").on(table.sourceEmailImportId),
+  // Backs the create-draft duplicate check, which compares booking references
+  // case- and whitespace-insensitively. Declared here as well as in
+  // migrations/0009 because drizzle-kit push treats this file as the truth and
+  // would drop an index it cannot see. Partial: rows without a reference are
+  // never searched.
+  bookingReferenceIdx: index("operations_source_booking_reference_idx")
+    .on(sql`lower(trim(${table.sourceBookingReference}))`)
+    .where(sql`${table.sourceBookingReference} IS NOT NULL`),
 }));
 
 export const operationTasksTable = pgTable("operation_tasks", {
