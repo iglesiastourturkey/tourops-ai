@@ -1,13 +1,15 @@
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
-import { operationsTable, operationTasksTable, operationReceiptsTable, operationDocumentsTable, auditLogsTable, accountingTransactionsTable } from "@workspace/db/schema";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { operationsTable, operationTasksTable, operationReceiptsTable, operationDocumentsTable, auditLogsTable, accountingTransactionsTable, accountingDocumentsTable, fieldIncidentsTable, operationFieldNotesTable, operationLocationsTable, operationStatusHistoryTable, quotationsTable, reservationEmailImportsTable, reservationExtractionsTable } from "@workspace/db/schema";
+import { eq, desc, and, or, inArray, sql } from "drizzle-orm";
+import type { PgColumn, PgTable } from "drizzle-orm/pg-core";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import type { UserRole } from "@workspace/db/schema";
 import { createAuditLog } from "../lib/audit";
 import { dateOrderBlock } from "../lib/reservation-validation";
+import { financialLockBlock, IMPORT_STATUS_AFTER_OPERATION_DELETE } from "../lib/deletion-rules";
 
 const objectStorageService = new ObjectStorageService();
 
@@ -142,15 +144,132 @@ router.patch("/:id", requirePermission("operations", "update"), async (req, res)
   } catch { res.status(500).json({ error: "Failed to update operation" }); }
 });
 
-// DELETE /operations/:id — cascades tasks; deletes receipts + their GCS objects
-router.delete("/:id", requirePermission("operations", "delete"), async (req, res) => {
+/**
+ * DELETE /operations/:id — permanent deletion of an operation and its children.
+ *
+ * Now behind operations.purge rather than operations.delete: this destroys six
+ * cascading child tables and nulls the operation out of four more (incidents,
+ * accounting transactions, accounting documents, the reservation import), which
+ * is not the same authority as deleting a single task or document. The archived
+ * status remains the reversible path for everything that is not test data.
+ *
+ * `?withReservation=true` additionally deletes the reservation import the
+ * operation came from. Off by default: the email genuinely arrived, and that
+ * record has value independently of the operation built from it.
+ */
+router.delete("/:id", requirePermission("operations", "purge"), async (req, res) => {
   try {
     const operationId = parseInt(req.params.id as string);
+    const withReservation = req.query.withReservation === "true";
 
-    // Delete GCS objects for all receipts that have photos
+    const [operation] = await db.select().from(operationsTable).where(eq(operationsTable.id, operationId));
+    if (!operation) { res.status(404).json({ error: "Not found" }); return; }
+
     const receipts = await db.select().from(operationReceiptsTable)
       .where(eq(operationReceiptsTable.operationId, operationId));
 
+    // Financial guard. Transactions reach this operation two ways: directly, or
+    // through a receipt that the cascade is about to remove — both links would
+    // be nulled, so both are checked.
+    const receiptIds = receipts.map(receipt => receipt.id);
+    const linkedTransactions = await db.select({
+      id: accountingTransactionsTable.id,
+      accountingStatus: accountingTransactionsTable.accountingStatus,
+      paymentStatus: accountingTransactionsTable.paymentStatus,
+    }).from(accountingTransactionsTable).where(
+      receiptIds.length
+        ? or(
+            eq(accountingTransactionsTable.operationId, operationId),
+            inArray(accountingTransactionsTable.receiptId, receiptIds),
+          )
+        : eq(accountingTransactionsTable.operationId, operationId),
+    );
+
+    const financialBlock = financialLockBlock(linkedTransactions);
+    if (financialBlock) {
+      res.status(409).json({
+        error: financialBlock.message,
+        code: financialBlock.code,
+        lockedTransactionCount: financialBlock.lockedCount,
+      });
+      return;
+    }
+
+    // Counted before the delete: afterwards there is nothing left to count, and
+    // the audit entry is the only record of what went with it. count(*) comes
+    // back as a bigint string over the wire, so every value is coerced.
+    const countRowsFor = async (table: PgTable, column: PgColumn) => {
+      const [row] = await db.select({ value: sql<string>`count(*)` }).from(table).where(eq(column, operationId));
+      return Number(row?.value ?? 0);
+    };
+    const [tasks, documents, fieldNotes, locations, statusHistory, incidents, accountingDocuments] = await Promise.all([
+      countRowsFor(operationTasksTable, operationTasksTable.operationId),
+      countRowsFor(operationDocumentsTable, operationDocumentsTable.operationId),
+      countRowsFor(operationFieldNotesTable, operationFieldNotesTable.operationId),
+      countRowsFor(operationLocationsTable, operationLocationsTable.operationId),
+      countRowsFor(operationStatusHistoryTable, operationStatusHistoryTable.operationId),
+      countRowsFor(fieldIncidentsTable, fieldIncidentsTable.operationId),
+      countRowsFor(accountingDocumentsTable, accountingDocumentsTable.operationId),
+    ]);
+    // Rows that go away with the operation, kept apart from the rows that merely
+    // lose their link: calling the latter "deleted" in the audit trail would
+    // misrepresent what happened to them.
+    const deletedChildren = { tasks, documents, fieldNotes, locations, statusHistory, receipts: receipts.length };
+    const detachedCounts = { incidents, accountingDocuments };
+
+    // Object paths of the files this delete strands in storage. Nothing is
+    // removed for them here — that is a separate storage task — but once the
+    // rows are gone nothing else points at these objects, so the audit entry is
+    // the only place a later cleanup could find them.
+    const orphanedObjectPaths = [
+      ...(await db.select({ path: operationDocumentsTable.objectPath }).from(operationDocumentsTable)
+        .where(eq(operationDocumentsTable.operationId, operationId))).map(row => row.path),
+      ...(await db.select({ path: operationFieldNotesTable.photoObjectPath }).from(operationFieldNotesTable)
+        .where(eq(operationFieldNotesTable.operationId, operationId))).map(row => row.path).filter(Boolean),
+    ];
+
+    const [linkedImport] = await db.select({
+      id: reservationEmailImportsTable.id, status: reservationEmailImportsTable.status,
+    }).from(reservationEmailImportsTable)
+      .where(eq(reservationEmailImportsTable.operationId, operationId)).limit(1);
+
+    const linkedQuotationIds = (await db.select({ id: quotationsTable.id }).from(quotationsTable)
+      .where(eq(quotationsTable.convertedOperationId, operationId))).map(row => row.id);
+
+    await db.transaction(async (tx) => {
+      if (linkedImport) {
+        if (withReservation) {
+          await tx.delete(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, linkedImport.id));
+          await tx.delete(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, linkedImport.id));
+        } else {
+          // The FK nulls operationId but leaves the status at draft_created,
+          // which is terminal in the inbox state machine — the import would be
+          // frozen out of every action, including reject. Hand it back to the
+          // review queue with the reviewer's approved data intact.
+          await tx.update(reservationEmailImportsTable)
+            .set({ operationId: null, status: IMPORT_STATUS_AFTER_OPERATION_DELETE })
+            .where(eq(reservationEmailImportsTable.id, linkedImport.id));
+        }
+      }
+      // quotations.converted_operation_id has no foreign key, so nothing clears
+      // it automatically and the quote's "OP-x Aç" link would point at a row
+      // that no longer exists. Cleared here to match what the FKs do elsewhere;
+      // status stays "converted", so the quote is still not re-convertible and
+      // the deleted id remains readable in this audit entry.
+      await tx.update(quotationsTable)
+        .set({ convertedOperationId: null })
+        .where(eq(quotationsTable.convertedOperationId, operationId));
+      // Six child tables go with this through ON DELETE CASCADE; incidents,
+      // accounting transactions and accounting documents keep their rows with a
+      // nulled operation_id.
+      await tx.delete(operationsTable).where(eq(operationsTable.id, operationId));
+    });
+
+    // Receipt photos are cleaned up only after the rows are actually gone.
+    // Running this first — as it used to — meant a transaction failure left
+    // receipts in the database pointing at storage objects that had already been
+    // deleted, which nothing could repair. Failing the other way round only
+    // leaves an unreferenced object behind.
     await Promise.all(receipts
       .filter(r => r.photoObjectPath)
       .map(async r => {
@@ -161,8 +280,31 @@ router.delete("/:id", requirePermission("operations", "delete"), async (req, res
       })
     );
 
-    // DB cascades delete tasks and receipts (operationId FK cascade)
-    await db.delete(operationsTable).where(eq(operationsTable.id, operationId));
+    await createAuditLog({
+      eventType: "operation_purged",
+      actorProfileId: res.locals.profile.id,
+      module: "operations",
+      entityType: "operation",
+      entityId: operationId,
+      oldValue: {
+        id: operation.id, status: operation.status, customerId: operation.customerId,
+        startDate: operation.startDate, endDate: operation.endDate,
+        sourceType: operation.sourceType, sourceEmailImportId: operation.sourceEmailImportId,
+        sourceBookingReference: operation.sourceBookingReference, createdAt: operation.createdAt,
+      },
+      metadata: {
+        deletedChildren,
+        // These rows survive the delete with a nulled operation_id — they are
+        // detached, not deleted, and the audit trail has to say so.
+        detachedRecords: { ...detachedCounts, quotationIds: linkedQuotationIds },
+        detachedTransactionIds: linkedTransactions.map(transaction => transaction.id),
+        // Files left in storage with nothing referencing them any more.
+        orphanedObjectPaths,
+        reservationImportId: linkedImport?.id ?? null,
+        reservationHandling: linkedImport ? (withReservation ? "deleted" : "released_to_review") : "none",
+      },
+      description: "Operasyon ve bağlı kayıtları kalıcı olarak silindi",
+    });
     res.status(204).send();
   } catch { res.status(500).json({ error: "Failed to delete operation" }); }
 });

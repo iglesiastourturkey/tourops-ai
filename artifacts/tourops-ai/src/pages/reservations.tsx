@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
-import { reservationApi } from '@/lib/reservation-api';
+import { reservationApi, createDraftError, type ReservationImport } from '@/lib/reservation-api';
+import { DestructiveConfirmDialog } from '@/components/destructive-confirm-dialog';
+import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -15,7 +17,7 @@ import {
 } from '@/components/reservations/reservation-fields-form';
 import { STATUS_LABELS } from '@/lib/reservation-status';
 import type { ReservationData } from '@/lib/reservation-api';
-import { Inbox, Plus, RefreshCw, Search, Sparkles } from 'lucide-react';
+import { Inbox, Plus, RefreshCw, Search, Sparkles, Trash2 } from 'lucide-react';
 
 const STATUS = STATUS_LABELS;
 
@@ -41,6 +43,21 @@ export default function ReservationsPage() {
       navigate(`/reservations/${created.id}`);
     },
     onError: (error) => toast({ title: 'Rezervasyon oluşturulamadı', description: error.message, variant: 'destructive' }),
+  });
+
+  const canDelete = usePermission('reservations', 'delete');
+  const [deleteTarget, setDeleteTarget] = useState<ReservationImport | null>(null);
+  const removeReservation = useMutation({
+    mutationFn: (id: number) => reservationApi.remove(id),
+    onSuccess: () => {
+      toast({ title: 'Rezervasyon silindi' });
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      setDeleteTarget(null);
+      toast({ title: 'Silinemedi', description: createDraftError(error)?.error ?? error.message, variant: 'destructive' });
+    },
   });
 
   const scan = useMutation({
@@ -82,11 +99,40 @@ export default function ReservationsPage() {
               <TableCell className="text-muted-foreground max-w-[180px] truncate">{item.sender ?? '-'}</TableCell>
               <TableCell className="hidden md:table-cell text-muted-foreground">{item.receivedAt ? new Date(item.receivedAt).toLocaleDateString('tr-TR') : '-'}</TableCell>
               <TableCell><span className="rounded-full bg-primary/10 text-primary px-2 py-1 text-xs font-medium">{STATUS[item.status] ?? item.status}</span></TableCell>
-              <TableCell><Link href={`/reservations/${item.id}`}><Button variant="ghost" size="sm" className="gap-1"><Sparkles className="w-3.5 h-3.5" />İncele</Button></Link></TableCell>
+              <TableCell className="text-right whitespace-nowrap">
+                <Link href={`/reservations/${item.id}`}><Button variant="ghost" size="sm" className="gap-1"><Sparkles className="w-3.5 h-3.5" />İncele</Button></Link>
+                {/* Server-side reservations.delete is the guarantee; hiding the
+                    button only keeps an action the user cannot perform out of
+                    reach. A converted row is refused by the server too. */}
+                {canDelete && (
+                  <Button
+                    variant="ghost" size="sm"
+                    className="gap-1 text-destructive hover:text-destructive"
+                    onClick={() => setDeleteTarget(item)}
+                    disabled={item.status === 'draft_created'}
+                    title={item.status === 'draft_created' ? 'Önce bağlı operasyonu silin' : 'Kalıcı olarak sil'}
+                    data-testid={`button-delete-reservation-${item.id}`}
+                  ><Trash2 className="w-3.5 h-3.5" /></Button>
+                )}
+              </TableCell>
             </TableRow>)}
         </TableBody>
       </Table>
     </div>
+
+    <DestructiveConfirmDialog
+      open={Boolean(deleteTarget)}
+      onOpenChange={open => { if (!open && !removeReservation.isPending) setDeleteTarget(null); }}
+      title="Rezervasyon kalıcı olarak silinsin mi?"
+      description={<><strong>{deleteTarget?.subject ?? '(Konu yok)'}</strong> kaydı ve AI analiz sonucu veritabanından tamamen kaldırılacak. Bu işlem geri alınamaz.</>}
+      consequences={[
+        'Rezervasyon kaydı ve incelenen/onaylanan alanlar silinir.',
+        'Gmail’den gelen bir kayıtsa, aynı e-posta yeniden taramada tekrar içe aktarılabilir.',
+        'İşlem denetim kaydına (audit log) yazılır.',
+      ]}
+      pending={removeReservation.isPending}
+      onConfirm={() => { if (deleteTarget) removeReservation.mutate(deleteTarget.id); }}
+    />
 
     {/* Manual entry: same field set as the review screen, so the two cannot
         drift. Saving lands the record in the normal review flow. */}

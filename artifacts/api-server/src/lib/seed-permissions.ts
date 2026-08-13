@@ -78,7 +78,12 @@ const MATRIX: PermRow[] = [
   ["operations", "view",    ["admin","operations","accounting","guide"]],
   ["operations", "create",  ["admin","operations"]],
   ["operations", "update",  ["admin","operations","guide"]],  // guide can update tasks
+  // operations.delete still covers the sub-resources (tasks, documents) it
+  // always did. Destroying a whole operation — with its receipts, field notes
+  // and the accounting links the FKs would null — is a different order of
+  // action and gets its own permission rather than riding along on this one.
   ["operations", "delete",  ["admin","operations"]],
+  ["operations", "purge",   ["admin"]],
   ["operations", "approve", ["admin"]],
   ["operations", "assign",  ["admin","operations"]],
   ["operations", "archive", ["admin","operations"]],
@@ -163,6 +168,11 @@ const MATRIX: PermRow[] = [
   ["reservations", "view",   ["admin","operations"]],
   ["reservations", "create", ["admin","operations"]],
   ["reservations", "update", ["admin","operations"]],
+  // Permanent deletion is irreversible and has no recovery path, so it is not
+  // part of the day-to-day operations grant. Kept separate from
+  // reservations.update for the same reason: an operator who reviews inbox rows
+  // does not thereby need the ability to destroy them.
+  ["reservations", "delete", ["admin"]],
 
   // system_control — super_admin only
   ["system_control", "view",   []],

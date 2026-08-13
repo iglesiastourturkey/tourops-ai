@@ -10,6 +10,7 @@
     ,"test:offline-sync": "node scripts/offline-sync-focused-tests.mjs"
     ,"test:reservation-guards": "node scripts/reservation-guard-focused-tests.mjs"
     ,"test:reservation-validation": "node scripts/reservation-validation-focused-tests.mjs"
+    ,"test:deletion-guards": "node scripts/deletion-guard-focused-tests.mjs"
   },
   "private": true,
   "dependencies": {

@@ -43,7 +43,7 @@ export type GoogleConnectionStatus = {
 export type CreateDraftErrorCode =
   | 'approval_required' | 'invalid_approved_data' | 'missing_fields'
   | 'customer_name_required' | 'tour_date_required' | 'invalid_status_transition'
-  | 'draft_confirmation_required' | 'invalid_date_range';
+  | 'draft_confirmation_required' | 'invalid_date_range' | 'operation_linked';
 
 /**
  * A soft check the reviewer may override (duplicate booking reference, past
@@ -87,6 +87,8 @@ export const reservationApi = {
    * this list, so a warning that appeared in the meantime cannot ride along.
    */
   createDraft: (id: number, acknowledgedWarnings: DraftWarning['code'][] = []) => customFetch<{ operation: { id: number }; duplicate: boolean }>(`/api/reservations/${id}/create-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acknowledgedWarnings }) }),
+  /** Permanent deletion. 409 `operation_linked` when a draft was already created. */
+  remove: (id: number) => customFetch(`/api/reservations/${id}`, { method: 'DELETE' }),
   googleStatus: (integration: GoogleIntegration) => customFetch<GoogleConnectionStatus>(`/api/reservations/google-connection?provider=${integration}`),
   authorize: (integration: GoogleIntegration) => customFetch<{ authorizationUrl: string }>(`/api/reservations/google-connection/${integration}/authorize`, { method: 'POST' }),
   disconnect: (integration: GoogleIntegration) => customFetch(`/api/reservations/google-connection/${integration}`, { method: 'DELETE' }),
