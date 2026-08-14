@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: TourPilot güvenlik bildirimi
+    url: https://github.com/mehmetcamofficial/tourops-ai/security/advisories
+    about: Hassas güvenlik bulgularını public issue yerine private advisory ile bildirin.
