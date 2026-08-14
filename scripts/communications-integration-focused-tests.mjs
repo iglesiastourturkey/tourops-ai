@@ -8,11 +8,14 @@ const migration = await readFile(resolve(root, 'lib/db/migrations/0010_communica
 const page = await readFile(resolve(root, 'artifacts/tourops-ai/src/pages/communications.tsx'), 'utf8');
 const client = await readFile(resolve(root, 'artifacts/tourops-ai/src/lib/communications-api.ts'), 'utf8');
 const env = await readFile(resolve(root, 'artifacts/api-server/.env.example'), 'utf8');
+const app = await readFile(resolve(root, 'artifacts/api-server/src/app.ts'), 'utf8');
 
 const checks = [
   [route.includes('createHmac("sha256", secret)'), 'webhook must use HMAC-SHA256'],
   [route.includes('timingSafeEqual'), 'signature comparison must be timing safe'],
   [route.includes('MAX_SIGNATURE_AGE_SECONDS = 300'), 'signature timestamp must expire'],
+  [app.includes('express.json({ limit: "32kb" })'), 'public webhook body must have a narrow size limit'],
+  [route.includes('secret.length < 32'), 'webhook secret must meet the documented minimum length'],
   [route.includes('statusEventSchema') && route.includes('}).strict()'), 'payload must be strict and allowlisted'],
   [route.includes('event.tenantId !== tenantId'), 'tenant must be enforced server-side'],
   [route.includes('.onConflictDoNothing'), 'duplicate events must be idempotent'],
