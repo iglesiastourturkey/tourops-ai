@@ -13,8 +13,9 @@
     "test:deletion-guards": "node scripts/deletion-guard-focused-tests.mjs",
     "test:storage-guide-document": "node scripts/storage-guide-document-focused-tests.mjs",
     "test:communications-readonly": "node scripts/communications-readonly-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:offline-sync",
-    "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync",
+    "verify": "pnpm run typecheck && pnpm run build && pnpm run test",
+    "test:communications-integration": "node scripts/communications-integration-focused-tests.mjs"
   },
   "private": true,
   "dependencies": {
