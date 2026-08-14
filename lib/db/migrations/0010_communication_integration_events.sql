@@ -13,23 +13,26 @@ CREATE TABLE IF NOT EXISTS communication_integration_events (
   tenant_id text NOT NULL,
   event_id text NOT NULL,
   workflow_key text NOT NULL
-    CHECK (workflow_key IN ('whatsapp-tour-sales', 'ai-remarketing')),
+    CONSTRAINT communication_events_workflow_key_check CHECK (workflow_key IN ('whatsapp-tour-sales', 'ai-remarketing')),
   event_type text NOT NULL
-    CHECK (event_type IN ('workflow.started', 'workflow.completed', 'workflow.failed', 'approval.pending')),
+    CONSTRAINT communication_events_event_type_check CHECK (event_type IN ('workflow.started', 'workflow.completed', 'workflow.failed', 'approval.pending')),
   status text NOT NULL
-    CHECK (status IN ('running', 'succeeded', 'failed', 'pending_approval')),
+    CONSTRAINT communication_events_status_check CHECK (status IN ('running', 'succeeded', 'failed', 'pending_approval')),
   channel text
-    CHECK (channel IS NULL OR channel IN ('whatsapp', 'email', 'system')),
+    CONSTRAINT communication_events_channel_check CHECK (channel IS NULL OR channel IN ('whatsapp', 'email', 'system')),
   correlation_id text,
   provider_event_id text,
   summary text,
-  processed_count integer NOT NULL DEFAULT 0 CHECK (processed_count >= 0),
-  pending_approval_count integer NOT NULL DEFAULT 0 CHECK (pending_approval_count >= 0),
-  error_count integer NOT NULL DEFAULT 0 CHECK (error_count >= 0),
+  processed_count integer NOT NULL DEFAULT 0 CONSTRAINT communication_events_processed_count_check CHECK (processed_count >= 0),
+  pending_approval_count integer NOT NULL DEFAULT 0 CONSTRAINT communication_events_pending_count_check CHECK (pending_approval_count >= 0),
+  error_count integer NOT NULL DEFAULT 0 CONSTRAINT communication_events_error_count_check CHECK (error_count >= 0),
   occurred_at timestamptz NOT NULL,
-  received_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT communication_events_tenant_event_unique UNIQUE (tenant_id, event_id)
+  received_at timestamptz NOT NULL DEFAULT now()
+
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS communication_events_tenant_event_uidx
+  ON communication_integration_events (tenant_id, event_id);
 
 CREATE INDEX IF NOT EXISTS communication_events_tenant_received_idx
   ON communication_integration_events (tenant_id, received_at);
