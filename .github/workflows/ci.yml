@@ -40,4 +40,5 @@ jobs:
       - name: Verify
         env:
           PORT: 5173
+          BASE_PATH: /
         run: pnpm verify
