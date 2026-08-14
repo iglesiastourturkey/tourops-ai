@@ -1,4 +1,6 @@
+import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
   pgTable,
@@ -52,6 +54,13 @@ export const communicationIntegrationEventsTable = pgTable(
   },
   (table) => [
     uniqueIndex("communication_events_tenant_event_uidx").on(table.tenantId, table.eventId),
+    check("communication_events_workflow_key_check", sql`${table.workflowKey} IN ('whatsapp-tour-sales', 'ai-remarketing')`),
+    check("communication_events_event_type_check", sql`${table.eventType} IN ('workflow.started', 'workflow.completed', 'workflow.failed', 'approval.pending')`),
+    check("communication_events_status_check", sql`${table.status} IN ('running', 'succeeded', 'failed', 'pending_approval')`),
+    check("communication_events_channel_check", sql`${table.channel} IS NULL OR ${table.channel} IN ('whatsapp', 'email', 'system')`),
+    check("communication_events_processed_count_check", sql`${table.processedCount} >= 0`),
+    check("communication_events_pending_count_check", sql`${table.pendingApprovalCount} >= 0`),
+    check("communication_events_error_count_check", sql`${table.errorCount} >= 0`),
     index("communication_events_tenant_received_idx").on(table.tenantId, table.receivedAt),
     index("communication_events_tenant_workflow_idx").on(table.tenantId, table.workflowKey),
   ],
