@@ -185,7 +185,8 @@ router.get("/status", async (req, res) => {
     return;
   }
 
-  if (!tenantId || !(process.env.COMMUNICATIONS_WEBHOOK_SECRET?.trim())) {
+  const secret = process.env.COMMUNICATIONS_WEBHOOK_SECRET?.trim() ?? "";
+  if (!tenantId || secret.length < 32) {
     res.json({
       configured: false,
       mode: "misconfigured",
@@ -235,7 +236,7 @@ router.get("/status", async (req, res) => {
       message: "Salt-okunur n8n durum entegrasyonu etkin.",
       totals: {
         pendingApprovals: workflows.reduce((sum, item) => sum + item.pendingApprovalCount, 0),
-        openErrors: workflows.reduce((sum, item) => sum + item.errorCount, 0),
+        openErrors: workflows.reduce((sum, item) => sum + Math.max(item.errorCount, item.status === "failed" ? 1 : 0), 0),
         processed: workflows.reduce((sum, item) => sum + item.processedCount, 0),
       },
       workflows,
