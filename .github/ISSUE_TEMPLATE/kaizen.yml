@@ -1,0 +1,68 @@
+name: Kaizen iyileştirmesi
+description: Ölçülebilir bir problem için PLAN → DO → CHECK → ACT kaydı açın.
+title: "[Kaizen] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Küçük, güvenli ve ölçülebilir bir değişiklik planlayın. Kritik aksiyonlar için insan onayı zorunludur.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem ve mevcut davranış
+      description: Etkiyi ve gözlemlenebilir kanıtı yazın.
+    validations:
+      required: true
+  - type: textarea
+    id: target
+    attributes:
+      label: Hedef davranış ve kabul kriterleri
+      description: Ölçülebilir sonuçları belirtin.
+    validations:
+      required: true
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk seviyesi
+      options:
+        - Düşük — dokümantasyon veya izole UI
+        - Orta — uygulama davranışı veya entegrasyon
+        - Yüksek — auth, ödeme, rezervasyon yaşam döngüsü veya veri bütünlüğü
+    validations:
+      required: true
+  - type: checkboxes
+    id: critical_areas
+    attributes:
+      label: Kritik alan kontrolü
+      options:
+        - label: Reservation lifecycle / duplicate / idempotency etkisi değerlendirildi.
+        - label: Auth / server-side RBAC etkisi değerlendirildi.
+        - label: Payment, Sheets veya üçüncü taraf entegrasyon etkisi değerlendirildi.
+        - label: Production secret veya migration gerektirmediği doğrulandı.
+  - type: textarea
+    id: plan
+    attributes:
+      label: PLAN — küçük uygulama adımları
+    validations:
+      required: true
+  - type: textarea
+    id: check
+    attributes:
+      label: CHECK — doğrulama ve ölçüm
+      description: Çalıştırılacak testler, smoke test veya gözlem metriği.
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback planı
+    validations:
+      required: true
+  - type: textarea
+    id: act
+    attributes:
+      label: ACT — standardizasyon
+      description: Başarılı olursa hangi test, ortak utility veya çalışma kuralı kalıcılaşacak?
+    validations:
+      required: true

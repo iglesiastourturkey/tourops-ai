@@ -1,0 +1,44 @@
+name: Özellik / modül geliştirme
+description: Yeni bir TourPilot yeteneğini planlayın.
+title: "[Feature] "
+labels: []
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: İş sonucu
+      description: Kullanıcı veya operasyon açısından beklenen değeri açıklayın.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Kapsam ve kapsam dışı
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Kabul kriterleri
+    validations:
+      required: true
+  - type: checkboxes
+    id: architecture
+    attributes:
+      label: Mimari ve güvenlik kontrolü
+      options:
+        - label: AI yalnızca extraction/öneri sağlar; kararlar kod ve insan onayıyla korunur.
+        - label: Server-side RBAC, idempotency ve duplicate riskleri değerlendirildi.
+        - label: Destructive migration kullanılmayacak veya ayrı onayla planlanacak.
+  - type: textarea
+    id: rollout
+    attributes:
+      label: Test, staging ve rollout planı
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback planı
+    validations:
+      required: true
