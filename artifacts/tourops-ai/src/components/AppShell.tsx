@@ -23,6 +23,7 @@ type NavItem = {
    */
   permission?: [string, string];
   superAdminOnly?: boolean;
+  allowedRoles?: UserRole[];
 };
 
 const navItems: NavItem[] = [
@@ -96,6 +97,7 @@ export function AppShell({ children, title }: AppShellProps) {
   const visibleNavItems = navItems.filter(item => {
     if (profileLoading || !permissionsLoaded) return false;
     if (item.superAdminOnly) return role === 'super_admin';
+    if (item.allowedRoles && role !== 'super_admin' && (!role || !item.allowedRoles.includes(role))) return false;
     if (!item.permission) return true;           // no permission required
     if (allPermissions) return true;             // super_admin sees everything
     const [module, action] = item.permission;
