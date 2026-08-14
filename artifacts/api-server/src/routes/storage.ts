@@ -131,7 +131,12 @@ router.get("/storage/objects/*path", requireAuth, requireActive(), async (req: R
       .where(eq(operationReceiptsTable.photoObjectPath, objectPath))
       .limit(1);
 
-    if (!receipt) {
+    // Normalize the owning operation before role checks. A private object may be
+    // registered either as a receipt photo or as an operation document.
+    let assetOperationId: number;
+    if (receipt) {
+      assetOperationId = receipt.operationId;
+    } else {
       const [document] = await db
         .select({ id: operationDocumentsTable.id, operationId: operationDocumentsTable.operationId })
         .from(operationDocumentsTable)
@@ -141,24 +146,15 @@ router.get("/storage/objects/*path", requireAuth, requireActive(), async (req: R
         res.status(403).json({ error: "Forbidden" });
         return;
       }
-      if (role === "guide") {
-        const [op] = await db
-          .select({ assignedGuideUserId: operationsTable.assignedGuideUserId })
-          .from(operationsTable)
-          .where(eq(operationsTable.id, document.operationId));
-        if (!op || op.assignedGuideUserId !== userId) {
-          res.status(403).json({ error: "Forbidden" });
-          return;
-        }
-      }
+      assetOperationId = document.operationId;
     }
 
-    // Authorization layer 3: guides may only access receipts from their assigned operations
+    // Authorization layer 3: guides may only access assets from their assigned operations.
     if (role === "guide") {
       const [op] = await db
         .select({ assignedGuideUserId: operationsTable.assignedGuideUserId })
         .from(operationsTable)
-        .where(eq(operationsTable.id, receipt.operationId));
+        .where(eq(operationsTable.id, assetOperationId));
       if (!op || op.assignedGuideUserId !== userId) {
         res.status(403).json({ error: "Forbidden" });
         return;
