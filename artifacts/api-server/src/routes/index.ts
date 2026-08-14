@@ -21,6 +21,7 @@ import systemRouter from "./system";
 import auditRouter from "./audit";
 import reservationsRouter from "./reservations";
 import contactRouter from "./contact";
+import communicationsRouter from "./communications";
 
 const router: IRouter = Router();
 
@@ -46,5 +47,6 @@ router.use("/system", systemRouter);
 router.use("/audit", auditRouter);
 router.use("/reservations", reservationsRouter);
 router.use(contactRouter);
+router.use("/communications", communicationsRouter);
 
 export default router;
