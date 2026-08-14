@@ -60,7 +60,7 @@ const UsersPage                    = lazy(() => import('@/pages/users'));
 const RolesPage                    = lazy(() => import('@/pages/roles'));
 const SystemControlPage            = lazy(() => import('@/pages/system-control'));
 const AuditLogPage                 = lazy(() => import('@/pages/audit'));
-const ChangePasswordPage           = lazy(() => import('@/pages/change-password'));
+const ChangePasswordPage           = lazy(() => import('@/pages/change-password'));\nconst CommunicationsPage           = lazy(() => import('@/pages/communications'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -394,7 +394,7 @@ function Router() {
       )} />
       <Route path="/dashboard" component={() => <ProtectedRoleRoute component={Dashboard} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/requests/new" component={() => <ProtectedRoleRoute component={NewRequestPage} roles={['admin', 'operations', 'accounting']} />} />
-      <Route path="/customers" component={() => <ProtectedRoleRoute component={CustomersPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/customers" component={() => <ProtectedRoleRoute component={CustomersPage} roles={['admin', 'operations', 'accounting']} />} />\n      <Route path="/communications" component={() => <ProtectedRoleRoute component={CommunicationsPage} roles={['admin', 'operations']} />} />
       <Route path="/customers/:id" component={() => <ProtectedRoleRoute component={CustomerDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/suppliers" component={() => <ProtectedRoleRoute component={SuppliersPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/suppliers/:id" component={() => <ProtectedRoleRoute component={SupplierDetailPage} roles={['admin', 'operations', 'accounting']} />} />
