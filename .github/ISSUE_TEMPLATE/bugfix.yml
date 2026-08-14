@@ -1,0 +1,52 @@
+name: Hata düzeltme
+description: Tek bir davranış hatasını güvenli biçimde kaydedin ve düzeltin.
+title: "[Fix] "
+labels: []
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: Gözlemlenen davranış
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Beklenen davranış
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Tekrar adımları / kanıt
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Etkilenen alan
+      options:
+        - Reservation core
+        - Auth / RBAC
+        - Payment
+        - AI extraction
+        - Sheets / integration
+        - PWA / offline
+        - Frontend
+        - Backend / database
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Regresyon doğrulaması
+      description: Eklenecek veya çalıştırılacak focused testleri belirtin.
+    validations:
+      required: true
+  - type: textarea
+    id: rollback
+    attributes:
+      label: Rollback planı
+    validations:
+      required: true
