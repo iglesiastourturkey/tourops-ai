@@ -6,11 +6,13 @@
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
-    ,"test:offline-sync": "node scripts/offline-sync-focused-tests.mjs"
-    ,"test:reservation-guards": "node scripts/reservation-guard-focused-tests.mjs"
-    ,"test:reservation-validation": "node scripts/reservation-validation-focused-tests.mjs"
-    ,"test:deletion-guards": "node scripts/deletion-guard-focused-tests.mjs"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "test:offline-sync": "node scripts/offline-sync-focused-tests.mjs",
+    "test:reservation-guards": "node scripts/reservation-guard-focused-tests.mjs",
+    "test:reservation-validation": "node scripts/reservation-validation-focused-tests.mjs",
+    "test:deletion-guards": "node scripts/deletion-guard-focused-tests.mjs",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:offline-sync",
+    "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
   },
   "private": true,
   "dependencies": {
