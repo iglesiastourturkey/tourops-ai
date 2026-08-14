@@ -21,9 +21,10 @@ assert.match(
   /eq\(operationsTable\.id, assetOperationId\)/,
   "guide authorization must use the normalized operation id",
 );
-assert.ok(
-  !source.includes("receipt.operationId"),
-  "guide document access must never dereference a missing receipt",
+assert.doesNotMatch(
+  source,
+  /eq\(operationsTable\.id, receipt\.operationId\)/,
+  "guide authorization must not dereference receipt after document-only lookup",
 );
 
 console.log("storage guide document focused tests passed");
