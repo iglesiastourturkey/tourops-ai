@@ -15,3 +15,4 @@ export * from "./permissions";
 export * from "./system";
 export * from "./offline";
 export * from "./gmail";
+export * from "./outlook";

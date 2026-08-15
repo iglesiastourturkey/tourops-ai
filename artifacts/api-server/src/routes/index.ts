@@ -20,6 +20,7 @@ import rolesRouter from "./roles";
 import systemRouter from "./system";
 import auditRouter from "./audit";
 import reservationsRouter from "./reservations";
+import outlookRouter from "./outlook";
 import contactRouter from "./contact";
 
 const router: IRouter = Router();
@@ -45,6 +46,7 @@ router.use("/roles", rolesRouter);
 router.use("/system", systemRouter);
 router.use("/audit", auditRouter);
 router.use("/reservations", reservationsRouter);
+router.use("/reservations", outlookRouter);
 router.use(contactRouter);
 
 export default router;
