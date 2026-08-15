@@ -6,11 +6,11 @@ import { OfflineIndicator } from '@/components/OfflineIndicator';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
-  BookOpen, Compass, HardHat, Shield, Monitor, Inbox,
+  BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useProfile, ROLE_LABELS } from '@/contexts/ProfileContext';
+import { useProfile, ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { APP_VERSION } from '@/lib/version';
 
 type NavItem = {
@@ -23,6 +23,7 @@ type NavItem = {
    */
   permission?: [string, string];
   superAdminOnly?: boolean;
+  allowedRoles?: UserRole[];
 };
 
 const navItems: NavItem[] = [
@@ -30,6 +31,7 @@ const navItems: NavItem[] = [
   { icon: Compass,         label: 'Görevlerim',         href: '/guide',              permission: ['guide_workspace',  'view']   },
   { icon: Sparkles,        label: 'Yeni Talep',         href: '/requests/new',       permission: ['operations',       'create'] },
   { icon: Users,           label: 'Müşteriler',         href: '/customers',          permission: ['customers',        'view']   },
+  { icon: MessageSquareText,label: 'İletişim & Otomasyonlar', href: '/communications', allowedRoles: ['admin', 'operations'] },
   { icon: Building2,       label: 'Tedarikçiler',       href: '/suppliers',          permission: ['suppliers',        'view']   },
   { icon: MapPin,          label: 'Turlar',             href: '/tours',              permission: ['tours',            'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',         permission: ['quotations',       'view']   },
@@ -95,6 +97,7 @@ export function AppShell({ children, title }: AppShellProps) {
   const visibleNavItems = navItems.filter(item => {
     if (profileLoading || !permissionsLoaded) return false;
     if (item.superAdminOnly) return role === 'super_admin';
+    if (item.allowedRoles && role !== 'super_admin' && (!role || !item.allowedRoles.includes(role))) return false;
     if (!item.permission) return true;           // no permission required
     if (allPermissions) return true;             // super_admin sees everything
     const [module, action] = item.permission;

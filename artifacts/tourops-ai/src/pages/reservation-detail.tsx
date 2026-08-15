@@ -8,11 +8,13 @@ import {
 } from '@/components/reservations/reservation-fields-form';
 import { canRunAction } from '@/lib/reservation-status';
 import { OPERATION_STATUS_LABELS } from '@/lib/labels';
+import { DestructiveConfirmDialog } from '@/components/destructive-confirm-dialog';
+import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, RefreshCw, RotateCcw, Save, Sparkles, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, FileText, RefreshCw, RotateCcw, Save, Sparkles, Trash2, XCircle } from 'lucide-react';
 
 /**
  * Turns a create-draft pre-condition failure into a message that names the
@@ -61,6 +63,13 @@ export default function ReservationDetailPage() {
       toast({ title: 'Taslak oluşturulamadı', description: draftErrorDescription(error), variant: 'destructive' });
     },
   });
+  const canDelete = usePermission('reservations', 'delete');
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const remove = useMutation({
+    mutationFn: () => reservationApi.remove(id),
+    onSuccess: () => { toast({ title: 'Rezervasyon silindi' }); client.invalidateQueries({ queryKey: ['reservations'] }); navigate('/reservations'); },
+    onError: error => { setConfirmDelete(false); toast({ title: 'Silinemedi', description: draftErrorDescription(error), variant: 'destructive' }); },
+  });
   const reopen = useMutation({ mutationFn: () => reservationApi.reopen(id), onSuccess: () => { toast({ title: 'Rezervasyon yeniden incelemeye alındı' }); refresh(); }, onError: error => toast({ title: 'Yeniden açılamadı', description: draftErrorDescription(error), variant: 'destructive' }) });
   const item = detail.data;
   if (detail.isLoading) return <AppShell title="Rezervasyon"><div className="space-y-4"><div className="h-24 bg-muted animate-pulse rounded-xl" /><div className="h-96 bg-muted animate-pulse rounded-xl" /></div></AppShell>;
@@ -103,6 +112,9 @@ export default function ReservationDetailPage() {
         {item.operationId && (
           <Button variant="outline" onClick={() => navigate(`/operations/${item.operationId}`)} className="gap-1"><FileText className="w-4 h-4" />Operasyonu Aç</Button>
         )}
+        {canDelete && !item.operationId && (
+          <Button variant="outline" onClick={() => setConfirmDelete(true)} className="gap-1 text-destructive hover:text-destructive" data-testid="button-delete-reservation"><Trash2 className="w-4 h-4" />Sil</Button>
+        )}
       </div>
     </div>
     <div className="grid gap-4 lg:grid-cols-3">
@@ -138,6 +150,20 @@ export default function ReservationDetailPage() {
         <Card><CardHeader><CardTitle className="text-base flex gap-2 items-center"><FileText className="w-4 h-4" />Orijinal İçerik</CardTitle></CardHeader><CardContent><pre className="max-h-80 overflow-auto whitespace-pre-wrap text-xs text-muted-foreground">{item.plainTextBody ?? '(Düz metin içeriği yok)'}</pre></CardContent></Card>
       </div>
     </div>
+    <DestructiveConfirmDialog
+      open={confirmDelete}
+      onOpenChange={open => { if (!remove.isPending) setConfirmDelete(open); }}
+      title="Rezervasyon kalıcı olarak silinsin mi?"
+      description={<><strong>{item.subject ?? '(Konu yok)'}</strong> kaydı ve AI analiz sonucu veritabanından tamamen kaldırılacak. Bu işlem geri alınamaz.</>}
+      consequences={[
+        'Rezervasyon kaydı, çıkarılan ve onaylanan alanlar birlikte silinir.',
+        'Gmail’den gelen bir kayıtsa, aynı e-posta yeniden taramada tekrar içe aktarılabilir.',
+        'İşlem denetim kaydına (audit log) yazılır.',
+      ]}
+      pending={remove.isPending}
+      onConfirm={() => remove.mutate()}
+    />
+
     {/* Cancelling drops the warnings: the next attempt re-runs the checks
         server-side, so a stale acknowledgement can never be carried forward. */}
     <AlertDialog open={confirmDraft} onOpenChange={open => { setConfirmDraft(open); if (!open) setDraftWarnings([]); }}>

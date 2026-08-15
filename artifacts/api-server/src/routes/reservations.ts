@@ -15,6 +15,7 @@ import {
   parseAcknowledgedWarnings, todayInIstanbul,
   type DuplicateOperationMatch,
 } from "../lib/reservation-validation";
+import { reservationDeleteBlock } from "../lib/deletion-rules";
 import { decryptCredential, encryptCredential } from "../lib/credential-encryption";
 import {
   createAuthorizationUrl, exchangeAuthorizationCode, fetchTourPilotMessages,
@@ -408,6 +409,57 @@ router.patch("/:id/review", requirePermission("reservations", "update"), async (
   await db.update(reservationEmailImportsTable).set({ status: "pending_review" }).where(eq(reservationEmailImportsTable.id, id));
   await createAuditLog({ eventType: "reservation_fields_edited", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "reservation_import", entityId: id, metadata: { importId: id, changedFields: Object.keys(data.data) }, description: "Rezervasyon alanları güncellendi" });
   res.json(updated);
+});
+
+/**
+ * Permanent deletion of an inbox row. Irreversible: the extraction goes with it
+ * through the FK cascade, and there is no archived state to fall back on.
+ *
+ * Restricted to reservations.delete (admin), separate from the update grant the
+ * reviewers hold. Rows already converted into an operation are refused — see
+ * reservationDeleteBlock.
+ */
+router.delete("/:id", requirePermission("reservations", "delete"), async (req, res) => {
+  const id = Number(req.params.id);
+  const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
+  if (!item) { res.status(404).json({ error: "Rezervasyon bulunamadı" }); return; }
+
+  const blocked = reservationDeleteBlock(item.status, item.operationId);
+  if (blocked) {
+    res.status(409).json({ error: blocked.message, code: blocked.code, operationId: item.operationId });
+    return;
+  }
+
+  const [extraction] = await db.select({ id: reservationExtractionsTable.id })
+    .from(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, id)).limit(1);
+
+  await db.transaction(async (tx) => {
+    // The FK cascades this, but deleting it explicitly keeps the statement order
+    // readable and independent of whether the constraint exists in a given
+    // environment.
+    await tx.delete(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, id));
+    await tx.delete(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id));
+  });
+
+  // The audit entry is the only trace left, so it records what the row was —
+  // but never the email body, the sanitized HTML or the attachment list. Those
+  // are the customer's correspondence, and the reason for deleting a record is
+  // usually that it should not be stored in the first place.
+  await createAuditLog({
+    eventType: "reservation_import_deleted",
+    actorProfileId: res.locals.profile.id,
+    module: "reservations",
+    entityType: "reservation_import",
+    entityId: id,
+    oldValue: {
+      id: item.id, source: item.source, status: item.status, subject: item.subject,
+      sender: item.sender, receivedAt: item.receivedAt, gmailMessageId: item.gmailMessageId,
+      createdAt: item.createdAt,
+    },
+    metadata: { importId: id, deletedExtraction: Boolean(extraction), attachmentCount: item.attachments.length },
+    description: "Rezervasyon kaydı kalıcı olarak silindi",
+  });
+  res.status(204).send();
 });
 
 router.post("/:id/reject", requirePermission("reservations", "update"), async (req, res) => {

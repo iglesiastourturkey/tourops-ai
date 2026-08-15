@@ -16,3 +16,4 @@ export * from "./system";
 export * from "./offline";
 export * from "./gmail";
 export * from "./outlook";
+export * from "./communications";

@@ -7,12 +7,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useListOperations, useDeleteOperation, useUpdateOperation, useCreateOperation, useListCustomers, useListTours } from '@workspace/api-client-react';
-import { getListOperationsQueryKey } from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useListOperations, useUpdateOperation, useCreateOperation, useListCustomers, useListTours } from '@workspace/api-client-react';
+import { getListOperationsQueryKey, customFetch } from '@workspace/api-client-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Checkbox } from '@/components/ui/checkbox';
+import { DestructiveConfirmDialog } from '@/components/destructive-confirm-dialog';
+import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ExternalLink, RefreshCw, MoreHorizontal, Archive, Trash2, Plus } from 'lucide-react';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
@@ -23,14 +25,42 @@ export default function OperationsPage() {
   const [, setLocation] = useLocation();
   const [statusFilter, setStatusFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: number } | null>(null);
+  // The whole row, not just the id: the confirm dialog offers to delete the
+  // originating reservation and needs to know whether there is one.
+  const [deleteTarget, setDeleteTarget] = useState<{ id: number; sourceEmailImportId?: number | null } | null>(null);
+  const [withReservation, setWithReservation] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createForm, setCreateForm] = useState({ customerId: '', tourId: '', startDate: '', endDate: '', notes: '' });
 
+  const canPurge = usePermission('operations', 'purge');
   const { data: operations, isLoading, isError, refetch } = useListOperations();
   const { data: customers } = useListCustomers();
   const { data: tours } = useListTours();
-  const deleteMutation = useDeleteOperation();
+  // Hand-written rather than the generated useDeleteOperation hook: the endpoint
+  // takes a withReservation scope flag and can answer 409 when accounting
+  // records block the delete, neither of which the generated signature carries.
+  const deleteMutation = useMutation({
+    mutationFn: ({ id, withReservation: alsoReservation }: { id: number; withReservation: boolean }) =>
+      customFetch(`/api/operations/${id}${alsoReservation ? '?withReservation=true' : ''}`, { method: 'DELETE' }),
+    onSuccess: (_result, variables) => {
+      toast({ title: `OP-${variables.id} silindi` });
+      qc.invalidateQueries({ queryKey: getListOperationsQueryKey() });
+      setDeleteTarget(null);
+      setWithReservation(false);
+    },
+    onError: (error: unknown) => {
+      setDeleteTarget(null);
+      setWithReservation(false);
+      // The financial guard's message names what is blocking; a generic toast
+      // would leave the user without a next step.
+      const body = (error as { data?: { error?: string } } | null)?.data;
+      toast({
+        title: 'Silme başarısız',
+        description: body?.error ?? (error instanceof Error ? error.message : undefined),
+        variant: 'destructive',
+      });
+    },
+  });
   const archiveMutation = useUpdateOperation();
   const createMutation = useCreateOperation();
 
@@ -51,11 +81,7 @@ export default function OperationsPage() {
 
   function confirmDelete() {
     if (!deleteTarget) return;
-    const { id } = deleteTarget;
-    deleteMutation.mutate({ id }, {
-      onSuccess: () => { toast({ title: `OP-${id} silindi` }); qc.invalidateQueries({ queryKey: getListOperationsQueryKey() }); setDeleteTarget(null); },
-      onError: () => { setDeleteTarget(null); toast({ title: 'Silme başarısız', variant: 'destructive' }); },
-    });
+    deleteMutation.mutate({ id: deleteTarget.id, withReservation });
   }
 
   function handleCreateOperation() {
@@ -181,14 +207,19 @@ export default function OperationsPage() {
                             <Archive className="w-3.5 h-3.5" />Arşivle
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="gap-2 text-destructive focus:text-destructive"
-                          onClick={() => setDeleteTarget({ id: op.id })}
-                          data-testid={`button-delete-operation-${op.id}`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />Sil
-                        </DropdownMenuItem>
+                        {/* operations.purge, not operations.delete: destroying a
+                            whole operation is a narrower grant than deleting one
+                            of its tasks. The server enforces it either way. */}
+                        {canPurge && <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="gap-2 text-destructive focus:text-destructive"
+                            onClick={() => { setWithReservation(false); setDeleteTarget({ id: op.id, sourceEmailImportId: op.sourceEmailImportId }); }}
+                            data-testid={`button-delete-operation-${op.id}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />Sil
+                          </DropdownMenuItem>
+                        </>}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -250,26 +281,31 @@ export default function OperationsPage() {
       </Dialog>
 
       {/* ── Delete confirm dialog ──────────────────────────────────────────── */}
-      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Operasyonu sil</AlertDialogTitle>
-            <AlertDialogDescription>
-              <strong>OP-{deleteTarget?.id}</strong> operasyonu, tüm görevleri ve makbuzlarıyla birlikte kalıcı olarak silinecek. Bu işlem geri alınamaz.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>İptal</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={confirmDelete}
-              data-testid="button-confirm-delete-operation"
-            >
-              Sil
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <DestructiveConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={open => { if (!open && !deleteMutation.isPending) { setDeleteTarget(null); setWithReservation(false); } }}
+        title="Operasyon kalıcı olarak silinsin mi?"
+        description={<><strong>OP-{deleteTarget?.id}</strong> operasyonu ve ona bağlı tüm kayıtlar veritabanından tamamen kaldırılacak. Bu işlem geri alınamaz — geri dönüşü olan seçenek "Arşivle".</>}
+        consequences={[
+          'Görevler, makbuzlar, dokümanlar, saha notları, konum kayıtları ve durum geçmişi silinir.',
+          'Bağlı saha olayları ile muhasebe kayıtları silinmez; operasyon bağlantıları boşa düşer.',
+          'Onaylanmış veya ödenmiş muhasebe kaydı varsa sunucu silmeyi reddeder.',
+          'İşlem denetim kaydına (audit log) silinen kayıt sayılarıyla birlikte yazılır.',
+        ]}
+        extra={deleteTarget?.sourceEmailImportId ? (
+          <label className="flex items-start gap-2.5 text-sm cursor-pointer rounded-md border px-3 py-2.5">
+            <Checkbox checked={withReservation} onCheckedChange={checked => setWithReservation(checked === true)} className="mt-0.5" data-testid="checkbox-delete-reservation" />
+            <span>
+              Bu operasyonun geldiği <strong>rezervasyon kaydını da sil</strong>.
+              <span className="block text-xs text-muted-foreground mt-0.5">
+                İşaretlenmezse rezervasyon “Kontrol Bekliyor” durumuna geri döner ve yeniden taslak oluşturulabilir.
+              </span>
+            </span>
+          </label>
+        ) : undefined}
+        pending={deleteMutation.isPending}
+        onConfirm={confirmDelete}
+      />
     </AppShell>
   );
 }

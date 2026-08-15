@@ -68,6 +68,11 @@ app.use(
         : true,
   }),
 );
+// The public n8n status endpoint accepts a small, strict telemetry contract.
+app.use(
+  "/api/communications/webhooks/n8n/status",
+  express.json({ limit: "32kb" }),
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
