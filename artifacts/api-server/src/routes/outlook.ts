@@ -6,6 +6,7 @@ import { microsoftConnectionsTable, reservationEmailImportsTable } from "@worksp
 import { requireAuth, requireActive, requirePermission } from "../lib/auth";
 import { createAuditLog } from "../lib/audit";
 import { decryptCredential, encryptCredential } from "../lib/credential-encryption";
+import { buildOAuthSuccessRedirectUrl } from "../lib/oauth-redirect";
 import {
   createAuthorizationUrl, exchangeAuthorizationCode, fetchTourPilotMessages,
   isMicrosoftOAuthConfigured, refreshAccessToken, verifyMicrosoftAccount, OUTLOOK_SCOPE,
@@ -76,7 +77,7 @@ router.get("/outlook-connection/callback", async (req, res) => {
       },
     });
     await createAuditLog({ eventType: "microsoft_connection_created", actorProfileId: parsedState.profileId, module: "reservations", metadata: { integration: "outlook" }, description: "Outlook rezervasyon bağlantısı oluşturuldu" });
-    res.redirect(process.env.MICROSOFT_OAUTH_SUCCESS_URL?.trim() || "/settings?outlook=connected");
+    res.redirect(buildOAuthSuccessRedirectUrl(process.env.MICROSOFT_OAUTH_SUCCESS_URL, "/settings?outlook=connected"));
   } catch (error) {
     req.log.error({ err: error }, "Microsoft OAuth callback failed");
     res.status(502).send("Outlook bağlantısı tamamlanamadı. Ayarları kontrol edip tekrar deneyin.");

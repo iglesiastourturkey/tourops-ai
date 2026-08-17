@@ -17,6 +17,7 @@ import {
 } from "../lib/reservation-validation";
 import { reservationDeleteBlock } from "../lib/deletion-rules";
 import { decryptCredential, encryptCredential } from "../lib/credential-encryption";
+import { buildOAuthSuccessRedirectUrl } from "../lib/oauth-redirect";
 import {
   createAuthorizationUrl, exchangeAuthorizationCode, fetchTourPilotMessages,
   isGoogleOAuthConfigured, refreshAccessToken, revokeGoogleCredential, verifyGoogleAccount,
@@ -185,7 +186,7 @@ router.get("/google-connection/callback", async (req, res) => {
       },
     });
     await createAuditLog({ eventType: "google_connection_created", actorProfileId: parsedState.profileId, module: "reservations", metadata: { integration: parsedState.integration }, description: "Google Workspace bağlantısı oluşturuldu" });
-    res.redirect(process.env.GOOGLE_OAUTH_SUCCESS_URL?.trim() || "/settings?google=connected");
+    res.redirect(buildOAuthSuccessRedirectUrl(process.env.GOOGLE_OAUTH_SUCCESS_URL, "/settings?google=connected"));
   } catch {
     res.status(502).send("Google bağlantısı tamamlanamadı. Ayarları kontrol edip tekrar deneyin.");
   }
