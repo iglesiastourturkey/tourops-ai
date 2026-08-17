@@ -46,8 +46,12 @@ router.use("/field", fieldRouter);
 router.use("/roles", rolesRouter);
 router.use("/system", systemRouter);
 router.use("/audit", auditRouter);
-router.use("/reservations", reservationsRouter);
+// outlookRouter must mount before reservationsRouter: reservations.ts has
+// generic single-segment routes (GET /:id, DELETE /:id) that would otherwise
+// swallow /outlook-connection and /outlook-scan before Express ever reaches
+// outlook.ts's more specific literal routes.
 router.use("/reservations", outlookRouter);
+router.use("/reservations", reservationsRouter);
 router.use(contactRouter);
 router.use("/communications", communicationsRouter);
 

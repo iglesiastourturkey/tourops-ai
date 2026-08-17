@@ -83,9 +83,15 @@ router.get("/outlook-connection/callback", async (req, res) => {
   }
 });
 
-router.use(requireAuth, requireActive());
-
-router.get("/outlook-connection", requirePermission("settings", "manage"), async (_req, res) => {
+// Applied per-route below (not via a blanket router.use()) because this
+// router is mounted before reservationsRouter at the same "/reservations"
+// prefix (see routes/index.ts) so that its literal paths — /outlook-connection,
+// /outlook-scan — aren't swallowed by reservations.ts's generic /:id and
+// DELETE /:id routes. A blanket router.use(requireAuth, ...) here would run
+// for every unmatched request under /reservations/* before it falls through
+// to reservationsRouter, which would incorrectly gate reservations.ts's own
+// unauthenticated route (GET /google-connection/callback).
+router.get("/outlook-connection", requireAuth, requireActive(), requirePermission("settings", "manage"), async (_req, res) => {
   const [connection] = await db.select().from(microsoftConnectionsTable)
     .where(and(eq(microsoftConnectionsTable.profileId, res.locals.profile.id), eq(microsoftConnectionsTable.provider, "outlook")))
     .limit(1);
@@ -99,12 +105,12 @@ router.get("/outlook-connection", requirePermission("settings", "manage"), async
   });
 });
 
-router.post("/outlook-connection/authorize", requirePermission("settings", "manage"), async (_req, res) => {
+router.post("/outlook-connection/authorize", requireAuth, requireActive(), requirePermission("settings", "manage"), async (_req, res) => {
   if (!isMicrosoftOAuthConfigured()) { res.status(503).json({ error: "Microsoft OAuth yapılandırılmamış" }); return; }
   res.json({ authorizationUrl: createAuthorizationUrl(oauthState(res.locals.profile.id)) });
 });
 
-router.delete("/outlook-connection", requirePermission("settings", "manage"), async (_req, res) => {
+router.delete("/outlook-connection", requireAuth, requireActive(), requirePermission("settings", "manage"), async (_req, res) => {
   const [connection] = await db.select().from(microsoftConnectionsTable)
     .where(and(eq(microsoftConnectionsTable.profileId, res.locals.profile.id), eq(microsoftConnectionsTable.provider, "outlook")))
     .limit(1);
@@ -117,7 +123,7 @@ router.delete("/outlook-connection", requirePermission("settings", "manage"), as
   res.status(204).send();
 });
 
-router.post("/outlook-scan", requirePermission("reservations", "create"), async (_req, res) => {
+router.post("/outlook-scan", requireAuth, requireActive(), requirePermission("reservations", "create"), async (_req, res) => {
   const [connection] = await db.select().from(microsoftConnectionsTable)
     .where(and(eq(microsoftConnectionsTable.profileId, res.locals.profile.id), eq(microsoftConnectionsTable.provider, "outlook")))
     .limit(1);
