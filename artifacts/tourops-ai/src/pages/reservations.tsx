@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
-import { reservationApi, createDraftError, type ReservationImport } from '@/lib/reservation-api';
+import { reservationApi, outlookApi, createDraftError, type ReservationImport } from '@/lib/reservation-api';
 import { DestructiveConfirmDialog } from '@/components/destructive-confirm-dialog';
 import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/button';
@@ -69,6 +69,15 @@ export default function ReservationsPage() {
     onError: (error) => toast({ title: 'Tarama başarısız', description: error.message, variant: 'destructive' }),
   });
 
+  const scanOutlook = useMutation({
+    mutationFn: outlookApi.scan,
+    onSuccess: (result) => {
+      toast({ title: 'Tarama tamamlandı', description: `${result.imported} yeni e-posta içe aktarıldı.` });
+      queryClient.invalidateQueries({ queryKey: ['reservations'] });
+    },
+    onError: (error) => toast({ title: 'Tarama başarısız', description: error.message, variant: 'destructive' }),
+  });
+
   return <AppShell title="Gelen Rezervasyonlar">
     <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center">
       <div className="relative flex-1 max-w-md">
@@ -82,11 +91,14 @@ export default function ReservationsPage() {
       <Button className="gap-2" onClick={() => scan.mutate()} disabled={scan.isPending} data-testid="button-scan-reservations">
         <RefreshCw className={`w-4 h-4 ${scan.isPending ? 'animate-spin' : ''}`} />{scan.isPending ? 'Taranıyor...' : 'Gmail’i Tara'}
       </Button>
+      <Button variant="outline" className="gap-2" onClick={() => scanOutlook.mutate()} disabled={scanOutlook.isPending} data-testid="button-scan-outlook">
+        <RefreshCw className={`w-4 h-4 ${scanOutlook.isPending ? 'animate-spin' : ''}`} />{scanOutlook.isPending ? 'Taranıyor...' : 'Outlook’u Tara'}
+      </Button>
       <Button variant="outline" className="gap-2" onClick={() => setManualOpen(true)} data-testid="button-new-reservation">
         <Plus className="w-4 h-4" />Yeni Rezervasyon
       </Button>
     </div>
-    <p className="text-xs text-muted-foreground mb-4">Sadece Gmail’deki <strong>TourPilot</strong> etiketi manuel olarak taranır. E-postalar otomatik olarak operasyon oluşturmaz.</p>
+    <p className="text-xs text-muted-foreground mb-4">Sadece Gmail’deki <strong>TourPilot</strong> etiketi ve Outlook’taki <strong>TourPilot</strong> kategorisi manuel olarak taranır. E-postalar otomatik olarak operasyon oluşturmaz.</p>
     <div className="border rounded-lg overflow-hidden bg-card">
       <Table>
         <TableHeader><TableRow><TableHead>Konu</TableHead><TableHead>Gönderen</TableHead><TableHead className="hidden md:table-cell">Tarih</TableHead><TableHead>Durum</TableHead><TableHead /></TableRow></TableHeader>

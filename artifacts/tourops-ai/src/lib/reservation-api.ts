@@ -33,6 +33,17 @@ export type GoogleConnectionStatus = {
     driveAccessSummary: string | null;
   } | null;
 };
+export type MicrosoftConnectionStatus = {
+  configured: boolean;
+  missingConfiguration: string[];
+  connection: {
+    microsoftAccountEmail: string | null;
+    status: string;
+    lastError: string | null;
+    grantedScopes: string[];
+    lastSuccessfulAccessAt: string | null;
+  } | null;
+};
 
 /**
  * Structured 400 body returned by POST /api/reservations/:id/create-draft when a
@@ -92,4 +103,11 @@ export const reservationApi = {
   googleStatus: (integration: GoogleIntegration) => customFetch<GoogleConnectionStatus>(`/api/reservations/google-connection?provider=${integration}`),
   authorize: (integration: GoogleIntegration) => customFetch<{ authorizationUrl: string }>(`/api/reservations/google-connection/${integration}/authorize`, { method: 'POST' }),
   disconnect: (integration: GoogleIntegration) => customFetch(`/api/reservations/google-connection/${integration}`, { method: 'DELETE' }),
+};
+
+export const outlookApi = {
+  status: () => customFetch<MicrosoftConnectionStatus>('/api/reservations/outlook-connection'),
+  authorize: () => customFetch<{ authorizationUrl: string }>('/api/reservations/outlook-connection/authorize', { method: 'POST' }),
+  disconnect: () => customFetch('/api/reservations/outlook-connection', { method: 'DELETE' }),
+  scan: () => customFetch<{ scanned: number; imported: number }>('/api/reservations/outlook-scan', { method: 'POST' }),
 };

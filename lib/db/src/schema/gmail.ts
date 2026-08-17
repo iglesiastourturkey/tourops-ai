@@ -1,6 +1,8 @@
 import { pgTable, serial, text, integer, timestamp, jsonb, uniqueIndex } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { profilesTable } from "./profiles";
 import { operationsTable } from "./operations";
+import { microsoftConnectionsTable } from "./microsoft";
 
 export const googleConnectionsTable = pgTable("google_connections", {
   id: serial("id").primaryKey(),
@@ -23,13 +25,17 @@ export const googleConnectionsTable = pgTable("google_connections", {
 
 export const reservationEmailImportsTable = pgTable("reservation_email_imports", {
   id: serial("id").primaryKey(),
-  // Origin of the row: "gmail" for scanned messages, "manual" for operator-entered
-  // reservations. Manual rows have no Gmail identity, so the two columns below are
-  // nullable — see migrations/0008_manual_reservations.sql.
+  // Origin of the row: "gmail" | "outlook" for scanned messages, "manual" for
+  // operator-entered reservations. Manual rows have no mailbox identity, so the
+  // identity columns below are nullable — see migrations/0008_manual_reservations.sql
+  // and 0011_microsoft_connections.sql.
   source: text("source").notNull().default("gmail"),
   connectionId: integer("connection_id").references(() => googleConnectionsTable.id, { onDelete: "cascade" }),
   gmailMessageId: text("gmail_message_id"),
   gmailThreadId: text("gmail_thread_id"),
+  microsoftConnectionId: integer("microsoft_connection_id").references(() => microsoftConnectionsTable.id, { onDelete: "cascade" }),
+  outlookMessageId: text("outlook_message_id"),
+  outlookConversationId: text("outlook_conversation_id"),
   sender: text("sender"),
   recipients: text("recipients"),
   subject: text("subject"),
@@ -44,6 +50,9 @@ export const reservationEmailImportsTable = pgTable("reservation_email_imports",
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
   connectionMessageUnique: uniqueIndex("reservation_import_connection_message_idx").on(table.connectionId, table.gmailMessageId),
+  microsoftConnectionMessageUnique: uniqueIndex("reservation_import_microsoft_message_idx")
+    .on(table.microsoftConnectionId, table.outlookMessageId)
+    .where(sql`${table.microsoftConnectionId} IS NOT NULL`),
 }));
 
 export const reservationExtractionsTable = pgTable("reservation_extractions", {

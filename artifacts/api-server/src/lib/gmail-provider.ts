@@ -1,8 +1,8 @@
 import { OAuth2Client } from "google-auth-library";
+import { MAX_EMAIL_BODY_CHARS, sanitizeEmailHtml } from "./email-sanitize";
 
 export const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 export const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
-const MAX_BODY_CHARS = 50_000;
 const MAX_MESSAGES_PER_SCAN = 50;
 
 export type GmailMessage = {
@@ -85,15 +85,6 @@ function collectMessageContent(part: GmailPart, content: { text: string[]; html:
   for (const child of part.parts ?? []) collectMessageContent(child, content);
 }
 
-function sanitizeHtml(html: string) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
-    .replace(/javascript:/gi, "")
-    .slice(0, MAX_BODY_CHARS);
-}
-
 async function gmailFetch<T>(accessToken: string, path: string) {
   const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -157,8 +148,8 @@ export async function fetchTourPilotMessages(accessToken: string): Promise<Gmail
       recipients: headerValue(payload.headers, "To"),
       subject: headerValue(payload.headers, "Subject"),
       receivedAt: raw.internalDate ? new Date(Number(raw.internalDate)) : null,
-      plainTextBody: content.text.join("\n").slice(0, MAX_BODY_CHARS) || null,
-      sanitizedHtmlBody: content.html.length ? sanitizeHtml(content.html.join("\n")) : null,
+      plainTextBody: content.text.join("\n").slice(0, MAX_EMAIL_BODY_CHARS) || null,
+      sanitizedHtmlBody: content.html.length ? sanitizeEmailHtml(content.html.join("\n")) : null,
       attachments: content.attachments,
     };
   }));

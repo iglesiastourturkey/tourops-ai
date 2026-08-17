@@ -20,6 +20,7 @@ import rolesRouter from "./roles";
 import systemRouter from "./system";
 import auditRouter from "./audit";
 import reservationsRouter from "./reservations";
+import outlookRouter from "./outlook";
 import contactRouter from "./contact";
 import communicationsRouter from "./communications";
 
@@ -46,6 +47,7 @@ router.use("/roles", rolesRouter);
 router.use("/system", systemRouter);
 router.use("/audit", auditRouter);
 router.use("/reservations", reservationsRouter);
+router.use("/reservations", outlookRouter);
 router.use(contactRouter);
 router.use("/communications", communicationsRouter);
 

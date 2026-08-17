@@ -17,8 +17,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Save, Plus, Trash2, Mail, HardDrive, RefreshCw, Unplug, ShieldCheck } from 'lucide-react';
 import { ROLE_LABELS, type UserRole } from '@/contexts/ProfileContext';
 import { usePermission } from '@/hooks/usePermission';
-import { reservationApi, type GoogleIntegration } from '@/lib/reservation-api';
+import { reservationApi, outlookApi, type GoogleIntegration } from '@/lib/reservation-api';
 import { GoogleIntegrationCard } from '@/components/GoogleIntegrationCard';
+import { OutlookIntegrationCard } from '@/components/OutlookIntegrationCard';
 import { DeviceSettingsCard } from '@/components/DeviceSettingsCard';
 
 const CURRENCIES = ['TRY', 'EUR', 'USD', 'GBP'];
@@ -65,6 +66,17 @@ export default function SettingsPage() {
     onSuccess: () => { toast({ title: 'Google Workspace bağlantısı kaldırıldı' }); void gmailConnection.refetch(); void driveConnection.refetch(); },
     onError: error => toast({ title: 'Bağlantı kaldırılamadı', description: error.message, variant: 'destructive' }),
   });
+  const outlookConnection = useQuery({ queryKey: ['outlook-connection'], queryFn: () => outlookApi.status(), enabled: canManageSettings });
+  const connectOutlook = useMutation({
+    mutationFn: outlookApi.authorize,
+    onSuccess: ({ authorizationUrl }) => { window.location.assign(authorizationUrl); },
+    onError: error => toast({ title: 'Outlook bağlantısı başlatılamadı', description: error.message, variant: 'destructive' }),
+  });
+  const disconnectOutlook = useMutation({
+    mutationFn: outlookApi.disconnect,
+    onSuccess: () => { toast({ title: 'Outlook bağlantısı kaldırıldı' }); void outlookConnection.refetch(); },
+    onError: error => toast({ title: 'Bağlantı kaldırılamadı', description: error.message, variant: 'destructive' }),
+  });
 
   const [agencyForm, setAgencyForm] = useState({ name: '', address: '', phone: '', email: '', website: '', defaultCurrency: 'TRY', defaultProfitMargin: 20, minProfitWarning: 10, defaultQuotationValidity: 7, cancellationPolicy: '', paymentTerms: '', cruiseSafetyBufferMinutes: 30 });
   const [editRates, setEditRates] = useState<Record<number, number>>({});
@@ -75,6 +87,7 @@ export default function SettingsPage() {
   const [newTemplateDialogOpen, setNewTemplateDialogOpen] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', type: 'quotation', subject: '', body: '', language: 'tr' });
   const [disconnectTarget, setDisconnectTarget] = useState<GoogleIntegration | null>(null);
+  const [outlookDisconnectOpen, setOutlookDisconnectOpen] = useState(false);
   const [nameForm, setNameForm] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -323,7 +336,7 @@ export default function SettingsPage() {
         </TabsContent>
 
         {canManageSettings && <TabsContent value="google">
-          {(gmailConnection.isLoading || driveConnection.isLoading) ? <Skeleton className="h-72 w-full" /> : (
+          {(gmailConnection.isLoading || driveConnection.isLoading || outlookConnection.isLoading) ? <Skeleton className="h-72 w-full" /> : (
             <div className="max-w-4xl space-y-4">
               {!gmailConnection.data?.configured && (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -331,9 +344,16 @@ export default function SettingsPage() {
                   <p className="mt-1">Bağlantıları etkinleştirmek için şu sunucu ayarlarını ekleyin: {(gmailConnection.data?.missingConfiguration ?? []).join(', ')}.</p>
                 </div>
               )}
+              {!outlookConnection.data?.configured && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+                  <p className="font-medium">Microsoft OAuth henüz yapılandırılmamış.</p>
+                  <p className="mt-1">Bağlantıyı etkinleştirmek için şu sunucu ayarlarını ekleyin: {(outlookConnection.data?.missingConfiguration ?? []).join(', ')}.</p>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                 <GoogleIntegrationCard integration="gmail" title="Gmail Rezervasyon Bağlantısı" description="TourPilot etiketli rezervasyon e-postalarını okumak ve sisteme aktarmak için Gmail hesabınızı bağlayın." icon={<Mail className="h-5 w-5" />} scope="https://www.googleapis.com/auth/gmail.readonly" connection={gmailConnection.data?.connection ?? null} configured={gmailConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('gmail')} onDisconnect={() => setDisconnectTarget('gmail')} />
                 <GoogleIntegrationCard integration="drive" title="Google Drive Bağlantısı" description="Rezervasyon dosyalarına ve TourPilot tarafından oluşturulan veya seçtiğiniz Drive dosyalarına erişmek için hesabınızı bağlayın." icon={<HardDrive className="h-5 w-5" />} scope="https://www.googleapis.com/auth/drive.file" connection={driveConnection.data?.connection ?? null} configured={driveConnection.data?.configured ?? false} pending={connectGoogle.isPending || disconnectGoogle.isPending} onConnect={() => connectGoogle.mutate('drive')} onDisconnect={() => setDisconnectTarget('drive')} />
+                <OutlookIntegrationCard connection={outlookConnection.data?.connection ?? null} configured={outlookConnection.data?.configured ?? false} pending={connectOutlook.isPending || disconnectOutlook.isPending} onConnect={() => connectOutlook.mutate()} onDisconnect={() => setOutlookDisconnectOpen(true)} />
               </div>
             </div>
           )}
@@ -353,6 +373,23 @@ export default function SettingsPage() {
             <Button variant="outline" onClick={() => setDisconnectTarget(null)}>Vazgeç</Button>
             <Button variant="destructive" disabled={disconnectGoogle.isPending} onClick={() => { if (disconnectTarget) disconnectGoogle.mutate(disconnectTarget, { onSuccess: () => setDisconnectTarget(null) }); }}>
               {disconnectGoogle.isPending ? 'Kesiliyor...' : 'Bağlantıyı Kes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={outlookDisconnectOpen} onOpenChange={setOutlookDisconnectOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Outlook bağlantısı kesilsin mi?</DialogTitle>
+            <DialogDescription>
+              Bu işlem mevcut içe aktarılmış e-postaları veya oluşturulmuş operasyonları silmez. Erişim belirteci yerelde kaldırılır.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOutlookDisconnectOpen(false)}>Vazgeç</Button>
+            <Button variant="destructive" disabled={disconnectOutlook.isPending} onClick={() => disconnectOutlook.mutate(undefined, { onSuccess: () => setOutlookDisconnectOpen(false) })}>
+              {disconnectOutlook.isPending ? 'Kesiliyor...' : 'Bağlantıyı Kes'}
             </Button>
           </DialogFooter>
         </DialogContent>
