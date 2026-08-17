@@ -81,6 +81,11 @@ Add `OPENAI_API_KEY=sk-...` to your `.env`. All four AI routes fall back to safe
 | `GOOGLE_OAUTH_CLIENT_SECRET` | ⚠️ Gmail/Drive | — | Google Cloud OAuth web client secret |
 | `GOOGLE_OAUTH_REDIRECT_URI` | ⚠️ Gmail/Drive | — | Must be the public API callback URL ending in `/api/reservations/google-connection/callback` |
 | `GOOGLE_OAUTH_SUCCESS_URL` | optional | `/settings?google=connected` | Where to return after a successful Google authorization |
+| `MICROSOFT_OAUTH_CLIENT_ID` | ⚠️ Outlook | — | Azure AD / Microsoft Entra ID app registration client ID for the Outlook mail connection |
+| `MICROSOFT_OAUTH_CLIENT_SECRET` | ⚠️ Outlook | — | Azure AD app registration client secret |
+| `MICROSOFT_OAUTH_REDIRECT_URI` | ⚠️ Outlook | — | Must be the public API callback URL ending in `/api/reservations/outlook-connection/callback` |
+| `MICROSOFT_OAUTH_TENANT_ID` | ⚠️ Outlook | — | Directory (tenant) ID; required because the app registration is single-tenant |
+| `MICROSOFT_OAUTH_SUCCESS_URL` | optional | `/settings?outlook=connected` | Where to return after a successful Outlook authorization |
 | `CONTACT_SMTP_HOST` | ⚠️ Contact form | — | SMTP server hostname for public contact-form delivery |
 | `CONTACT_SMTP_PORT` | ⚠️ Contact form | — | SMTP port, usually `587` (STARTTLS) or `465` (TLS) |
 | `CONTACT_SMTP_SECURE` | optional | `false` | Set `true` only for implicit TLS, normally port `465` |
@@ -148,6 +153,16 @@ The Gmail reservation inbox is deliberately **manual**: it only scans messages c
 3. Configure `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI` as server-side secrets. Optionally configure `GOOGLE_OAUTH_SUCCESS_URL` to return to the app’s Settings page.
 4. The implementation requests only the Gmail read-only scope: `https://www.googleapis.com/auth/gmail.readonly`. The optional Drive integration uses the limited `https://www.googleapis.com/auth/drive.file` scope.
 5. A super admin or admin opens **Ayarlar → Google Workspace** and connects the mailbox. Operations staff can then scan and review imports, but cannot authorize or disconnect the mailbox.
+
+### Outlook connection setup
+
+The Outlook connection mirrors the Gmail flow end-to-end: connect/disconnect a mailbox (encrypted refresh token via `microsoft_connections`), then manually scan it — a super admin/admin or operations staff selects **Outlook'u Tara** in Rezervasyonlar, which reads messages carrying the `TourPilot` category via Microsoft Graph (`/me/mailFolders/inbox/messages`) and writes them into `reservation_email_imports` with `source: "outlook"`, deduped on `(microsoft_connection_id, outlook_message_id)`. It does not monitor the mailbox in the background or create final operations automatically. Microsoft has no equivalent of Google's `/oauth2/revoke`, so disconnecting only removes the local connection row.
+
+1. In the Azure Portal, register an app under **Microsoft Entra ID → App registrations** (name, e.g., "TourPilot Outlook Integration"; supported account types: single tenant).
+2. Add a **Web** platform redirect URI matching `MICROSOFT_OAUTH_REDIRECT_URI` exactly. Its path must be `/api/reservations/outlook-connection/callback`.
+3. Under **API permissions → Microsoft Graph → Delegated permissions**, add `Mail.Read`.
+4. Under **Certificates & secrets**, create a client secret. Configure `MICROSOFT_OAUTH_CLIENT_ID`, `MICROSOFT_OAUTH_CLIENT_SECRET`, `MICROSOFT_OAUTH_REDIRECT_URI`, and `MICROSOFT_OAUTH_TENANT_ID` (the app registration's Directory/tenant ID) as server-side secrets. Optionally configure `MICROSOFT_OAUTH_SUCCESS_URL`.
+5. A super admin or admin opens **Ayarlar → Google Workspace** (the Outlook card lives alongside Gmail/Drive) and connects the mailbox. Operations staff can then scan and review imports, but cannot authorize or disconnect the mailbox.
 
 ### Landing-page contact form setup
 
