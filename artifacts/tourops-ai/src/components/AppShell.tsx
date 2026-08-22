@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
   { icon: Sparkles,        label: 'Yeni Talep',         href: '/requests/new',       permission: ['operations',       'create'] },
   { icon: Users,           label: 'Müşteriler',         href: '/customers',          permission: ['customers',        'view']   },
   { icon: MessageSquareText,label: 'İletişim & Otomasyonlar', href: '/communications', allowedRoles: ['admin', 'operations'] },
+  { icon: ClipboardList,   label: 'Gözlem İncelemesi',  href: '/external-observations', allowedRoles: ['admin', 'operations'] },
   { icon: Building2,       label: 'Tedarikçiler',       href: '/suppliers',          permission: ['suppliers',        'view']   },
   { icon: MapPin,          label: 'Turlar',             href: '/tours',              permission: ['tours',            'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',         permission: ['quotations',       'view']   },
