@@ -23,3 +23,4 @@ export * from "./ships";
 export * from "./ports";
 export * from "./port_calls";
 export * from "./vehicles";
+export * from "./resources";
