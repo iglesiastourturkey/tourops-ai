@@ -23,6 +23,7 @@ import reservationsRouter from "./reservations";
 import outlookRouter from "./outlook";
 import contactRouter from "./contact";
 import communicationsRouter from "./communications";
+import externalObservationsRouter from "./external-observations";
 
 const router: IRouter = Router();
 
@@ -54,5 +55,6 @@ router.use("/reservations", outlookRouter);
 router.use("/reservations", reservationsRouter);
 router.use(contactRouter);
 router.use("/communications", communicationsRouter);
+router.use("/external-observations", externalObservationsRouter);
 
 export default router;
