@@ -24,3 +24,4 @@ export * from "./ports";
 export * from "./port_calls";
 export * from "./vehicles";
 export * from "./resources";
+export * from "./external_port_call_observations";
