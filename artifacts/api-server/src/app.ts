@@ -73,6 +73,11 @@ app.use(
   "/api/communications/webhooks/n8n/status",
   express.json({ limit: "32kb" }),
 );
+// The public sheet-import webhook accepts a small, strict row-sync contract.
+app.use(
+  "/api/sheet-import/webhook",
+  express.json({ limit: "64kb" }),
+);
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
