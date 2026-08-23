@@ -30,6 +30,18 @@ export const sheetReservationImportsTable = pgTable("sheet_reservation_imports",
   matchedOperationId: integer("matched_operation_id").references(() => operationsTable.id, { onDelete: "set null" }),
   matchedCustomerId: integer("matched_customer_id").references(() => customersTable.id, { onDelete: "set null" }),
 
+    // ── Faz 5: proposed structured mapping, editable before approve ───────────
+    // rowData above stays the untouched source of truth. mappedData is an
+    // editable proposed structured mapping the reviewer can correct via
+    // PATCH /:id/review before /approve - mirrors reservation_extractions'
+    // approvedData pattern. The *MatchStatus columns surface whether the
+    // tour-product/port-call matching found a confident match, so the review
+    // UI can warn instead of silently guessing (see
+    // PLAN_Sheet_Import_Mapping_Refactor.md).
+    mappedData: jsonb("mapped_data"),
+    tourProductMatchStatus: text("tour_product_match_status"), // matched | alias_matched | unmatched
+    portCallMatchStatus: text("port_call_match_status"), // matched | new_port_call | time_changed | unmatched
+
   approvedAt: timestamp("approved_at", { withTimezone: true }),
   approvedBy: integer("approved_by").references(() => profilesTable.id, { onDelete: "set null" }),
   rejectedAt: timestamp("rejected_at", { withTimezone: true }),
