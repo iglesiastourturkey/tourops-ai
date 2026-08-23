@@ -6,6 +6,10 @@ import { quotationsTable } from "./quotations";
 import { toursTable } from "./tours";
 import { customersTable } from "./customers";
 import { profilesTable } from "./profiles";
+import { portCallsTable } from "./port_calls";
+import { tourProductsTable } from "./tour_products";
+import { resourcesTable } from "./resources";
+import { vehiclesTable } from "./vehicles";
 
 export const operationsTable = pgTable("operations", {
   id: serial("id").primaryKey(),
@@ -38,6 +42,17 @@ export const operationsTable = pgTable("operations", {
   emergencyContact2Phone: text("emergency_contact2_phone"),
   // Assigned guide user (Clerk userId, soft FK to profiles)
   assignedGuideUserId: text("assigned_guide_user_id"),
+    // ── Faz 5: structured scheduling + master-data links ──────────────────────
+    // Additive. guideName/guidePhone/driverName/driverPhone/vehiclePlate above
+    // remain the primary source and are untouched - these are populated in
+    // addition, only when a confident match against the corresponding
+    // master-data table is found. See PLAN_Sheet_Import_Mapping_Refactor.md.
+    pickupTime: text("pickup_time"),
+    portCallId: integer("port_call_id").references(() => portCallsTable.id, { onDelete: "set null" }),
+    tourProductId: integer("tour_product_id").references(() => tourProductsTable.id, { onDelete: "set null" }),
+    guideResourceId: integer("guide_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
+    driverResourceId: integer("driver_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
+    vehicleId: integer("vehicle_id").references(() => vehiclesTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
