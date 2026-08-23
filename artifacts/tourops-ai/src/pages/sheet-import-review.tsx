@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { customFetch } from '@workspace/api-client-react';
-import { useAuth } from '@clerk/react';
+import { Link } from 'wouter';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
+import { sheetImportApi, type SheetReservationImport } from '@/lib/sheet-import-api';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { API_BASE } from '@/lib/api-base';
+import { Search } from 'lucide-react';
 
 // Manual review workflow for sheet_reservation_imports (see
 // artifacts/api-server/src/routes/sheet-import.ts). A Google Apps Script
@@ -18,26 +18,13 @@ import { API_BASE } from '@/lib/api-base';
 // edited "Reservations" row here via a signed webhook - one-way, Sheet ->
 // TourPilot only. Nothing writes to operations/customers until an
 // admin/operations user approves it here.
-
-type SheetImportStatus = 'pending' | 'approved' | 'rejected';
-type RowValue = string | number | boolean | null;
-
-interface SheetReservationImport {
-  id: number;
-  sheetFileId: string;
-  sheetName: string;
-  rowNumber: number;
-  rowData: Record<string, RowValue>;
-  editedByEmail: string;
-  editedAt: string;
-  status: SheetImportStatus;
-  matchedOperationId: number | null;
-  matchedCustomerId: number | null;
-  approvedAt: string | null;
-  approvedBy: number | null;
-  rejectedAt: string | null;
-  rejectedBy: number | null;
-}
+//
+// Faz 5.3: this list page now links each row to a sectioned review panel
+// (/sheet-import/:id, see sheet-import-detail.tsx) where the structured
+// mapped fields can be inspected and edited via PATCH /:id/review before
+// approving. The raw-row preview here is intentionally truncated (first 8
+// non-empty fields) - the full row is always available on the detail page's
+// collapsible "Import Audit" section.
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -50,50 +37,35 @@ function formatDateTime(value: string | null): string {
 
 export default function SheetImportReviewPage() {
   const { toast } = useToast();
-  const { getToken } = useAuth();
   const qc = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('pending');
   const [confirmTarget, setConfirmTarget] = useState<{ row: SheetReservationImport; action: 'approve' | 'reject' } | null>(null);
-  const [actionLoading, setActionLoading] = useState(false);
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['sheet-import', statusFilter],
-    queryFn: () => customFetch<SheetReservationImport[]>(`${API_BASE}/sheet-import?status=${statusFilter}`),
+    queryFn: () => sheetImportApi.list(statusFilter),
   });
 
-  async function authFetch(url: string, opts: RequestInit = {}) {
-    const token = await getToken();
-    const resp = await fetch(url, {
-      ...opts,
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', ...opts.headers },
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ error: 'Hata' }));
-      throw new Error(err.error ?? 'İşlem başarısız');
-    }
-    return resp.json();
-  }
+  const confirmMutation = useMutation({
+    mutationFn: () => {
+      if (!confirmTarget) throw new Error('Seçili satır yok');
+      return confirmTarget.action === 'approve'
+        ? sheetImportApi.approve(confirmTarget.row.id)
+        : sheetImportApi.reject(confirmTarget.row.id);
+    },
+    onSuccess: () => {
+      toast({ title: confirmTarget?.action === 'approve' ? 'Satır onaylandı' : 'Satır reddedildi' });
+      setConfirmTarget(null);
+      qc.invalidateQueries({ queryKey: ['sheet-import'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'İşlem başarısız', description: error.message, variant: 'destructive' });
+    },
+  });
 
   function openConfirm(row: SheetReservationImport, action: 'approve' | 'reject', e: React.MouseEvent) {
     e.stopPropagation();
     setConfirmTarget({ row, action });
-  }
-
-  async function handleConfirm() {
-    if (!confirmTarget) return;
-    setActionLoading(true);
-    try {
-      await authFetch(`${API_BASE}/sheet-import/${confirmTarget.row.id}/${confirmTarget.action}`, {
-        method: 'POST',
-      });
-      toast({ title: confirmTarget.action === 'approve' ? 'Satır onaylandı' : 'Satır reddedildi' });
-      setConfirmTarget(null);
-      qc.invalidateQueries({ queryKey: ['sheet-import'] });
-    } catch (e: unknown) {
-      toast({ title: 'İşlem başarısız', description: e instanceof Error ? e.message : '', variant: 'destructive' });
-    } finally {
-      setActionLoading(false);
-    }
   }
 
   const rows = data ?? [];
@@ -104,9 +76,9 @@ export default function SheetImportReviewPage() {
         <div>
           <h1 className="text-2xl font-bold text-[#1e3a5f]">Sheet İçe Aktarım İncelemesi</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            GEMI Master Operasyon tablosunda düzenlenen satırları inceleyin. Onaylanan satırlar için
-            taslak bir operasyon kaydı oluşturulur; siz tamamlayana kadar sistemde eksik/taslak olarak kalır.
-            Reddedilen satırlar hiçbir yere yazılmaz.
+            GEMI Master Operasyon tablosunda düzenlenen satırları inceleyin. Bir satırı açarak alan alan
+            düzenleyebilir, sonra onaylayabilirsiniz - onaylanan satırlar yapılandırılmış bilgilerle bir operasyon
+            kaydına dönüşür. Reddedilen satırlar hiçbir yere yazılmaz.
           </p>
         </div>
 
@@ -126,7 +98,7 @@ export default function SheetImportReviewPage() {
                     <tr>
                       <th className="px-4 py-3">Sayfa / Satır</th>
                       <th className="px-4 py-3">Düzenleyen</th>
-                      <th className="px-4 py-3">Satır Verisi</th>
+                      <th className="px-4 py-3">Satır Verisi (özet)</th>
                       <th className="px-4 py-3">Durum</th>
                       <th className="px-4 py-3">Düzenlendi</th>
                       <th className="px-4 py-3 text-right">İşlemler</th>
@@ -163,17 +135,20 @@ export default function SheetImportReviewPage() {
                       rows.map((row) => (
                         <tr key={row.id} className="border-t align-top">
                           <td className="px-4 py-3">
-                            <div className="font-medium">{row.sheetName}</div>
+                            <Link href={`/sheet-import/${row.id}`} className="font-medium text-[#1e3a5f] hover:underline">
+                              {row.sheetName}
+                            </Link>
                             <div className="text-xs text-muted-foreground">Satır {row.rowNumber}</div>
                           </td>
                           <td className="px-4 py-3 text-xs">{row.editedByEmail}</td>
                           <td className="px-4 py-3">
-                            <div className="max-h-32 overflow-y-auto space-y-0.5 text-xs">
+                            <div className="space-y-0.5 text-xs">
                               {Object.entries(row.rowData)
                                 .filter(([, v]) => v !== null && String(v).trim() !== '')
+                                .slice(0, 8)
                                 .map(([k, v]) => (
                                   <div key={k}>
-                                    <span className="text-muted-foreground">{k}:</span> {String(v)}
+                                    <span className="text-muted-foreground">{k:</span> {String(v)}
                                   </div>
                                 ))}
                             </div>
@@ -185,32 +160,40 @@ export default function SheetImportReviewPage() {
                           </td>
                           <td className="px-4 py-3 text-xs text-muted-foreground">{formatDateTime(row.editedAt)}</td>
                           <td className="px-4 py-3 text-right">
-                            {row.approvedAt && (
-                              <span className="text-xs text-emerald-700">Onaylandı · {formatDateTime(row.approvedAt)}</span>
-                             )}
-                            {row.rejectedAt && (
-                              <span className="text-xs text-red-700">Reddedildi · {formatDateTime(row.rejectedAt)}</span>
-                            )}
-                            {!row.approvedAt && !row.rejectedAt && (
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
-                                  onClick={(e) => openConfirm(row, 'approve', e)}
-                                >
-                                  Onayla
+                            <div className="flex justify-end flex-wrap gap-2">
+                              <Link href={`/sheet-import/${row.id}`}>
+                                <Button size="sm" variant="outline" className="gap-1">
+                                  <Search className="w-3.5 h-3.5" />
+                                  İncele
                                 </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-700 border-red-300 hover:bg-red-50"
-                                  onClick={(e) => openConfirm(row, 'reject', e)}
-                                >
-                                  Reddet
-                                </Button>
-                              </div>
-                            )}
+                              </Link>
+                              {row.approvedAt && (
+                                <span className="text-xs text-emerald-700 self-center">Onaylandı · {formatDateTime(row.approvedAt)}</span>
+                              )}
+                              {row.rejectedAt && (
+                                <span className="text-xs text-red-700 self-center">Reddedildi · {formatDateTime(row.rejectedAt)}</span>
+                              )}
+                              {!row.approvedAt && !row.rejectedAt && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+                                    onClick={(e) => openConfirm(row, 'approve', e)}
+                                  >
+                                    Onayla
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="text-red-700 border-red-300 hover:bg-red-50"
+                                    onClick={(e) => openConfirm(row, 'reject', e)}
+                                  >
+                                    Reddet
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -229,18 +212,18 @@ export default function SheetImportReviewPage() {
             <DialogDescription>
               {confirmTarget?.row.sheetName} · Satır {confirmTarget?.row.rowNumber}
               {confirmTarget?.action === 'approve'
-                ? ' — onaylandığında taslak bir operasyon kaydı oluşturulacak; müşteri ve tur bilgilerini siz tamamlayacaksınız.'
+                ? ' — onaylandığında yapılandırılmış alanlar kullanılarak bir operasyon kaydı oluşturulacak.'
                 : ' — bu satır reddedilecek ve hiçbir kaydı oluşturulmayacak.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmTarget(null)} disabled={actionLoading}>
+            <Button variant="outline" onClick={() => setConfirmTarget(null)} disabled={confirmMutation.isPending}>
               Vazgeç
             </Button>
             <Button
               variant={confirmTarget?.action === 'reject' ? 'destructive' : 'default'}
-              onClick={handleConfirm}
-              disabled={actionLoading}
+              onClick={() => confirmMutation.mutate()}
+              disabled={confirmMutation.isPending}
             >
               {confirmTarget?.action === 'approve' ? 'Onayla' : 'Reddet'}
             </Button>
