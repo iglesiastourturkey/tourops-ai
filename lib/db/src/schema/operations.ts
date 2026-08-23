@@ -13,6 +13,7 @@ export const operationsTable = pgTable("operations", {
   sourceType: text("source_type").notNull().default("manual"),
   sourceQuoteId: integer("source_quote_id").references(() => quotationsTable.id, { onDelete: "set null" }),
   sourceEmailImportId: integer("source_email_import_id"),
+  sourceSheetImportId: integer("source_sheet_import_id"),
   sourceBookingReference: text("source_booking_reference"),
   tourId: integer("tour_id").references(() => toursTable.id, { onDelete: "set null" }),
   customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),
