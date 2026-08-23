@@ -148,7 +148,7 @@ export default function SheetImportReviewPage() {
                                 .slice(0, 8)
                                 .map(([k, v]) => (
                                   <div key={k}>
-                                    <span className="text-muted-foreground">{k:</span> {String(v)}
+                                    <span className="text-muted-foreground">{k}:</span> {String(v)}
                                   </div>
                                 ))}
                             </div>
