@@ -1,4 +1,5 @@
 import { customFetch } from '@workspace/api-client-react';
+import type { DraftWarning } from './reservation-api';
 
 export type SheetImportStatus = 'pending' | 'approved' | 'rejected';
 export type RowValue = string | number | boolean | null;
@@ -78,6 +79,32 @@ export const sheetImportApi = {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(data),
           }),
-    approve: (id: number) => customFetch<SheetReservationImport>(`/api/sheet-import/${id}/approve`, { method: 'POST' }),
+    approve: (id: number, acknowledgedWarnings: DraftWarning['code'][] = []) =>
+    customFetch<SheetReservationImport>(`/api/sheet-import/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acknowledgedWarnings }),
+    }),
     reject: (id: number) => customFetch<SheetReservationImport>(`/api/sheet-import/${id}/reject`, { method: 'POST' }),
 };
+
+
+export type ApproveWarningsErrorBody = {
+  error?: string;
+  code?: string;
+  warnings?: DraftWarning[];
+};
+
+/**
+ * Extracts the { warnings } body from a failed POST /:id/approve when the
+ * server responded 409 warnings_pending - same shape and reasoning as
+ * reservation-api.ts's createDraftError, reused here so the sheet-import
+ * approve flow gets the identical acknowledge-to-proceed UX as
+ * POST /reservations/:id/create-draft.
+ */
+export function approveWarningsError(error: unknown): ApproveWarningsErrorBody | null {
+  const data = (error as { data?: unknown } | null | undefined)?.data;
+  if (!data || typeof data !== 'object') return null;
+  const body = data as ApproveWarningsErrorBody;
+  return body.code === 'warnings_pending' ? body : null;
+}
