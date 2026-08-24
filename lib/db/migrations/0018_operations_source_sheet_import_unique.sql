@@ -1,0 +1,54 @@
+-- Migration: unique index backing the Faz 5.3 sheet-import re-approval fix
+--
+-- /approve used to INSERT a new operations row every time a sheet_reservation_imports
+-- row was approved, including on a re-approval after the row was edited and
+-- reset to "pending" - GEMI rows are routinely edited after they are marked
+-- complete, so this was a live duplicate-operation bug, not just a migration-time
+-- risk. The application code (artifacts/api-server/src/routes/sheet-import.ts)
+-- now updates the existing operation in place when one is already linked via
+-- matchedOperationId.
+--
+-- This index backs that guarantee at the database level too, the same way
+-- operations_source_email_import_idx already does for the Gmail/Outlook
+-- import pipeline: a second INSERT sharing the same sourceSheetImportId
+-- fails outright instead of silently succeeding, so an application-code bug
+-- (or a race between two reviewers double-clicking Approve) surfaces as an
+-- error instead of a duplicate booking.
+--
+-- No .where() clause, matching operations_source_email_import_idx - Postgres
+-- does not treat multiple NULLs as duplicates, so operations from every
+-- other source (sourceSheetImportId = NULL: manual, quote-sourced, email,
+-- external-observation-sourced) are unaffected.
+--
+-- Additive and idempotent: creating an index neither rewrites existing rows
+-- nor changes any data, and IF NOT EXISTS makes re-application a no-op.
+--
+-- CONCURRENTLY is deliberately not used, matching migrations/0009's own
+-- reasoning: it cannot run inside a transaction block, and this table is
+-- small enough that a plain CREATE UNIQUE INDEX takes milliseconds.
+--
+-- NOT APPLIED. Before running this against production, first confirm there
+-- is no existing duplicate to violate it:
+--
+--   SELECT source_sheet_import_id, count(*)
+--   FROM operations
+--   WHERE source_sheet_import_id IS NOT NULL
+--   GROUP BY source_sheet_import_id
+--   HAVING count(*) > 1;
+--
+-- That query must return zero rows before this migration is applied. If it
+-- returns any, resolve those duplicates first (the sheet-import review UI
+-- and audit log identify which operation each sheet row is meant to point
+-- at) - this migration is written to fail loudly rather than silently drop
+-- a row, so it will not apply over an existing duplicate.
+--
+-- Run against the Neon staging branch first, confirm re-approving an edited,
+-- already-approved sheet-import row updates the same operation instead of
+-- creating a second one, then apply to production.
+--
+-- The same index is declared in lib/db/src/schema/operations.ts. Both are
+-- required: drizzle-kit push reads the schema file as the source of truth
+-- and would drop an index it cannot see there.
+
+CREATE UNIQUE INDEX IF NOT EXISTS operations_source_sheet_import_idx
+ON operations (source_sheet_import_id);
