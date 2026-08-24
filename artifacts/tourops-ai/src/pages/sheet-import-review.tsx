@@ -25,6 +25,14 @@ import { Search } from 'lucide-react';
 // approving. The raw-row preview here is intentionally truncated (first 8
 // non-empty fields) - the full row is always available on the detail page's
 // collapsible "Import Audit" section.
+//
+// Faz 5.3 hardening: the action column below now keys off row.status, not
+// row.approvedAt/row.rejectedAt presence. A row that was approved and then
+// edited in the sheet comes back from the server with status "pending" but
+// a non-null approvedAt (it now means "last approved at", not "is approved
+// right now" - see sheet-import.ts's header comment) - keying off
+// approvedAt here would have kept showing "Onaylandı" and hidden the
+// Onayla/Reddet buttons for a row that actually needs re-review.
 
 type StatusFilter = 'pending' | 'approved' | 'rejected' | 'all';
 
@@ -167,13 +175,13 @@ export default function SheetImportReviewPage() {
                                   İncele
                                 </Button>
                               </Link>
-                              {row.approvedAt && (
+                              {row.status === 'approved' && (
                                 <span className="text-xs text-emerald-700 self-center">Onaylandı · {formatDateTime(row.approvedAt)}</span>
                               )}
-                              {row.rejectedAt && (
+                              {row.status === 'rejected' && (
                                 <span className="text-xs text-red-700 self-center">Reddedildi · {formatDateTime(row.rejectedAt)}</span>
                               )}
-                              {!row.approvedAt && !row.rejectedAt && (
+                              {row.status === 'pending' && (
                                 <>
                                   <Button
                                     size="sm"
