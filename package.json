@@ -15,7 +15,8 @@
     "test:communications-readonly": "node scripts/communications-readonly-focused-tests.mjs",
     "test:communications-integration": "node scripts/communications-integration-focused-tests.mjs",
     "test:sheet-import-hardening": "node scripts/sheet-import-hardening-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening",
+    "test:sheet-import-duplicate-warning": "node scripts/sheet-import-duplicate-warning-focused-tests.mjs",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
   },
   "private": true,

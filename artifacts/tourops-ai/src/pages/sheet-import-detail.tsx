@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '@/components/AppShell';
-import { sheetImportApi, type MappedFields, type SheetReservationImport } from '@/lib/sheet-import-api';
+import { sheetImportApi, approveWarningsError, type MappedFields, type SheetReservationImport } from '@/lib/sheet-import-api';
+import type { DraftWarning } from '@/lib/reservation-api';
 import { SheetImportFieldGrid, type FieldSpec } from '@/components/sheet-import/sheet-import-field-grid';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,8 +12,19 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { OPERATION_STATUS_LABELS } from '@/lib/labels';
 import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Save, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronDown, ChevronUp, ExternalLink, Save, XCircle } from 'lucide-react';
 
 // Faz 5.3: sectioned review panel for a single sheet_reservation_imports row
 // (see PLAN_Sheet_Import_Mapping_Refactor.md paragraf 6a). Genel / Musteri /
@@ -109,6 +121,7 @@ export default function SheetImportDetailPage() {
   const [form, setForm] = useState<MappedFields | null>(null);
   const [agesText, setAgesText] = useState('');
   const [confirmAction, setConfirmAction] = useState<'approve' | 'reject' | null>(null);
+  const [approveWarnings, setApproveWarnings] = useState<DraftWarning[]>([]);
   const [auditOpen, setAuditOpen] = useState(false);
 
   const detail = useQuery({
@@ -140,14 +153,21 @@ export default function SheetImportDetailPage() {
   });
 
   const approve = useMutation({
-    mutationFn: () => sheetImportApi.approve(id),
+    mutationFn: (acknowledgedWarnings: DraftWarning['code'][] = []) => sheetImportApi.approve(id, acknowledgedWarnings),
     onSuccess: (updated) => {
+      setApproveWarnings([]);
       toast({ title: 'Satır onaylandı, operasyon oluşturuldu' });
       setConfirmAction(null);
       refresh();
       if (updated.matchedOperationId) navigate(`/operations/${updated.matchedOperationId}`);
     },
     onError: (error: Error) => {
+      const warningsBody = approveWarningsError(error);
+      if (warningsBody?.warnings) {
+        setConfirmAction(null);
+        setApproveWarnings(warningsBody.warnings);
+        return;
+      }
       setConfirmAction(null);
       toast({ title: 'Onaylanamadı', description: error.message, variant: 'destructive' });
     },
@@ -387,7 +407,7 @@ export default function SheetImportDetailPage() {
             </Button>
             <Button
               variant={confirmAction === 'reject' ? 'destructive' : 'default'}
-              onClick={() => (confirmAction === 'approve' ? approve.mutate() : reject.mutate())}
+              onClick={() => (confirmAction === 'approve' ? approve.mutate([]) : reject.mutate())}
               disabled={approve.isPending || reject.isPending}
             >
               {confirmAction === 'approve' ? 'Onayla' : 'Reddet'}
@@ -395,6 +415,49 @@ export default function SheetImportDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    {/* Cancelling drops the warnings: the next attempt re-runs the checks
+        server-side, so a stale acknowledgement can never be carried forward. */}
+    <AlertDialog open={approveWarnings.length > 0} onOpenChange={open => { if (!open) setApproveWarnings([]); }}>
+      <AlertDialogContent className="max-h-[80vh] overflow-y-auto">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Devam etmeden önce kontrol edin</AlertDialogTitle>
+          <AlertDialogDescription>
+            Aşağıdaki uyarılar onayı engellemiyor, ancak devam etmeden önce onaylamanız gerekiyor. Henüz hiçbir operasyon oluşturulmadı.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <ul className="space-y-2">
+          {approveWarnings.map(warning => (
+            <li key={warning.code} className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2.5 flex gap-2.5 dark:border-amber-500/30 dark:bg-amber-500/10">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5 dark:text-amber-400" />
+              <div className="text-sm text-amber-900 leading-relaxed dark:text-amber-200 min-w-0">
+                <p>{warning.message}</p>
+                {warning.detail?.operations?.length ? (
+                  <ul className="mt-1.5 space-y-1">
+                    {warning.detail.operations.map(operation => (
+                      <li key={operation.id}>
+                        <a href={`/operations/${operation.id}`} target="_blank" rel="noreferrer" className="underline underline-offset-2 break-words">
+                          #{operation.id}
+                        </a>
+                        <span className="text-xs"> · {OPERATION_STATUS_LABELS[operation.status] ?? operation.status}
+                          {operation.startDate ? ` · ${new Date(operation.startDate).toLocaleDateString('tr-TR')}` : ''}
+                          {operation.sameSource ? '' : ' · farklı kaynak'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            </li>
+          ))}
+        </ul>
+        <AlertDialogFooter>
+          <AlertDialogCancel>İptal</AlertDialogCancel>
+          <AlertDialogAction onClick={() => approve.mutate(approveWarnings.map(warning => warning.code))} disabled={approve.isPending}>
+            {approve.isPending ? 'Onaylanıyor...' : 'Yine de Onayla'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+
     </AppShell>
   );
 }

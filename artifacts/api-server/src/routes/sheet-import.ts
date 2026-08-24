@@ -18,6 +18,12 @@ import {
 } from "@workspace/db/schema";
 import { requireAuth, requireRole } from "../lib/auth";
 import { createAuditLog } from "../lib/audit";
+import {
+  collectDraftWarnings,
+  normalizeBookingReference,
+  parseAcknowledgedWarnings,
+  todayInIstanbul,
+} from "../lib/reservation-validation";
 
 // Faz 4: GEMI Master Operasyon (Google Sheets, "Reservations" tab) -> TourPilot.
 // One-way, review-queue-gated: an Apps Script onEdit trigger POSTs every
@@ -537,6 +543,9 @@ router.post("/:id/approve", async (req, res) => {
     return;
   }
   const approverId = res.locals.profile.id;
+  const acknowledgedWarnings = parseAcknowledgedWarnings(
+    (req.body as { acknowledgedWarnings?: unknown } | undefined)?.acknowledgedWarnings,
+  );
 
   try {
     const result = await db.transaction(async (tx) => {
@@ -552,6 +561,46 @@ router.post("/:id/approve", async (req, res) => {
 
       const rowData = importRow.rowData as SheetRow["rowData"];
       const fields = (importRow.mappedData as MappedFields | null) ?? mapSheetRowToStructuredFields(rowData);
+
+      // ── Soft duplicate: same booking reference already on another operation ──
+      // Mirrors POST /reservations/:id/create-draft's check (see
+      // lib/reservation-validation.ts) - same case-/whitespace-insensitive
+      // comparison, same index (operations_source_booking_reference_idx), same
+      // acknowledge-to-proceed flow. Not a block: a reference can be
+      // legitimately reused after a cancellation.
+      const bookingReference = normalizeBookingReference(fields.sourceBookingReference);
+      const duplicateRows = bookingReference
+        ? await tx
+            .select({
+              id: operationsTable.id,
+              status: operationsTable.status,
+              startDate: operationsTable.startDate,
+              sourceType: operationsTable.sourceType,
+            })
+            .from(operationsTable)
+            .where(
+              and(
+                sql`lower(trim(${operationsTable.sourceBookingReference})) = ${bookingReference}`,
+                // The operation this same import row already produced (re-approval)
+                // is not a duplicate of itself.
+                sql`${operationsTable.sourceSheetImportId} IS DISTINCT FROM ${importRow.id}`,
+              ),
+            )
+            .limit(6)
+        : [];
+      const moreDuplicates = duplicateRows.length > 5;
+      const duplicates = duplicateRows.slice(0, 5).map(match => ({
+        ...match,
+        sameSource: match.sourceType === "sheet_import",
+      }));
+      const warnings = collectDraftWarnings(
+        { tourDate: null, guestCount: null, adultCount: null, childCount: null },
+        { today: todayInIstanbul(), duplicates, moreDuplicates },
+      );
+      const unacknowledged = warnings.filter(w => !acknowledgedWarnings.includes(w.code));
+      if (unacknowledged.length > 0) {
+        return { kind: "warnings_pending" as const, warnings };
+      }
 
       // Re-approval of a row that was approved before this edit: the
       // operation and customer it already created are reused, not
@@ -826,6 +875,14 @@ router.post("/:id/approve", async (req, res) => {
 
     if (result.kind === "not_found") {
       res.status(404).json({ error: "Not found" });
+      return;
+    }
+    if (result.kind === "warnings_pending") {
+      res.status(409).json({
+        error: "Onaylamadan önce kontrol etmeniz gereken uyarılar var.",
+        code: "warnings_pending",
+        warnings: result.warnings,
+      });
       return;
     }
     if (result.kind === "already_reviewed") {
