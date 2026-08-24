@@ -42,21 +42,29 @@ export const operationsTable = pgTable("operations", {
   emergencyContact2Phone: text("emergency_contact2_phone"),
   // Assigned guide user (Clerk userId, soft FK to profiles)
   assignedGuideUserId: text("assigned_guide_user_id"),
-    // ── Faz 5: structured scheduling + master-data links ──────────────────────
-    // Additive. guideName/guidePhone/driverName/driverPhone/vehiclePlate above
-    // remain the primary source and are untouched - these are populated in
-    // addition, only when a confident match against the corresponding
-    // master-data table is found. See PLAN_Sheet_Import_Mapping_Refactor.md.
-    pickupTime: text("pickup_time"),
-    portCallId: integer("port_call_id").references(() => portCallsTable.id, { onDelete: "set null" }),
-    tourProductId: integer("tour_product_id").references(() => tourProductsTable.id, { onDelete: "set null" }),
-    guideResourceId: integer("guide_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
-    driverResourceId: integer("driver_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
-    vehicleId: integer("vehicle_id").references(() => vehiclesTable.id, { onDelete: "set null" }),
+  // ── Faz 5: structured scheduling + master-data links ─────────────────────
+  // Additive. guideName/guidePhone/driverName/driverPhone/vehiclePlate above
+  // remain the primary source and are untouched - these are populated in
+  // addition, only when a confident match against the corresponding
+  // master-data table is found. See PLAN_Sheet_Import_Mapping_Refactor.md.
+  pickupTime: text("pickup_time"),
+  portCallId: integer("port_call_id").references(() => portCallsTable.id, { onDelete: "set null" }),
+  tourProductId: integer("tour_product_id").references(() => tourProductsTable.id, { onDelete: "set null" }),
+  guideResourceId: integer("guide_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
+  driverResourceId: integer("driver_resource_id").references(() => resourcesTable.id, { onDelete: "set null" }),
+  vehicleId: integer("vehicle_id").references(() => vehiclesTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
   gmailImportUnique: uniqueIndex("operations_source_email_import_idx").on(table.sourceEmailImportId),
+  // Faz 5.3: same idea as gmailImportUnique, for the sheet-import pipeline.
+  // /approve now updates the operation a sheet row already created instead
+  // of inserting a second one (see sheet-import.ts); this index makes that
+  // guarantee hold at the database level too, not just in application code.
+  // No .where() clause, same as gmailImportUnique - Postgres does not treat
+  // multiple NULLs as duplicates, so operations from every other source
+  // (sourceSheetImportId = NULL) are unaffected.
+  sheetImportUnique: uniqueIndex("operations_source_sheet_import_idx").on(table.sourceSheetImportId),
   // Backs the create-draft duplicate check, which compares booking references
   // case- and whitespace-insensitively. Declared here as well as in
   // migrations/0009 because drizzle-kit push treats this file as the truth and
