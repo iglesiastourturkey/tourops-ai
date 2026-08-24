@@ -407,7 +407,7 @@ export default function SheetImportDetailPage() {
             </Button>
             <Button
               variant={confirmAction === 'reject' ? 'destructive' : 'default'}
-              onClick={() => (confirmAction === 'approve' ? approve.mutate() : reject.mutate())}
+              onClick={() => (confirmAction === 'approve' ? approve.mutate([]) : reject.mutate())}
               disabled={approve.isPending || reject.isPending}
             >
               {confirmAction === 'approve' ? 'Onayla' : 'Reddet'}
