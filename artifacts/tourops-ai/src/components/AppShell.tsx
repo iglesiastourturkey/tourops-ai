@@ -6,7 +6,7 @@ import { OfflineIndicator } from '@/components/OfflineIndicator';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
-  BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet,
+  BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -38,6 +38,7 @@ const navItems: NavItem[] = [
   { icon: MapPin,          label: 'Turlar',             href: '/tours',              permission: ['tours',            'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',         permission: ['quotations',       'view']   },
   { icon: ClipboardList,   label: 'Operasyon Planlama', href: '/operations',         permission: ['operations',       'view']   },
+  { icon: CalendarDays, label: 'Takvim', href: '/calendar', permission: ['operations', 'view'] },
   { icon: Inbox,           label: 'Gelen Rezervasyonlar', href: '/reservations',     permission: ['reservations',      'view']   },
   { icon: HardHat,         label: 'Operasyon Merkezi',  href: '/field',              permission: ['field_operations', 'view']   },
   { icon: Bell,            label: 'Bildirimler',        href: '/notifications',      permission: ['notifications',    'view']   },
