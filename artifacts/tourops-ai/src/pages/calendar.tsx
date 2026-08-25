@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useListOperations } from '@workspace/api-client-react';
 import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw, CalendarDays, List } from 'lucide-react';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
-import { groupOperationsByDate, getMonthGrid, toDateKey, sortByPickupTime } from '@/lib/calendar-grouping';
+import { groupOperationsByDate, getMonthGrid, toDateKey, sortOperations } from '@/lib/calendar-grouping';
 
 const WEEKDAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const MONTH_LABELS = [
@@ -52,7 +52,7 @@ export default function CalendarPage() {
 
   const monthGrid = useMemo(() => getMonthGrid(cursorDate), [cursorDate]);
   const dayOperations = useMemo(
-    () => sortByPickupTime(byDate.get(cursorKey) ?? []),
+    () => sortOperations(byDate.get(cursorKey) ?? []),
     [byDate, cursorKey],
   );
 
@@ -169,7 +169,6 @@ export default function CalendarPage() {
               {dayOperations.map(op => (
                 <li key={op.id} className="p-3 flex items-center gap-3" data-testid={`row-calendar-operation-${op.id}`}>
                   <span className="font-mono text-sm font-medium w-16 shrink-0">OP-{op.id}</span>
-                  <span className="text-sm text-muted-foreground w-14 shrink-0">{op.pickupTime ?? '—'}</span>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${OPERATION_STATUS_COLORS[op.status] ?? 'bg-gray-100 text-gray-600'}`}>
                     {OPERATION_STATUS_LABELS[op.status] ?? op.status}
                   </span>
