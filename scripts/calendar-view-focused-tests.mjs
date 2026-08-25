@@ -46,8 +46,8 @@ assert.ok(
   "calendar-grouping.ts must export getMonthGrid",
 );
 assert.ok(
-  /export function sortByPickupTime</.test(GROUPING_SOURCE),
-  "calendar-grouping.ts must export sortByPickupTime",
+  /export function sortOperations</.test(GROUPING_SOURCE),
+  "calendar-grouping.ts must export sortOperations",
 );
 
 // ── 2. groupOperationsByDate never silently drops unscheduled operations - ──
@@ -75,14 +75,18 @@ assert.ok(
   "getMonthGrid must return a fixed 42-cell (6-week) grid so every month renders a consistent-height calendar",
 );
 
-// ── 5. sortByPickupTime: nulls last, does not mutate its input array ────────
+// ── 5. sortOperations: stable id-ascending order, does not mutate its input ──
+// array. The operations list API exposes no pickup-time field to sort by
+// (confirmed against the generated Operation type - see App.tsx/CI history),
+// so this deliberately sorts by id rather than implying a time ordering the
+// data doesn't have.
 assert.ok(
-  /export function sortByPickupTime<T extends \{ pickupTime: string \| null \}>\(operations: T\[\]\): T\[\]\s*\{\s*return \[\.\.\.operations\]\.sort\(/.test(GROUPING_SOURCE),
-  "sortByPickupTime must sort a shallow copy ([...operations]), never the caller's original array in place",
+  /export function sortOperations<T extends \{ id: number \}>\(operations: T\[\]\): T\[\]\s*\{\s*return \[\.\.\.operations\]\.sort\(\(a, b\) => a\.id - b\.id\);/.test(GROUPING_SOURCE),
+  "sortOperations must sort a shallow copy ([...operations]) by id ascending, never mutate the caller's original array in place",
 );
 assert.ok(
-  /if\s*\(a\.pickupTime === null\)\s*return 1;/.test(GROUPING_SOURCE) && /if\s*\(b\.pickupTime === null\)\s*return -1;/.test(GROUPING_SOURCE),
-  "sortByPickupTime must sort operations with no pickupTime to the end, not the start",
+  !/pickupTime/.test(GROUPING_SOURCE),
+  "calendar-grouping.ts must not reference pickupTime - the generated Operation type used by useListOperations() does not expose that field",
 );
 
 // ── 6. calendar.tsx reuses existing data/layout infrastructure - no parallel ──
@@ -96,7 +100,7 @@ assert.ok(
   "calendar.tsx must reuse the shared AppShell layout, same as every other authenticated page",
 );
 assert.ok(
-  /import \{ groupOperationsByDate, getMonthGrid, toDateKey, sortByPickupTime \} from '@\/lib\/calendar-grouping';/.test(CALENDAR_PAGE_SOURCE),
+  /import \{ groupOperationsByDate, getMonthGrid, toDateKey, sortOperations \} from '@\/lib\/calendar-grouping';/.test(CALENDAR_PAGE_SOURCE),
   "calendar.tsx must import its grouping/grid helpers from the new calendar-grouping.ts module",
 );
 assert.ok(
@@ -131,6 +135,10 @@ assert.ok(
 assert.ok(
   /href=\{`\/operations\/\$\{op\.id\}`\}/.test(CALENDAR_PAGE_SOURCE),
   "calendar.tsx's day view must link each operation to /operations/:id, reusing the existing detail page",
+);
+assert.ok(
+  !/pickupTime/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx must not reference pickupTime - the generated Operation type from useListOperations() does not expose that field, and referencing it broke the typecheck CI step",
 );
 
 // ── 10. App.tsx: /calendar is lazy-loaded and registered with the same ──────
