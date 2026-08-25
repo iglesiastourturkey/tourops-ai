@@ -65,6 +65,7 @@ const CommunicationsPage           = lazy(() => import('@/pages/communications')
 const ExternalObservationsPage     = lazy(() => import('@/pages/external-observations'));
 const SheetImportReviewPage        = lazy(() => import('@/pages/sheet-import-review'));
 const SheetImportDetailPage      = lazy(() => import('@/pages/sheet-import-detail'));
+const CalendarPage = lazy(() => import('@/pages/calendar'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -422,6 +423,7 @@ function Router() {
       <Route path="/field" component={() => <ProtectedRoleRoute component={FieldDashboardPage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting']} />} />
+<Route path="/calendar" component={() => <ProtectedRoleRoute component={CalendarPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/reservations/:id" component={() => <ProtectedRoleRoute component={ReservationDetailPage} roles={['admin', 'operations']} />} />
       <Route path="/reservations" component={() => <ProtectedRoleRoute component={ReservationsPage} roles={['admin', 'operations']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
