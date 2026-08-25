@@ -4,13 +4,12 @@
 
 export interface CalendarOperation {
   id: number;
-  startDate: string | null;
-  endDate: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
   status: string;
-  guideName: string | null;
-  driverName: string | null;
-  vehiclePlate: string | null;
-  pickupTime: string | null;
+  guideName?: string | null;
+  driverName?: string | null;
+  vehiclePlate?: string | null;
 }
 
 /**
@@ -23,7 +22,7 @@ export interface CalendarOperation {
  * every day of its span is a natural follow-up once the calendar is in use,
  * not a blocker for the first version.
  */
-export function groupOperationsByDate<T extends { startDate: string | null }>(
+export function groupOperationsByDate<T extends { startDate?: string | null }>(
   operations: T[],
 ): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -66,12 +65,12 @@ export function getMonthGrid(monthDate: Date): Date[] {
   });
 }
 
-/** Sorts a day's operations by pickupTime ("HH:MM"), nulls last. */
-export function sortByPickupTime<T extends { pickupTime: string | null }>(operations: T[]): T[] {
-  return [...operations].sort((a, b) => {
-    if (a.pickupTime === b.pickupTime) return 0;
-    if (a.pickupTime === null) return 1;
-    if (b.pickupTime === null) return -1;
-    return a.pickupTime < b.pickupTime ? -1 : 1;
-  });
+/**
+ * Sorts a day's operations into a stable, deterministic order (ascending by
+ * id). The operations list API does not currently expose a pickup-time
+ * field to sort by, so id order (roughly creation order) is used instead of
+ * implying a scheduled-time ordering the data doesn't actually have.
+ */
+export function sortOperations<T extends { id: number }>(operations: T[]): T[] {
+  return [...operations].sort((a, b) => a.id - b.id);
 }
