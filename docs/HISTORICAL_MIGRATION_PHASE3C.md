@@ -4,6 +4,8 @@
 
 Faz 3B `staging_ready` paketini önce ayrı bir review-gated tabloya idempotent biçimde almak. Bu faz müşteri veya operasyon oluşturmaz; muhasebe, mesaj ve Drive yazması yapmaz.
 
+Bu PR'nin açılması veya merge edilmesi migration'ı otomatik çalıştırmaz; DDL ve staging provası ayrı, açık insan onayı gerektirir.
+
 ## DB tasarımı
 
 `historical_operation_imports` yalnızca staging kuyruğudur:
