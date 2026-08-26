@@ -18,6 +18,7 @@ export const operationsTable = pgTable("operations", {
   sourceQuoteId: integer("source_quote_id").references(() => quotationsTable.id, { onDelete: "set null" }),
   sourceEmailImportId: integer("source_email_import_id"),
   sourceSheetImportId: integer("source_sheet_import_id"),
+  sourceHistoricalKey: text("source_historical_key"),
   sourceBookingReference: text("source_booking_reference"),
   tourId: integer("tour_id").references(() => toursTable.id, { onDelete: "set null" }),
   customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),
@@ -65,6 +66,7 @@ export const operationsTable = pgTable("operations", {
   // multiple NULLs as duplicates, so operations from every other source
   // (sourceSheetImportId = NULL) are unaffected.
   sheetImportUnique: uniqueIndex("operations_source_sheet_import_idx").on(table.sourceSheetImportId),
+  historicalImportUnique: uniqueIndex("operations_source_historical_key_idx").on(table.sourceHistoricalKey),
   // Backs the create-draft duplicate check, which compares booking references
   // case- and whitespace-insensitively. Declared here as well as in
   // migrations/0009 because drizzle-kit push treats this file as the truth and
@@ -212,3 +214,4 @@ export type OperationDocument = typeof operationDocumentsTable.$inferSelect;
 export type OperationStatusHistory = typeof operationStatusHistoryTable.$inferSelect;
 export type FieldIncident = typeof fieldIncidentsTable.$inferSelect;
 export type OperationFieldNote = typeof operationFieldNotesTable.$inferSelect;
+
