@@ -85,7 +85,9 @@ async function main() {
 
   const reviewOutputArg = option(args, "--review-output");
   const stagingOutputArg = option(args, "--staging-output");
-  const outputPaths = [reviewOutputArg, stagingOutputArg].filter((value): value is string => Boolean(value)).map(resolve);
+  const outputPaths = [reviewOutputArg, stagingOutputArg]
+    .filter((value): value is string => Boolean(value))
+    .map(value => resolve(value));
   if (outputPaths.some(path => path === inputPath)) throw new Error("Cikti yolu girdi raporunun uzerine yazamaz");
   if (new Set(outputPaths).size !== outputPaths.length) throw new Error("Review ve staging ciktilari farkli dosyalar olmali");
 
