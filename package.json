@@ -17,7 +17,8 @@
     "test:sheet-import-hardening": "node scripts/sheet-import-hardening-focused-tests.mjs",
     "test:sheet-import-duplicate-warning": "node scripts/sheet-import-duplicate-warning-focused-tests.mjs",
     "test:calendar": "node scripts/calendar-view-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar",
+    "test:navigation": "node scripts/navigation-grouping-focused-tests.mjs",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar && pnpm run test:navigation",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
   },
   "private": true,
