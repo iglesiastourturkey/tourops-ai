@@ -51,6 +51,20 @@ const navItems: NavItem[] = [
   { icon: Shield,          label: 'Denetim Kayıtları',   href: '/audit',              superAdminOnly: true },
 ];
 
+// Sidebar section groupings, keyed by the href already declared in navItems
+// above (navItems itself is left untouched by grouping - each object's
+// shape/order stays exactly as before, only the sidebar's *rendering* groups
+// them under section headers). Any href not listed here still renders, under
+// a trailing "Diğer" fallback section, so a future nav item can never
+// silently vanish just because someone forgot to file it into a group.
+const NAV_GROUPS: { title: string; hrefs: string[] }[] = [
+  { title: 'Genel', hrefs: ['/dashboard', '/guide', '/notifications'] },
+  { title: 'Satış & Rezervasyon', hrefs: ['/requests/new', '/customers', '/reservations', '/quotations', '/tours', '/suppliers', '/sheet-import'] },
+  { title: 'Operasyon', hrefs: ['/operations', '/calendar', '/field', '/external-observations', '/communications'] },
+  { title: 'Muhasebe', hrefs: ['/accounting', '/accounting/settings'] },
+  { title: 'Yönetim', hrefs: ['/settings', '/users', '/roles', '/system-control', '/audit'] },
+];
+
 // Base-path-safe logo: resolves against Vite's BASE_URL at build time so it
 // works in Replit preview (/tourops-ai/), custom domains (/), and prod builds.
 const LOGO_SRC = `${import.meta.env.BASE_URL}logo.svg`;
@@ -117,8 +131,26 @@ export function AppShell({ children, title }: AppShellProps) {
         </div>
       </div>
 
-      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        {visibleNavItems.map(({ icon: Icon, label, href }) => {
+      <nav className="flex-1 py-4 px-2 space-y-4 overflow-y-auto">
+{(() => {
+  const groupedHrefs = new Set(NAV_GROUPS.flatMap(g => g.hrefs));
+  const sections = NAV_GROUPS.map(g => ({
+    title: g.title,
+    items: g.hrefs
+      .map(href => visibleNavItems.find(i => i.href === href))
+      .filter((i): i is NavItem => Boolean(i)),
+  })).filter(section => section.items.length > 0);
+  const ungroupedItems = visibleNavItems.filter(i => !groupedHrefs.has(i.href));
+  if (ungroupedItems.length > 0) {
+    sections.push({ title: 'Diğer', items: ungroupedItems });
+  }
+  return sections.map(section => (
+    <div key={section.title} role="group" aria-label={section.title}>
+      <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/40">
+        {section.title}
+      </p>
+      <div className="space-y-0.5">
+        {section.items.map(({ icon: Icon, label, href }) => {
           const isActive = location === href || (href !== '/dashboard' && location.startsWith(href));
           return (
             <Link key={href} href={href}
@@ -141,7 +173,11 @@ export function AppShell({ children, title }: AppShellProps) {
             </Link>
           );
         })}
-      </nav>
+      </div>
+    </div>
+  ));
+})()}
+</nav>
 
       <div className="px-4 py-4 border-t border-sidebar-border space-y-2.5">
         <div className="flex items-center gap-2">
