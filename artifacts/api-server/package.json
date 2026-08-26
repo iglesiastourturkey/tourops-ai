@@ -12,6 +12,7 @@
     "seed:demo": "tsx src/seed-demo.ts",
     "seed:demo:reset": "tsx src/seed-demo-reset.ts",
     "historical:dry-run": "tsx src/historical-migration-dry-run.ts",
+    "historical:prepare": "tsx src/historical-migration-prepare.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

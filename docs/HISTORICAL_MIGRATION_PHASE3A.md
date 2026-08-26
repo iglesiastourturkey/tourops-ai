@@ -40,3 +40,7 @@ pnpm --filter @workspace/api-server historical:dry-run -- --manifest ./manifest.
 ```
 
 Bu rapor onaylanmadan sonraki migration fazına geçilmez.
+
+2026 gerçek veri dry-run politikaları onaylandıktan sonra review ve staging
+hazırlığı için `HISTORICAL_MIGRATION_PHASE3B.md` akışı kullanılır. Faz 3B de
+veritabanına import yapmaz ve ayrı import onay kapısını korur.
