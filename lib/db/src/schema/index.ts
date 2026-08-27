@@ -27,3 +27,5 @@ export * from "./resources";
 export * from "./external_port_call_observations";
 export * from "./sheet_reservation_imports";
 export * from "./operation_reservation_details";
+export * from "./historical_operation_imports";
+
