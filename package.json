@@ -20,7 +20,8 @@
     "test:navigation": "node scripts/navigation-grouping-focused-tests.mjs",
     "test:historical-migration": "node scripts/historical-migration-dry-run-focused-tests.mjs",
     "test:historical-staging": "node scripts/historical-migration-staging-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging",
+    "test:historical-promotion": "node scripts/historical-migration-promotion-focused-tests.mjs",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging && pnpm run test:historical-promotion",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
   },
   "private": true,
