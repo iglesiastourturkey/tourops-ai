@@ -16,6 +16,7 @@
     "historical:stage": "tsx src/historical-migration-stage.ts",
     "historical:promote": "tsx src/historical-migration-promote.ts",
     "historical:review": "tsx src/historical-migration-review-action.ts",
+    "historical:customer-resolution-plan": "tsx src/historical-customer-resolution-plan.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
