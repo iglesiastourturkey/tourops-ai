@@ -15,6 +15,7 @@
     "historical:prepare": "tsx src/historical-migration-prepare.ts",
     "historical:stage": "tsx src/historical-migration-stage.ts",
     "historical:promote": "tsx src/historical-migration-promote.ts",
+    "historical:review": "tsx src/historical-migration-review-action.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

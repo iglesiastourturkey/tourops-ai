@@ -51,11 +51,24 @@ permission, varsayılan olarak yalnızca `admin` rolüne verilir:
 - `historical_migration.reject`
 - `historical_migration.promote`
 
-Mevcut `requirePermission()` middleware'i (`lib/auth.ts`) server-side
-zorunlu kılar; UI-only bir kontrol yok. Bu fazda bu permission'ları
-kullanan bir route/UI eklenmedi — `historical-migration-approval.ts`
-içindeki fonksiyonlar route-agnostic; bir route/CLI onlara `requirePermission`
-arkasından çağrı yapmalı (sonraki, ayrı onaylı adım).
+Mevcut `requirePermission()` middleware'i (`lib/auth.ts`) HTTP route'larda
+server-side zorunlu kılar. CLI'ların hiçbir Clerk/HTTP oturum bağlamı yok,
+bu yüzden `--operator-profile-id <id>` alıp aynı yetki politikasını DB'den
+doğrudan uygulayan bir yardımcı eklendi:
+`artifacts/api-server/src/lib/historical-migration-operator.ts` ->
+`verifyOperatorPermission(profileId, module, action)`:
+
+1. `profiles` tablosundan profili okur — yoksa `operator_not_found`.
+2. `profile.isActive` kontrol edilir — pasifse `operator_inactive`.
+3. Var olan `hasPermission()` (`lib/permissions.ts`) ile
+   `role_permissions`/`user_permissions` DB verisi üzerinden yetki
+   değerlendirilir — `super_admin` için aynı bypass, ikinci bir RBAC
+   politikası icat edilmedi.
+
+`approveHistoricalImport()`/`rejectHistoricalImport()` (approve/reject
+için) ve `historical:promote --apply` (promote için) bu fonksiyonu
+**herhangi bir DB yazmadan önce** çağırır ve başarısızsa erken döner —
+`--operator-profile-id` sırf verildi diye güvenilmez.
 
 ## Alan eşlemesi (mapping)
 
@@ -190,17 +203,60 @@ doğrulandı) — bu yüzden FK'lar `INTEGER`. Yıkıcı hiçbir ifade yok, veri
 yeniden yazımı yok. **Hiçbir ortama uygulanmadı** — ne Neon staging branch'e
 ne production'a. Uygulama, ayrı bir açık onay gerektiriyor.
 
+## CLI: `historical:review` (approve/reject, tek kayıt, operator zorunlu)
+
+```
+pnpm --filter @workspace/api-server historical:review -- \
+  --source-key <key> --approve \
+  --operator-profile-id <id> --confirm-review TOURPILOT_2026_HISTORICAL_REVIEW
+
+pnpm --filter @workspace/api-server historical:review -- \
+  --source-key <key> --reject --reason "<gerekce>" \
+  --operator-profile-id <id> --confirm-review TOURPILOT_2026_HISTORICAL_REVIEW
+```
+
+- `historical_operation_imports`'u `pending` dışına çıkarabilen **tek**
+  giriş noktası. Tam olarak bir `--source-key`, tam olarak
+  `--approve`/`--reject`'ten biri — toplu onay/red yolu yok.
+- `--reject` için boş olmayan `--reason` zorunlu.
+- `--operator-profile-id` zorunlu; eksikse hiçbir DB bağlantısından önce
+  hata verir.
+- Yazma için tam `--confirm-review TOURPILOT_2026_HISTORICAL_REVIEW`
+  zorunlu — bu kontrol de herhangi bir `@workspace/db` import'undan önce
+  yapılır, yanlış/eksik ifadeyle sıfır yazma garantisi.
+- `HISTORICAL_STAGING_DATABASE_URL` + `HISTORICAL_STAGING_DATABASE_HOST`
+  zorunlu, `DATABASE_URL`'e fallback yok, host `.neon.tech` ile bitmeli ve
+  URL'nin hostname'iyle bire bir eşleşmeli.
+- `NODE_ENV=production` ise DB bağlantısından ÖNCE hard fail.
+- Gerçek işi tekrar uygulamaz: `approveHistoricalImport()` /
+  `rejectHistoricalImport()`'u doğrudan çağırır (bkz. aşağıdaki bölüm) —
+  bu servisler kendi içlerinde operatörü ayrıca doğrular.
+
 ## CLI: `historical:promote`
 
 ```
 pnpm --filter @workspace/api-server historical:promote -- \
   [--source-key <key> ...] [--limit <n>] \
-  [--apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION]
+  [--apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION \
+   --operator-profile-id <id>]
 ```
 
-- Varsayılan: **PLAN ONLY**, hiçbir yazma yok.
+- Varsayılan: **PLAN ONLY**, hiçbir yazma yok, **actor-free** (operator
+  gerekmez — sadece staged durumu okur).
 - `--apply` yazma için `--confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION`
   ile **birlikte** zorunlu (tam ifade).
+- `--apply` modunda `--operator-profile-id <id>` **zorunlu** — eksikse
+  `parseArgs()` herhangi bir DB bağlantısından önce hata verir. Gerçek bir
+  promotion asla `null` actor ile yazılamaz (yalnızca PLAN actor-free
+  kalabilir).
+- Operator sırf verildi diye güvenilmez: `verifyOperatorPermission(operatorProfileId,
+  "historical_migration", "promote")` batch başlamadan önce çağrılır — profil
+  var mı, aktif mi, `historical_migration.promote` yetkisi var mı kontrol
+  edilir (bkz. yukarıdaki RBAC bölümü). Başarısızsa hiçbir kayıt işlenmez.
+- Doğrulanan `operatorProfileId`, her `promoteOne()` çağrısına aktarılır ve
+  başarılı promotion + conflict/failure audit olaylarının ikisine de
+  `actorProfileId` olarak yazılır — `null` actor ile gerçek bir promotion
+  asla commit olmaz.
 - `HISTORICAL_STAGING_DATABASE_URL` + `HISTORICAL_STAGING_DATABASE_HOST`
   zorunlu; host `.neon.tech` ile bitmeli ve URL'nin hostname'iyle bire bir
   eşleşmeli. **`DATABASE_URL`'e fallback yok.**
@@ -241,13 +297,22 @@ kimlikleri (Faz 3C'nin kendi plan çıktısıyla aynı ilke).
 `artifacts/api-server/src/lib/historical-migration-approval.ts` —
 `approveHistoricalImport()` / `rejectHistoricalImport()`. İkisi de:
 
+- ilk adım olarak `verifyOperatorPermission()` ile operatörü doğrular
+  (approve için `historical_migration.approve`, reject için
+  `historical_migration.reject`) — başarısızsa satıra hiç dokunmadan
+  erken döner,
 - yalnızca `pending` durumundan çalışır (state machine),
 - `FOR UPDATE` + `approval_version` compare-and-swap ile eşzamanlı
   onay/red yarışını engeller,
-- audit satırını aynı transaction'da yazar (strict mode).
+- `approved_by_operator_id`/`approved_at` (approve) veya
+  `rejected_by_operator_id`/`rejected_at`/`rejection_reason` (reject)
+  yazar,
+- audit satırını aynı transaction'da yazar (strict mode), olay
+  `actorProfileId` olarak operatörü taşır.
 
-Bu fazda bunlara bağlı bir route/UI **yok** — mimari raporun onayladığı
-gibi CLI-first bir yaklaşım; bir route eklenmesi ayrı bir karar.
+Tek route-agnostic entrypoint'leri `historical:review` CLI'sı —
+mimari raporun onayladığı gibi CLI-first bir yaklaşım; bir HTTP route
+eklenmesi ayrı bir karar.
 
 ## Faz 3C'ye dokunulmadı
 
@@ -264,32 +329,58 @@ hiçbir şekilde riske girmiyor.
 Yalnızca dedicated Neon historical staging branch üzerinde, migration `0020`
 ayrıca onaylanıp uygulandıktan sonra:
 
-```bash
-# 1. 3 kontrollü satırı approve et (approveHistoricalImport() ile, script/route TBD)
+`<OPERATOR_ID>` aşağıda, staging DB'sinde gerçekten var olan, aktif ve
+`historical_migration.{approve,promote}` (approve/promote için) veya
+`historical_migration.reject` (reject için) yetkisine sahip bir admin
+profilinin id'sini temsil eder — gerçek bir profil id'si bu belgeye
+yazılmaz, komutlar çalıştırılırken yerine konur.
 
-# 2. PLAN
+```bash
+# 1-3. Uc kontrollu satiri tek tek onayla (KEY1/KEY2/KEY3 = gercek sourceKey'ler)
+pnpm --filter @workspace/api-server historical:review -- \
+  --source-key KEY1 --approve \
+  --operator-profile-id <OPERATOR_ID> --confirm-review TOURPILOT_2026_HISTORICAL_REVIEW
+
+pnpm --filter @workspace/api-server historical:review -- \
+  --source-key KEY2 --approve \
+  --operator-profile-id <OPERATOR_ID> --confirm-review TOURPILOT_2026_HISTORICAL_REVIEW
+
+pnpm --filter @workspace/api-server historical:review -- \
+  --source-key KEY3 --approve \
+  --operator-profile-id <OPERATOR_ID> --confirm-review TOURPILOT_2026_HISTORICAL_REVIEW
+
+# 4. PLAN (actor-free)
 pnpm --filter @workspace/api-server historical:promote -- --limit 3
 
-# 3. İlk apply — beklenen inserted=3, existing=0
+# 5. Ilk apply — beklenen inserted=3, existing=0
 pnpm --filter @workspace/api-server historical:promote -- \
-  --limit 3 --apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION
+  --limit 3 --apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION \
+  --operator-profile-id <OPERATOR_ID>
 
-# 4. Aynı komutu tekrar çalıştır — beklenen inserted=0, existing=3
+# 6. Ayni komutu tekrar calistir — beklenen inserted=0, existing=3
 pnpm --filter @workspace/api-server historical:promote -- \
-  --limit 3 --apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION
+  --limit 3 --apply --confirm-promotion TOURPILOT_2026_HISTORICAL_PROMOTION \
+  --operator-profile-id <OPERATOR_ID>
 
-# 5. Kontrollü çakışma: promote edilmiş bir sourceKey'in payload'ını
-#    (staging'de) kasıtlı değiştir, tekrar apply et — beklenen conflict,
-#    operasyon üzerine yazılmamalı
+# 7. Kontrollu catisma: promote edilmis bir sourceKey'in payload'ini
+#    (staging'de) kasitli degistir, tekrar apply et — beklenen conflict,
+#    operasyon uzerine yazilmamali
 
-# 6. Doğrulama: operations sayısı sadece 3 arttı, historical satırlar
-#    yalnızca bu 3'ü icin imported, source_historical_key unique,
-#    customers tablosuna hiç yazma olmadı
+# 8. Dogrulama: operations sayisi sadece 3 artti, historical satirlar
+#    yalnizca bu 3'u icin imported, source_historical_key unique,
+#    customers tablosuna hic yazma olmadi, audit_logs'ta approve/promote
+#    olaylari <OPERATOR_ID> actorProfileId'siyle kayitli
 
-# 7. pending bir satırı promote etmeyi dene — beklenen rejected/blocked
-# 8. rejected bir satırı promote etmeyi dene — beklenen rejected/blocked
-# 9. yanlış confirm-promotion ifadesiyle apply — beklenen hiçbir yazma yok
-# 10. NODE_ENV=production ile çalıştır — beklenen DB bağlantısından önce hard fail
+# 9. pending bir satiri (henuz approve edilmemis) promote etmeyi dene
+#    (--operator-profile-id ile birlikte) — beklenen blocked
+# 10. rejected bir satiri promote etmeyi dene — beklenen blocked
+# 11. yanlis --confirm-promotion ifadesiyle apply — beklenen hicbir yazma yok
+# 12. --operator-profile-id olmadan apply — beklenen hicbir yazma yok, DB
+#     baglantisindan once hata
+# 13. var olmayan/yetkisiz bir --operator-profile-id ile apply veya review
+#     — beklenen hicbir yazma yok, operator_not_found/operator_inactive/forbidden
+# 14. NODE_ENV=production ile calistir (review ve promote icin ayri ayri)
+#     — beklenen DB baglantisindan once hard fail
 ```
 
 Bu adımların hepsi geçmeden geniş çaplı staging promotion düşünülmez.

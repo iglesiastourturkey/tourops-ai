@@ -195,33 +195,153 @@ assert.equal(
 
 assert.equal(MAX_APPLY_LIMIT, 25);
 
-assert.deepEqual(parseArgs([]), { sourceKeys: [], limit: null, apply: false }, "plan mode with no args must not require targeting");
+assert.deepEqual(
+  parseArgs([]),
+  { sourceKeys: [], limit: null, apply: false, operatorProfileId: null },
+  "plan mode with no args must not require targeting or an operator",
+);
 
 assert.throws(
-  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION"]),
+  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--operator-profile-id", "1"]),
   /source-key.*veya.*limit/i,
   "apply without --source-key/--limit must be rejected",
 );
 
-assert.doesNotThrow(() => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3"]));
-assert.doesNotThrow(() => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--source-key", "legacy:file-1:01:3"]));
+// ── Required change 3: apply must refuse a missing/invalid operator ─────────
+assert.throws(
+  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3"]),
+  /operator-profile-id zorunludur/,
+  "apply without --operator-profile-id must be rejected before any DB connection",
+);
+assert.throws(
+  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3", "--operator-profile-id", "0"]),
+  /pozitif/,
+  "--operator-profile-id must be a positive integer",
+);
+assert.throws(
+  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3", "--operator-profile-id", "abc"]),
+  /pozitif/,
+  "a non-numeric --operator-profile-id must be rejected",
+);
+
+// PLAN mode stays actor-free - no operator required.
+assert.doesNotThrow(() => parseArgs(["--limit", "3"]));
+assert.equal(parseArgs(["--limit", "3"]).operatorProfileId, null);
+
+assert.doesNotThrow(() => parseArgs([
+  "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3", "--operator-profile-id", "7",
+]));
+assert.doesNotThrow(() => parseArgs([
+  "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION",
+  "--source-key", "legacy:file-1:01:3", "--operator-profile-id", "7",
+]));
+assert.equal(
+  parseArgs([
+    "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3", "--operator-profile-id", "7",
+  ]).operatorProfileId,
+  7,
+  "a valid --operator-profile-id must be threaded through as a number",
+);
 
 assert.throws(
-  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", String(MAX_APPLY_LIMIT + 1)]),
+  () => parseArgs([
+    "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION",
+    "--limit", String(MAX_APPLY_LIMIT + 1), "--operator-profile-id", "7",
+  ]),
   /en fazla/,
   "--limit above the hard maximum must be rejected",
 );
 assert.throws(
-  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "0"]),
+  () => parseArgs([
+    "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "0", "--operator-profile-id", "7",
+  ]),
   /pozitif/,
   "--limit must be a positive integer",
 );
 
 const tooManyKeys = Array.from({ length: MAX_APPLY_LIMIT + 1 }, (_, i) => ["--source-key", `legacy:file-1:01:${i}`]).flat();
 assert.throws(
-  () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", ...tooManyKeys]),
+  () => parseArgs([
+    "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", ...tooManyKeys, "--operator-profile-id", "7",
+  ]),
   /en fazla/,
   "more than MAX_APPLY_LIMIT --source-key values must be rejected",
+);
+
+// ── Required change 1 / 5: review CLI arg parsing (pure, no DB) ─────────────
+const { parseReviewArgs } = await import("./historical-migration-review-action");
+
+assert.throws(
+  () => parseReviewArgs(["--approve", "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW"]),
+  /tam olarak bir --source-key/i,
+  "review with zero --source-key must be rejected (no bulk path)",
+);
+assert.throws(
+  () => parseReviewArgs([
+    "--source-key", "legacy:a:01:1", "--source-key", "legacy:a:01:2",
+    "--approve", "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
+  ]),
+  /tam olarak bir --source-key/i,
+  "review with more than one --source-key must be rejected (no bulk path)",
+);
+assert.throws(
+  () => parseReviewArgs(["--source-key", "legacy:a:01:1", "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW"]),
+  /--approve veya --reject/,
+  "review without --approve or --reject must be rejected",
+);
+assert.throws(
+  () => parseReviewArgs([
+    "--source-key", "legacy:a:01:1", "--approve", "--reject",
+    "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
+  ]),
+  /--approve veya --reject/,
+  "review with both --approve and --reject must be rejected",
+);
+assert.throws(
+  () => parseReviewArgs(["--source-key", "legacy:a:01:1", "--reject", "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW"]),
+  /--reason zorunludur/,
+  "reject without --reason must be rejected",
+);
+assert.throws(
+  () => parseReviewArgs([
+    "--source-key", "legacy:a:01:1", "--reject", "--reason", "   ",
+    "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
+  ]),
+  /--reason zorunludur/,
+  "reject with a blank/whitespace-only --reason must be rejected",
+);
+assert.throws(
+  () => parseReviewArgs(["--source-key", "legacy:a:01:1", "--approve", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW"]),
+  /operator-profile-id zorunludur/,
+  "review CLI refuses missing --operator-profile-id",
+);
+
+const approveParsed = parseReviewArgs([
+  "--source-key", "legacy:a:01:1", "--approve", "--operator-profile-id", "7", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
+]);
+assert.equal(approveParsed.action, "approve");
+assert.equal(approveParsed.operatorProfileId, 7);
+assert.equal(approveParsed.confirmed, true);
+
+const rejectParsed = parseReviewArgs([
+  "--source-key", "legacy:a:01:1", "--reject", "--reason", "duplicate content",
+  "--operator-profile-id", "7", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
+]);
+assert.equal(rejectParsed.action, "reject");
+assert.equal(rejectParsed.reason, "duplicate content");
+
+// Wrong/missing confirmation phrase parses fine (arg-shape is still valid)
+// but is flagged unconfirmed - main() refuses to write in that case, so this
+// is what guarantees zero writes for a wrong confirmation phrase.
+assert.equal(
+  parseReviewArgs(["--source-key", "legacy:a:01:1", "--approve", "--operator-profile-id", "7"]).confirmed,
+  false,
+);
+assert.equal(
+  parseReviewArgs([
+    "--source-key", "legacy:a:01:1", "--approve", "--operator-profile-id", "7", "--confirm-review", "WRONG_PHRASE",
+  ]).confirmed,
+  false,
 );
 
 console.log("historical migration Phase 3D-A promotion self-test: passed");

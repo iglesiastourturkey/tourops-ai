@@ -64,6 +64,11 @@ interface PromoteArgs {
   sourceKeys: string[];
   limit: number | null;
   apply: boolean;
+  // PLAN reports on staged state without acting on anyone's behalf, so it
+  // stays actor-free (null). APPLY performs a real, attributable write and
+  // parseArgs refuses to return apply:true without one - see the apply-mode
+  // block below.
+  operatorProfileId: number | null;
 }
 
 function parseArgs(args: string[]): PromoteArgs {
@@ -73,6 +78,13 @@ function parseArgs(args: string[]): PromoteArgs {
   if (limitRaw && (!Number.isInteger(limit) || (limit as number) <= 0)) {
     throw new Error("--limit pozitif bir tam sayi olmalidir");
   }
+
+  const operatorRaw = option(args, "--operator-profile-id");
+  const operatorProfileId = operatorRaw ? Number(operatorRaw) : null;
+  if (operatorRaw && (!Number.isInteger(operatorProfileId) || (operatorProfileId as number) <= 0)) {
+    throw new Error("--operator-profile-id pozitif bir tam sayi olmalidir");
+  }
+
   const apply = args.includes("--apply");
   if (apply) {
     if (sourceKeys.length === 0 && limit === null) {
@@ -84,8 +96,14 @@ function parseArgs(args: string[]): PromoteArgs {
     if (sourceKeys.length > MAX_APPLY_LIMIT) {
       throw new Error(`Tek calistirmada en fazla ${MAX_APPLY_LIMIT} sourceKey hedeflenebilir`);
     }
+    // Real promotion must be attributable to an authorized operator - a null
+    // actor is never acceptable once writes are in play (PLAN mode, above,
+    // is the only actor-free path).
+    if (operatorProfileId === null) {
+      throw new Error("Apply modu icin --operator-profile-id zorunludur");
+    }
   }
-  return { sourceKeys, limit, apply };
+  return { sourceKeys, limit, apply, operatorProfileId };
 }
 
 interface PromoteBatchSummary {
@@ -370,7 +388,11 @@ async function promoteOne(
   }
 }
 
-async function applyPromotion(sourceKeys: string[], connectionString: string): Promise<PromoteBatchSummary> {
+async function applyPromotion(
+  sourceKeys: string[],
+  connectionString: string,
+  operatorProfileId: number,
+): Promise<PromoteBatchSummary> {
   process.env.DATABASE_URL = connectionString;
   const { pool } = await import("@workspace/db");
 
@@ -384,7 +406,7 @@ async function applyPromotion(sourceKeys: string[], connectionString: string): P
     // or wrapping transaction here.
     for (const sourceKey of sourceKeys) {
       summary.attempted += 1;
-      const outcome = await promoteOne(sourceKey, null);
+      const outcome = await promoteOne(sourceKey, operatorProfileId);
       if (outcome === "inserted") summary.inserted += 1;
       else if (outcome === "existing") summary.existing += 1;
       else if (outcome === "conflict") summary.conflicts += 1;
@@ -401,7 +423,7 @@ async function main() {
   const args = process.argv.slice(2);
   if (args.includes("--help")) usage();
 
-  const { sourceKeys, limit, apply } = parseArgs(args);
+  const { sourceKeys, limit, apply, operatorProfileId } = parseArgs(args);
 
   if (!apply) {
     process.env.DATABASE_URL ??= validatePromotionTarget();
@@ -413,11 +435,25 @@ async function main() {
   if (option(args, "--confirm-promotion") !== CONFIRMATION) {
     throw new Error("Promotion icin tam onay ifadesi gerekli");
   }
+  // parseArgs already guarantees operatorProfileId is set whenever apply is
+  // true - this is defense in depth, not the primary gate.
+  if (operatorProfileId === null) {
+    throw new Error("Apply modu icin --operator-profile-id zorunludur");
+  }
   const connectionString = validatePromotionTarget();
+  process.env.DATABASE_URL = connectionString;
+
+  // Do NOT trust --operator-profile-id merely because it was supplied: load
+  // the profile, require it active, and check historical_migration.promote
+  // through the same hasPermission() policy every HTTP route uses.
+  const { verifyOperatorPermission } = await import("./lib/historical-migration-operator");
+  const verification = await verifyOperatorPermission(operatorProfileId, "historical_migration", "promote");
+  if (!verification.ok) {
+    throw new Error(verification.message);
+  }
 
   let targetKeys = sourceKeys;
   if (targetKeys.length === 0 && limit !== null) {
-    process.env.DATABASE_URL = connectionString;
     const { db, historicalOperationImportsTable } = await import("@workspace/db");
     const rows = await db
       .select({ sourceKey: historicalOperationImportsTable.sourceKey })
@@ -428,11 +464,12 @@ async function main() {
     targetKeys = rows.map(row => row.sourceKey);
   }
 
-  const summary = await applyPromotion(targetKeys, connectionString);
+  const summary = await applyPromotion(targetKeys, connectionString, operatorProfileId);
   console.log(JSON.stringify({
     mode: "historical-promotion-apply",
     databaseWrites: true,
     customersWrites: false,
+    operatorProfileId,
     ...summary,
   }, null, 2));
 }

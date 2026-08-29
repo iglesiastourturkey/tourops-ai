@@ -5,6 +5,12 @@
  * a UI/route layer is a separate, later decision.
  *
  * Both actions:
+ *   - do NOT trust actorProfileId merely because a caller supplied one:
+ *     verifyOperatorPermission() loads the profile from DB, requires it to
+ *     be active, and checks historical_migration.approve/reject through the
+ *     existing hasPermission() policy (role_permissions/user_permissions,
+ *     same super_admin bypass every HTTP route gets) before anything else
+ *     runs. A caller with no permission never reaches the row lock.
  *   - require the row to currently be "pending" (state machine in
  *     historical-migration-promote-validation.ts),
  *   - use SELECT ... FOR UPDATE + an approval_version compare-and-swap so two
@@ -20,6 +26,7 @@ import { historicalOperationImportsTable } from "@workspace/db/schema";
 import { and, eq, sql } from "drizzle-orm";
 import { createAuditLog } from "./audit";
 import { historicalImportTransitionBlock } from "./historical-migration-promote-validation";
+import { verifyOperatorPermission } from "./historical-migration-operator";
 
 export interface ApproveHistoricalImportParams {
   sourceKey: string;
@@ -35,9 +42,16 @@ export interface RejectHistoricalImportParams {
 
 export type ApprovalResult =
   | { ok: true; sourceKey: string }
-  | { ok: false; code: "not_found" | "invalid_transition" | "concurrent_update"; message: string };
+  | {
+      ok: false;
+      code: "not_found" | "invalid_transition" | "concurrent_update" | "operator_not_found" | "operator_inactive" | "forbidden";
+      message: string;
+    };
 
 export async function approveHistoricalImport(params: ApproveHistoricalImportParams): Promise<ApprovalResult> {
+  const verification = await verifyOperatorPermission(params.actorProfileId, "historical_migration", "approve");
+  if (!verification.ok) return verification;
+
   return db.transaction(async (tx) => {
     const [row] = await tx
       .select()
@@ -87,6 +101,9 @@ export async function rejectHistoricalImport(params: RejectHistoricalImportParam
   if (!params.rejectionReason.trim()) {
     return { ok: false, code: "invalid_transition", message: "Red gerekcesi zorunludur" };
   }
+
+  const verification = await verifyOperatorPermission(params.actorProfileId, "historical_migration", "reject");
+  if (!verification.ok) return verification;
 
   return db.transaction(async (tx) => {
     const [row] = await tx

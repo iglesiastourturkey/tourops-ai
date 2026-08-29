@@ -5,6 +5,8 @@ import { readFileSync } from "node:fs";
 const CLI = readFileSync(new URL("../artifacts/api-server/src/historical-migration-promote.ts", import.meta.url), "utf8");
 const VALIDATION = readFileSync(new URL("../artifacts/api-server/src/lib/historical-migration-promote-validation.ts", import.meta.url), "utf8");
 const APPROVAL = readFileSync(new URL("../artifacts/api-server/src/lib/historical-migration-approval.ts", import.meta.url), "utf8");
+const OPERATOR = readFileSync(new URL("../artifacts/api-server/src/lib/historical-migration-operator.ts", import.meta.url), "utf8");
+const REVIEW_CLI = readFileSync(new URL("../artifacts/api-server/src/historical-migration-review-action.ts", import.meta.url), "utf8");
 const AUDIT = readFileSync(new URL("../artifacts/api-server/src/lib/audit.ts", import.meta.url), "utf8");
 const SCHEMA = readFileSync(new URL("../lib/db/src/schema/historical_operation_imports.ts", import.meta.url), "utf8");
 const MIGRATION = readFileSync(new URL("../lib/db/migrations/0020_historical_promotion_approval.sql", import.meta.url), "utf8");
@@ -87,8 +89,62 @@ assert.ok(/importedOperationId: integer\("imported_operation_id"\)\.references\(
 // Phase 3C must remain untouched by this phase.
 assert.ok(/NOT APPLIED/.test(STAGE_MIGRATION) && /Neon staging branch first/.test(STAGE_MIGRATION), "Phase 3C migration 0019 must remain unmodified");
 
+// ── Required change 2: server-side operator verification, no second RBAC system ──
+assert.ok(/import { hasPermission } from "\.\/permissions"/.test(OPERATOR), "operator verification must reuse the existing hasPermission() policy, not invent a second RBAC system");
+assert.ok(/if \(!profile\)/.test(OPERATOR) && /operator_not_found/.test(OPERATOR), "a nonexistent operator profile must be rejected");
+assert.ok(/!profile\.isActive/.test(OPERATOR) && /operator_inactive/.test(OPERATOR), "an inactive operator profile must be rejected");
+assert.ok(/hasPermission\(profile\.id, profile\.role, module, action\)/.test(OPERATOR), "operator verification must check the requested (module, action) via hasPermission()");
+assert.ok(/forbidden/.test(OPERATOR), "an operator lacking the permission must be rejected");
+
+// approve()/reject() must call verifyOperatorPermission with the correct action before any write.
+assert.ok(/verifyOperatorPermission\(params\.actorProfileId, "historical_migration", "approve"\)/.test(APPROVAL), "approveHistoricalImport must verify historical_migration.approve before writing");
+assert.ok(/verifyOperatorPermission\(params\.actorProfileId, "historical_migration", "reject"\)/.test(APPROVAL), "rejectHistoricalImport must verify historical_migration.reject before writing");
+// The verification must gate execution (an early return), not just be called and ignored.
+const approveFnBody = APPROVAL.slice(APPROVAL.indexOf("export async function approveHistoricalImport"), APPROVAL.indexOf("export async function rejectHistoricalImport"));
+assert.ok(/if \(!verification\.ok\) return verification;/.test(approveFnBody), "approveHistoricalImport must return early when the operator is not verified");
+const rejectFnBody = APPROVAL.slice(APPROVAL.indexOf("export async function rejectHistoricalImport"));
+assert.ok(/if \(!verification\.ok\) return verification;/.test(rejectFnBody), "rejectHistoricalImport must return early when the operator is not verified");
+
+// ── Required change 6/7: approve/reject audit rows carry the operator ────────
+assert.ok(/actorProfileId: params\.actorProfileId/.test(approveFnBody), "the approval audit event must carry the operator's actorProfileId");
+assert.ok(/actorProfileId: params\.actorProfileId/.test(rejectFnBody), "the rejection audit event must carry the operator's actorProfileId");
+assert.ok(/approvedByOperatorId: params\.actorProfileId/.test(approveFnBody), "approval must persist approved_by_operator_id");
+assert.ok(/rejectedByOperatorId: params\.actorProfileId/.test(rejectFnBody), "rejection must persist rejected_by_operator_id");
+
+// ── Required change 3: promotion apply requires and verifies an operator ────
+assert.ok(/operatorProfileId === null/.test(CLI) && /Apply modu icin --operator-profile-id zorunludur/.test(CLI), "apply without --operator-profile-id must be rejected");
+assert.ok(/verifyOperatorPermission\(operatorProfileId, "historical_migration", "promote"\)/.test(CLI), "promotion apply must verify historical_migration.promote before writing");
+assert.ok(!/promoteOne\(sourceKey, null\)/.test(CLI), "applyPromotion must no longer pass a null actor to promoteOne");
+assert.ok(/promoteOne\(sourceKey, operatorProfileId\)/.test(CLI), "applyPromotion must thread the verified operator through to promoteOne");
+// operator verification must run before the batch, not be skippable per-record.
+const mainFnBody = CLI.slice(CLI.indexOf("async function main"));
+assert.ok(mainFnBody.indexOf("verifyOperatorPermission") < mainFnBody.indexOf("applyPromotion(targetKeys"), "operator verification must happen before the promotion batch runs");
+
+// ── Required change 1: dedicated single-record review CLI, no bulk path ─────
+assert.ok(/HISTORICAL_STAGING_DATABASE_URL/.test(REVIEW_CLI) && /HISTORICAL_STAGING_DATABASE_HOST/.test(REVIEW_CLI), "review CLI must use the dedicated staging connection and exact host allowlist");
+assert.ok(/process\.env\.NODE_ENV === "production"/.test(REVIEW_CLI), "review CLI must refuse production mode before connecting");
+assert.ok(/TOURPILOT_2026_HISTORICAL_REVIEW/.test(REVIEW_CLI), "review CLI must require the exact review confirmation phrase");
+assert.ok(/\.endsWith\("\.neon\.tech"\)/.test(REVIEW_CLI), "review CLI must restrict writes to Neon hosts");
+assert.ok(/sourceKeys\.length !== 1/.test(REVIEW_CLI), "review CLI must accept exactly one --source-key (no bulk approval/rejection path)");
+assert.ok(!/optionAll\(args, "--approve"\)/.test(REVIEW_CLI), "there must be no way to pass multiple approve targets");
+assert.ok(/approve === reject/.test(REVIEW_CLI), "review CLI must require exactly one of --approve/--reject");
+assert.ok(/reject && !reason\?\.trim\(\)/.test(REVIEW_CLI), "review CLI must require a non-empty --reason for --reject");
+assert.ok(/if \(!operatorRaw\)/.test(REVIEW_CLI), "review CLI must refuse a missing --operator-profile-id");
+assert.ok(/if \(!parsed\.confirmed\)/.test(REVIEW_CLI), "review CLI must refuse to write without the exact confirmation phrase");
+assert.ok(/await approveHistoricalImport\(/.test(REVIEW_CLI) && /await rejectHistoricalImport\(/.test(REVIEW_CLI), "review CLI must reuse the existing approval service, not duplicate its logic");
+// The confirmation check (zero writes) must run before the CLI ever imports @workspace/db.
+const reviewMainBody = REVIEW_CLI.slice(REVIEW_CLI.indexOf("async function main"));
+assert.ok(
+  reviewMainBody.indexOf("if (!parsed.confirmed)") < reviewMainBody.indexOf('import("@workspace/db")'),
+  "a wrong/missing confirmation phrase must make zero writes - checked before any DB import",
+);
+
 for (const forbidden of ["googleapis", "google-auth-library", "fetch(", "axios", "webhook"]) {
-  assert.ok(!CLI.includes(forbidden) && !VALIDATION.includes(forbidden) && !APPROVAL.includes(forbidden), `historical promotion code must not contain ${forbidden}`);
+  assert.ok(
+    !CLI.includes(forbidden) && !VALIDATION.includes(forbidden) && !APPROVAL.includes(forbidden)
+      && !OPERATOR.includes(forbidden) && !REVIEW_CLI.includes(forbidden),
+    `historical promotion code must not contain ${forbidden}`,
+  );
 }
 
 execFileSync(
