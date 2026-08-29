@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import {
   classifyHistoricalCustomerResolution,
   normalizeHistoricalCustomerName,
@@ -64,6 +64,11 @@ function historicalNameFromPayload(payload: unknown): unknown {
 async function buildPlan(sourceKeys: string[], limit: number | null) {
   const { db, historicalOperationImportsTable, operationsTable, customersTable } = await import("@workspace/db");
 
+  const importedOnly = eq(historicalOperationImportsTable.status, "imported");
+  const selection = sourceKeys.length > 0
+    ? and(importedOnly, inArray(historicalOperationImportsTable.sourceKey, sourceKeys))
+    : importedOnly;
+
   let stagingQuery = db
     .select({
       sourceKey: historicalOperationImportsTable.sourceKey,
@@ -71,16 +76,18 @@ async function buildPlan(sourceKeys: string[], limit: number | null) {
       importedOperationId: historicalOperationImportsTable.importedOperationId,
     })
     .from(historicalOperationImportsTable)
-    .where(
-      sourceKeys.length > 0
-        ? inArray(historicalOperationImportsTable.sourceKey, sourceKeys)
-        : inArray(historicalOperationImportsTable.status, ["imported"]),
-    )
+    .where(selection)
     .orderBy(historicalOperationImportsTable.id)
     .$dynamic();
 
-  if (limit !== null) stagingQuery = stagingQuery.limit(limit);
+  // Default scans are always capped. Explicit source-key runs are already capped
+  // by MAX_PLAN_LIMIT and must surface any requested key that was not eligible.
+  const effectiveLimit = sourceKeys.length === 0 ? (limit ?? MAX_PLAN_LIMIT) : limit;
+  if (effectiveLimit !== null) stagingQuery = stagingQuery.limit(effectiveLimit);
   const stagedRows = await stagingQuery;
+
+  const selectedSourceKeySet = new Set(stagedRows.map(row => row.sourceKey));
+  const missingRequestedSourceKeys = sourceKeys.filter(key => !selectedSourceKeySet.has(key));
 
   const operationIds = stagedRows
     .map(row => row.importedOperationId)
@@ -96,7 +103,7 @@ async function buildPlan(sourceKeys: string[], limit: number | null) {
   const customerRows = await db
     .select({ id: customersTable.id, name: customersTable.name })
     .from(customersTable)
-    .where(inArray(customersTable.archivedAt, [null]));
+    .where(isNull(customersTable.archivedAt));
 
   const candidatesByNormalizedName = new Map<string, CustomerCandidate[]>();
   for (const customer of customerRows) {
@@ -118,19 +125,34 @@ async function buildPlan(sourceKeys: string[], limit: number | null) {
     ambiguousExactNames: 0,
     noExactCandidate: 0,
     invalidOrBlankName: 0,
+    invalidImportBacklinks: 0,
     selectedSourceKeys: [] as string[],
+    missingRequestedSourceKeys,
     details: [] as Array<Record<string, unknown>>,
   };
 
   for (const row of stagedRows) {
-    const operation = row.importedOperationId === null ? undefined : operationById.get(row.importedOperationId);
-    const resolution = classifyHistoricalCustomerResolution({
-      historicalName: historicalNameFromPayload(row.payload),
-      operationCustomerId: operation?.customerId ?? null,
-      candidatesByNormalizedName,
-    });
     summary.scanned += 1;
     summary.selectedSourceKeys.push(row.sourceKey);
+
+    if (row.importedOperationId === null || !operationById.has(row.importedOperationId)) {
+      summary.invalidImportBacklinks += 1;
+      summary.details.push({
+        sourceKey: row.sourceKey,
+        historicalName: historicalNameFromPayload(row.payload),
+        classification: "invalid_import_backlink",
+        importedOperationId: row.importedOperationId,
+        candidates: [],
+      });
+      continue;
+    }
+
+    const operation = operationById.get(row.importedOperationId)!;
+    const resolution = classifyHistoricalCustomerResolution({
+      historicalName: historicalNameFromPayload(row.payload),
+      operationCustomerId: operation.customerId,
+      candidatesByNormalizedName,
+    });
     if (resolution.kind === "already_linked") summary.alreadyLinked += 1;
     else if (resolution.kind === "exact_unique_name_candidate") summary.exactUniqueCandidates += 1;
     else if (resolution.kind === "ambiguous_exact_name") summary.ambiguousExactNames += 1;
