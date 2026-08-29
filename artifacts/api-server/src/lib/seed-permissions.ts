@@ -194,6 +194,8 @@ const MATRIX: PermRow[] = [
   ["historical_migration", "approve", ["admin"]],
   ["historical_migration", "reject",  ["admin"]],
   ["historical_migration", "promote", ["admin"]],
+  ["historical_migration", "customer_review", ["admin"]],
+  ["historical_migration", "customer_link",   ["admin"]],
 ];
 
 // Non-super roles that appear in the matrix

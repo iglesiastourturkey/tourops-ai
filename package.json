@@ -23,7 +23,8 @@
     "test:historical-promotion": "node scripts/historical-migration-promotion-focused-tests.mjs",
     "test:historical-customer-resolution": "node scripts/historical-customer-resolution-focused-tests.mjs",
     "test:historical-pending-inspect": "node scripts/historical-pending-inspect-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging && pnpm run test:historical-promotion && pnpm run test:historical-customer-resolution && pnpm run test:historical-pending-inspect",
+    "test:historical-customer-link": "node scripts/historical-customer-link-focused-tests.mjs",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging && pnpm run test:historical-promotion && pnpm run test:historical-customer-resolution && pnpm run test:historical-pending-inspect && pnpm run test:historical-customer-link",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test"
   },
   "private": true,
