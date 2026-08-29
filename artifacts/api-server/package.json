@@ -18,6 +18,7 @@
     "historical:review": "tsx src/historical-migration-review-action.ts",
     "historical:customer-resolution-plan": "tsx src/historical-customer-resolution-plan.ts",
     "historical:pending-inspect": "tsx src/historical-pending-inspect.ts",
+    "historical:customer-link": "tsx src/historical-customer-link.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
