@@ -15,6 +15,11 @@ import { buildHistoricalStageRows, parseHistoricalStagingPackage } from "./lib/h
 assert.equal(historicalImportTransitionBlock("approve", "pending"), null);
 assert.equal(historicalImportTransitionBlock("reject", "pending"), null);
 assert.equal(historicalImportTransitionBlock("promote", "approved"), null);
+assert.equal(
+  historicalImportTransitionBlock("promote", "imported"),
+  null,
+  "imported must be allowed only into idempotent replay/conflict verification",
+);
 
 assert.ok(historicalImportTransitionBlock("promote", "pending"), "pending -> imported must be blocked");
 assert.ok(historicalImportTransitionBlock("promote", "rejected"), "rejected -> imported must be blocked");
@@ -22,7 +27,6 @@ assert.ok(historicalImportTransitionBlock("approve", "imported"), "imported -> a
 assert.ok(historicalImportTransitionBlock("reject", "imported"), "imported -> rejected must be blocked");
 assert.ok(historicalImportTransitionBlock("approve", "approved"), "approved -> approved must be blocked (no double-approve)");
 assert.ok(historicalImportTransitionBlock("reject", "approved"), "approved -> rejected must be blocked");
-assert.ok(historicalImportTransitionBlock("promote", "imported"), "imported cannot be promoted again as new");
 
 // ── Payload integrity ─────────────────────────────────────────────────────────
 
@@ -157,9 +161,6 @@ const differentExisting = buildPromotionProjectionFromExisting(
 const case3 = decidePromotionOutcome(target, differentExisting);
 assert.equal(case3.outcome, "conflict", "same key + different projection must conflict, never overwrite");
 
-// A non-null value anywhere Faz 3D-A itself always writes null (e.g. a
-// customerId set by something outside this code path) must also register as
-// a conflict, not be silently normalized away.
 const foreignCustomerExisting = buildPromotionProjectionFromExisting(
   {
     sourceHistoricalKey: target.operation.sourceHistoricalKey,
@@ -194,20 +195,16 @@ assert.equal(
 // ── CLI arg parsing / targeting restrictions (pure, no DB) ───────────────────
 
 assert.equal(MAX_APPLY_LIMIT, 25);
-
 assert.deepEqual(
   parseArgs([]),
   { sourceKeys: [], limit: null, apply: false, operatorProfileId: null },
   "plan mode with no args must not require targeting or an operator",
 );
-
 assert.throws(
   () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--operator-profile-id", "1"]),
   /source-key.*veya.*limit/i,
   "apply without --source-key/--limit must be rejected",
 );
-
-// ── Required change 3: apply must refuse a missing/invalid operator ─────────
 assert.throws(
   () => parseArgs(["--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3"]),
   /operator-profile-id zorunludur/,
@@ -223,11 +220,8 @@ assert.throws(
   /pozitif/,
   "a non-numeric --operator-profile-id must be rejected",
 );
-
-// PLAN mode stays actor-free - no operator required.
 assert.doesNotThrow(() => parseArgs(["--limit", "3"]));
 assert.equal(parseArgs(["--limit", "3"]).operatorProfileId, null);
-
 assert.doesNotThrow(() => parseArgs([
   "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION", "--limit", "3", "--operator-profile-id", "7",
 ]));
@@ -242,7 +236,6 @@ assert.equal(
   7,
   "a valid --operator-profile-id must be threaded through as a number",
 );
-
 assert.throws(
   () => parseArgs([
     "--apply", "--confirm-promotion", "TOURPILOT_2026_HISTORICAL_PROMOTION",
@@ -258,7 +251,6 @@ assert.throws(
   /pozitif/,
   "--limit must be a positive integer",
 );
-
 const tooManyKeys = Array.from({ length: MAX_APPLY_LIMIT + 1 }, (_, i) => ["--source-key", `legacy:file-1:01:${i}`]).flat();
 assert.throws(
   () => parseArgs([
@@ -270,7 +262,6 @@ assert.throws(
 
 // ── Required change 1 / 5: review CLI arg parsing (pure, no DB) ─────────────
 const { parseReviewArgs } = await import("./historical-migration-review-action");
-
 assert.throws(
   () => parseReviewArgs(["--approve", "--operator-profile-id", "1", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW"]),
   /tam olarak bir --source-key/i,
@@ -315,24 +306,18 @@ assert.throws(
   /operator-profile-id zorunludur/,
   "review CLI refuses missing --operator-profile-id",
 );
-
 const approveParsed = parseReviewArgs([
   "--source-key", "legacy:a:01:1", "--approve", "--operator-profile-id", "7", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
 ]);
 assert.equal(approveParsed.action, "approve");
 assert.equal(approveParsed.operatorProfileId, 7);
 assert.equal(approveParsed.confirmed, true);
-
 const rejectParsed = parseReviewArgs([
   "--source-key", "legacy:a:01:1", "--reject", "--reason", "duplicate content",
   "--operator-profile-id", "7", "--confirm-review", "TOURPILOT_2026_HISTORICAL_REVIEW",
 ]);
 assert.equal(rejectParsed.action, "reject");
 assert.equal(rejectParsed.reason, "duplicate content");
-
-// Wrong/missing confirmation phrase parses fine (arg-shape is still valid)
-// but is flagged unconfirmed - main() refuses to write in that case, so this
-// is what guarantees zero writes for a wrong confirmation phrase.
 assert.equal(
   parseReviewArgs(["--source-key", "legacy:a:01:1", "--approve", "--operator-profile-id", "7"]).confirmed,
   false,

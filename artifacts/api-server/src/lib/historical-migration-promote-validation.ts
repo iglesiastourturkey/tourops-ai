@@ -20,10 +20,12 @@ export type HistoricalImportAction = "approve" | "reject" | "promote";
 const ALLOWED_FROM: Record<HistoricalImportAction, ReadonlySet<HistoricalImportStatus>> = {
   approve: new Set(["pending"]),
   reject: new Set(["pending"]),
-  // No pending -> imported and no rejected -> imported: promote only ever
-  // reads a row already sitting in "approved", so both are excluded by
-  // construction, not by a separate rule.
-  promote: new Set(["approved"]),
+  // First promotion requires approved. Imported is also allowed only so an
+  // explicitly targeted replay can reach the existing-operation projection
+  // comparison: identical content becomes an idempotent existing/no-op,
+  // while changed content fails closed as a conflict. Pending/rejected remain
+  // blocked and can never enter the promotion path.
+  promote: new Set(["approved", "imported"]),
 };
 
 const STATUS_BLOCK_MESSAGE: Record<HistoricalImportStatus, string> = {

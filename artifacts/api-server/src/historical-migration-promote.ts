@@ -126,19 +126,23 @@ async function planPromotion(sourceKeys: string[], limit: number | null) {
   const countOf = (status: string) => statusCounts.find(row => row.status === status)?.count ?? 0;
 
   let selectedSourceKeys: string[] = [];
-  // Rows explicitly requested by --source-key that turn out not to be
-  // approved (wrong status, or the key does not exist) are not silently
-  // dropped from the report - they count toward promotionBlocked below, same
-  // as a payload-integrity failure would.
-  let requestedButNotApproved = 0;
+  // Explicit --source-key selection may target an approved row for its first
+  // promotion or an imported row for a deliberate idempotent replay/conflict
+  // check. Pending/rejected/missing rows remain blocked. Limit-based discovery
+  // intentionally stays approved-only so replay can never become an implicit
+  // bulk operation.
+  let requestedButNotPromotable = 0;
   if (sourceKeys.length > 0) {
     const rows = await db
       .select({ sourceKey: historicalOperationImportsTable.sourceKey, status: historicalOperationImportsTable.status })
       .from(historicalOperationImportsTable)
       .where(inArray(historicalOperationImportsTable.sourceKey, sourceKeys));
     const foundByKey = new Map(rows.map(row => [row.sourceKey, row.status]));
-    selectedSourceKeys = sourceKeys.filter(key => foundByKey.get(key) === "approved");
-    requestedButNotApproved = sourceKeys.length - selectedSourceKeys.length;
+    selectedSourceKeys = sourceKeys.filter(key => {
+      const status = foundByKey.get(key);
+      return status === "approved" || status === "imported";
+    });
+    requestedButNotPromotable = sourceKeys.length - selectedSourceKeys.length;
   } else if (limit !== null) {
     const rows = await db
       .select({ sourceKey: historicalOperationImportsTable.sourceKey })
@@ -203,7 +207,7 @@ async function planPromotion(sourceKeys: string[], limit: number | null) {
     pending: countOf("pending"),
     rejected: countOf("rejected"),
     alreadyImported: countOf("imported"),
-    promotionBlocked: requestedButNotApproved + payloadIntegrityBlocked,
+    promotionBlocked: requestedButNotPromotable + payloadIntegrityBlocked,
     existingOperations: existingOperationsRow?.count ?? 0,
     potentialConflicts,
     requestedLimit: limit,
@@ -249,7 +253,8 @@ async function promoteOne(
         .for("update");
       if (!row) return "blocked";
 
-      // 2. Status must be "approved" - the only allowed source of promote.
+      // 2. Promotion accepts an approved first-run or an imported explicit
+      // idempotent replay. Pending/rejected remain blocked by the state machine.
       const blocked = historicalImportTransitionBlock("promote", row.status);
       if (blocked) return "blocked";
 
