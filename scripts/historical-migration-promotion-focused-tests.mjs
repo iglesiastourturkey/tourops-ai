@@ -35,10 +35,14 @@ assert.ok(applyPromotionBody.includes("for (const sourceKey"), "applyPromotion m
 assert.ok(!applyPromotionBody.includes("db.transaction"), "applyPromotion must not wrap the per-record loop in a single batch transaction - each record's own transaction lives inside promoteOne");
 assert.ok(/attempted:\s*0.*inserted:\s*0.*existing:\s*0.*conflicts:\s*0.*blocked:\s*0.*failed:\s*0/s.test(CLI), "batch summary must report attempted/inserted/existing/conflicts/blocked/failed");
 
-// ── State machine ─────────────────────────────────────────────────────────────
+// ── State machine / replay regression ────────────────────────────────────────
 assert.ok(/approve: new Set\(\["pending"\]\)/.test(VALIDATION), "approve must only be allowed from pending");
 assert.ok(/reject: new Set\(\["pending"\]\)/.test(VALIDATION), "reject must only be allowed from pending");
-assert.ok(/promote: new Set\(\["approved"\]\)/.test(VALIDATION), "promote must only be allowed from approved");
+assert.ok(/promote: new Set\(\["approved", "imported"\]\)/.test(VALIDATION), "promote must allow approved first-run plus imported idempotent replay");
+assert.ok(!/promote: new Set\(\[[^\]]*"pending"/.test(VALIDATION), "pending rows must never enter promotion");
+assert.ok(!/promote: new Set\(\[[^\]]*"rejected"/.test(VALIDATION), "rejected rows must never enter promotion");
+assert.ok(/decidePromotionOutcome\(target, existingProjection\)/.test(CLI), "imported replay must reach the same existing-projection idempotency/conflict decision");
+assert.ok(/outcome === "existing" \? "historical_migration_promotion_replayed"/.test(CLI), "idempotent replay must be auditable as a replay");
 
 // ── Payload integrity + conflict = fail closed, never overwrite ──────────────
 assert.ok(/verifyStagedPayloadIntegrity/.test(CLI), "promotion must verify payload_sha256 before promoting");
