@@ -185,6 +185,15 @@ const MATRIX: PermRow[] = [
   // ai
   ["ai", "view",   ["admin","operations","guide","accounting","field_operations"]],
   ["ai", "manage", ["admin"]],
+
+  // historical_migration — Faz 3D: review/approve/reject/promote legacy
+  // GEMI/SEJOUR staging rows into real operations. Admin-only by default:
+  // this is irreversible historical-record promotion, not day-to-day
+  // operations work, matching operations.purge/operations.approve above.
+  ["historical_migration", "review",  ["admin"]],
+  ["historical_migration", "approve", ["admin"]],
+  ["historical_migration", "reject",  ["admin"]],
+  ["historical_migration", "promote", ["admin"]],
 ];
 
 // Non-super roles that appear in the matrix
