@@ -16,6 +16,7 @@
     "historical:stage": "tsx src/historical-migration-stage.ts",
     "historical:promote": "tsx src/historical-migration-promote.ts",
     "historical:review": "tsx src/historical-migration-review-action.ts",
+    "historical:customer-resolution-plan": "tsx src/historical-customer-resolution-plan.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -45,7 +46,6 @@
   "devDependencies": {
     "@types/archiver": "^8.0.0",
     "@types/cookie-parser": "^1.4.10",
-    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "@types/pdfkit": "^0.17.6",
