@@ -101,10 +101,24 @@ export function parseHistoricalStagingPackage(input: unknown): HistoricalStaging
   return stagingPackageSchema.parse(input);
 }
 
+/** Parses one persisted Phase 3C payload before a correction can touch it. */
+export function parseHistoricalStagingRecord(input: unknown): HistoricalStagingRecord {
+  return stagingRecordSchema.parse(input);
+}
+
+/**
+ * The payload digest used by Phase 3C.  Correction code deliberately calls
+ * this shared function rather than carrying a second, subtly different JSON
+ * canonicalisation implementation.
+ */
+export function sha256OfHistoricalStagingRecord(record: HistoricalStagingRecord): string {
+  return createHash("sha256").update(canonicalJson(record)).digest("hex");
+}
+
 export function buildHistoricalStageRows(stagingPackage: HistoricalStagingPackage): HistoricalStageRow[] {
   return stagingPackage.records.map(record => ({
     sourceKey: record.idempotencyKey,
-    payloadSha256: createHash("sha256").update(canonicalJson(record)).digest("hex"),
+    payloadSha256: sha256OfHistoricalStagingRecord(record),
     sourceFileId: record.provenance.sourceFileId,
     sourceKind: record.provenance.sourceKind,
     worksheetName: record.provenance.worksheetName,

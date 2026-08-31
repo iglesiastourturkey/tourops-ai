@@ -10,6 +10,23 @@ firstDay.addRow(["Type", "Agency", "Operator", "Adult", "Chd", "Guest Name", "P-
 firstDay.addRow(["PVT", "VIATOR", "IGLESIAS", 2, 0, "TEST CUSTOMER", "KUS LIMAN", "ING", "08:00", "", "", "TEST NOTES"]);
 firstDay.addRow(["PVT", "VIATOR", "IGLESIAS", 2, 0, "TEST CUSTOMER", "KUS LIMAN", "ING", "08:00", "", "", "TEST NOTES"]);
 
+const pickupDateDay = workbook.addWorksheet("03");
+pickupDateDay.addRow(["Type", "Agency", "Operator", "Adult", "Chd", "Guest Name", "P-up Point", "DIL", "P-up Time", "Tahsilat", "", "Notes"]);
+pickupDateDay.addRow([
+  "PVT",
+  "VIATOR",
+  "IGLESIAS",
+  2,
+  0,
+  "DATE PICKUP TEST",
+  "HOTEL",
+  "ING",
+  new Date(Date.UTC(1899, 11, 30, 9, 30)),
+  "",
+  "",
+  "DATE CELL TEST",
+]);
+
 const secondDay = workbook.addWorksheet("02");
 secondDay.addRow(["Type", "Agency", "Operator", "Adult", "Chd", "Full Name", "P-up Point", "DIL", "P-up Time", "Tahsilat", "", "Notes"]);
 secondDay.addRow(["REG", "TOURR", "LAAL", 1, 0, "", "HOTEL", "ING", "09:00", "", "", "TRANSFER"]);
@@ -27,15 +44,25 @@ assert.equal(operationDateFromWorksheet("32", 2026, 8), null);
 
 const report = buildHistoricalDryRunReport([{ descriptor, workbook }], "2026-08-26T00:00:00.000Z");
 assert.equal(report.summary.workbooks, 1);
-assert.equal(report.summary.worksheets, 2);
-assert.equal(report.summary.candidates, 3);
-assert.equal(report.summary.ready, 2);
+assert.equal(report.summary.worksheets, 3);
+assert.equal(report.summary.candidates, 4);
+assert.equal(report.summary.ready, 3);
 assert.equal(report.summary.reviewRequired, 1);
 assert.equal(report.summary.possibleDuplicates, 2);
 assert.equal(report.scope.databaseWrites, false);
 assert.equal(report.scope.driveWrites, false);
 assert.ok(report.candidates[0].sourceKey.startsWith("legacy:drive-fixture-id:01:"));
 assert.ok(report.candidates[0].issues.includes("missing_booking_reference"));
-assert.ok(report.candidates[2].issues.includes("missing_customer_name"));
+const datePickupCandidate = report.candidates.find(
+  candidate => candidate.customerName === "DATE PICKUP TEST",
+);
+assert.ok(datePickupCandidate);
+assert.equal(datePickupCandidate.pickupTime, "09:30");
+assert.ok(!datePickupCandidate.pickupTime.includes("1899-12-30"));
+
+const missingCustomerCandidate = report.candidates.find(
+  candidate => candidate.issues.includes("missing_customer_name"),
+);
+assert.ok(missingCustomerCandidate);
 
 console.log("historical migration dry-run self-test: passed");

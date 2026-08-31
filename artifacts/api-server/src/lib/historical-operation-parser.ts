@@ -166,6 +166,27 @@ function getNumber(row: ExcelJS.Row, map: HeaderMap, key: HeaderKey): number | n
   return column ? numberValue(row.getCell(column).value) : null;
 }
 
+function pickupTimeValue(value: ExcelJS.CellValue): string | null {
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    const hours = String(value.getUTCHours()).padStart(2, "0");
+    const minutes = String(value.getUTCMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  }
+
+  const text = cellText(value);
+  if (!text) return null;
+
+  const timeOnly = text.match(/^(\d{1,2}):(\d{2})$/);
+  if (!timeOnly) return text;
+
+  const hours = Number.parseInt(timeOnly[1], 10);
+  const minutes = Number.parseInt(timeOnly[2], 10);
+  if (hours > 23 || minutes > 59) return text;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
@@ -236,7 +257,9 @@ export function parseHistoricalWorksheet(
       customerName: getText(row, headers, "customerName"),
       pickupPoint: getText(row, headers, "pickupPoint"),
       language: getText(row, headers, "language"),
-      pickupTime: getText(row, headers, "pickupTime"),
+      pickupTime: headers.pickupTime
+        ? pickupTimeValue(row.getCell(headers.pickupTime).value)
+        : null,
       collectionStatusRaw: getText(row, headers, "collection"),
       notesRaw: getText(row, headers, "notes"),
       tourSectionRaw: currentSection,
