@@ -132,31 +132,32 @@ assert.ok(
   "a customer must only be created when no existing customer (linked or matched) was found",
 );
 
-// ── 3. operation: update in place on re-approval ─────────────────────────────
+// ── 3. cutover: reservation owns re-approval idempotency ────────────────────
 assert.ok(
-  /previouslyMatchedOperationId = importRow\.matchedOperationId/.test(approveSource),
-  "approve must read the row's previously-linked operation before deciding insert vs. update",
+  /from\(reservationsTable\)\s*\.where\(eq\(reservationsTable\.sourceSheetImportId, importRow\.id\)\)/.test(approveSource),
+  "approve must find the existing logical reservation by sourceSheetImportId before deciding insert vs. update",
 );
 assert.ok(
-  /if \(previouslyMatchedOperationId\)\s*\{\s*\[operation\]\s*=\s*await tx\s*\.update\(operationsTable\)/.test(approveSource),
-  "approve must UPDATE the existing operation when the row already has a linked one",
+  /existingReservation\?\.tourOperationId\s*\?\? importRow\.matchedOperationId/.test(approveSource),
+  "an idempotent reservation's explicit operation link must take precedence over the legacy matchedOperationId",
 );
 assert.ok(
-  /if \(!operation\)\s*\{\s*\[operation\]\s*=\s*await tx\s*\.insert\(operationsTable\)/.test(approveSource),
-  "approve must only INSERT a new operation when there was no previous link (or it no longer exists)",
+  /if \(existingReservation\)\s*\{\s*\[reservation\]\s*=\s*await tx\s*\.update\(reservationsTable\)/.test(approveSource),
+  "re-approval must update the existing reservation rather than inserting a duplicate",
 );
-// The same update-in-place / insert-fallback shape must apply to the
-// reservation details row, or the details would go stale on re-approval
-// while the operation itself gets updated.
 assert.ok(
-  /\.update\(operationReservationDetailsTable\)/.test(approveSource) && /updatedDetailsRows\.length === 0/.test(approveSource),
-  "operation_reservation_details must also be updated in place, falling back to insert only if no row exists yet",
+  /\.update\(bookingPartiesTable\)/.test(approveSource) && /\.insert\(bookingPartiesTable\)/.test(approveSource),
+  "booking_parties must be updated in place with an insert fallback for first approval",
+);
+assert.ok(
+  !/operationReservationDetailsTable/.test(approveSource),
+  "the Phase 1B.1 path must not write the legacy operation_reservation_details table",
 );
 
-// ── 4. the unique index exists in both the schema and the migration ──────────
+// ── 4. operation index is relaxed; reservation index owns uniqueness ────────
 assert.ok(
-  /sheetImportUnique: uniqueIndex\("operations_source_sheet_import_idx"\)\.on\(table\.sourceSheetImportId\)/.test(SCHEMA_SOURCE),
-  "operations.ts must declare operations_source_sheet_import_idx (drizzle-kit push treats this file as the source of truth)",
+  /sheetImportIdx: index\("operations_source_sheet_import_idx"\)\.on\(table\.sourceSheetImportId\)/.test(SCHEMA_SOURCE),
+  "operations.ts must retain operations_source_sheet_import_idx as a plain provenance index",
 );
 assert.ok(
   /CREATE UNIQUE INDEX IF NOT EXISTS operations_source_sheet_import_idx/.test(MIGRATION_SOURCE),

@@ -202,15 +202,16 @@ for (const originalField of ["adultCount", "childCount", "netAmount", "advanceAm
   );
 }
 
-// ── 14: no existing write route changed ──────────────────────────────────
+// ── 14: Phase 1B.1 wires only sheet import; other writers stay untouched ──
 
 assert.ok(
-  SHEET_IMPORT_ROUTE_SOURCE.includes("updatedDetailsRows"),
-  "sheet-import.ts's existing update-in-place approval logic must be unchanged in Phase 1A",
+  SHEET_IMPORT_ROUTE_SOURCE.includes("reservationsTable")
+    && SHEET_IMPORT_ROUTE_SOURCE.includes("bookingPartiesTable"),
+  "Phase 1B.1 sheet-import approval must write the reservation hierarchy",
 );
 assert.ok(
-  !SHEET_IMPORT_ROUTE_SOURCE.includes("reservationsTable"),
-  "sheet-import.ts must not import or reference the new reservationsTable in Phase 1A — wiring is a Phase 1B concern",
+  !SHEET_IMPORT_ROUTE_SOURCE.includes("operationReservationDetailsTable"),
+  "Phase 1B.1 sheet-import approval must not write legacy operation_reservation_details",
 );
 assert.ok(
   HISTORICAL_PROMOTE_SOURCE.includes("Create the 1:1 reservation-details row"),

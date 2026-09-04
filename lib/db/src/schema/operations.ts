@@ -58,14 +58,11 @@ export const operationsTable = pgTable("operations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({
   gmailImportUnique: uniqueIndex("operations_source_email_import_idx").on(table.sourceEmailImportId),
-  // Faz 5.3: same idea as gmailImportUnique, for the sheet-import pipeline.
-  // /approve now updates the operation a sheet row already created instead
-  // of inserting a second one (see sheet-import.ts); this index makes that
-  // guarantee hold at the database level too, not just in application code.
-  // No .where() clause, same as gmailImportUnique - Postgres does not treat
-  // multiple NULLs as duplicates, so operations from every other source
-  // (sourceSheetImportId = NULL) are unaffected.
-  sheetImportUnique: uniqueIndex("operations_source_sheet_import_idx").on(table.sourceSheetImportId),
+  // Phase 1B.1: operations retain this as a provenance/search index only.
+  // reservations.sourceSheetImportId is the unique idempotency owner for a
+  // sheet source row, allowing an Operation to eventually have many
+  // reservations without claiming a one-operation-per-source-row invariant.
+  sheetImportIdx: index("operations_source_sheet_import_idx").on(table.sourceSheetImportId),
   historicalImportUnique: uniqueIndex("operations_source_historical_key_idx").on(table.sourceHistoricalKey),
   // Backs the create-draft duplicate check, which compares booking references
   // case- and whitespace-insensitively. Declared here as well as in
@@ -214,4 +211,3 @@ export type OperationDocument = typeof operationDocumentsTable.$inferSelect;
 export type OperationStatusHistory = typeof operationStatusHistoryTable.$inferSelect;
 export type FieldIncident = typeof fieldIncidentsTable.$inferSelect;
 export type OperationFieldNote = typeof operationFieldNotesTable.$inferSelect;
-
