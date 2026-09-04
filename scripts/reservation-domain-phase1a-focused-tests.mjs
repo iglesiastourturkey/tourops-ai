@@ -214,12 +214,13 @@ assert.ok(
   "Phase 1B.1 sheet-import approval must not write legacy operation_reservation_details",
 );
 assert.ok(
-  HISTORICAL_PROMOTE_SOURCE.includes("Create the 1:1 reservation-details row"),
-  "historical-migration-promote.ts's existing 1:1 promotion logic must be unchanged in Phase 1A",
+  HISTORICAL_PROMOTE_SOURCE.includes("reservationsTable")
+    && HISTORICAL_PROMOTE_SOURCE.includes("bookingPartiesTable"),
+  "Phase 1B.2 historical promotion must write the reservation hierarchy",
 );
 assert.ok(
-  !HISTORICAL_PROMOTE_SOURCE.includes("reservationsTable"),
-  "historical-migration-promote.ts must not import or reference the new reservationsTable in Phase 1A",
+  !/insert\(operationReservationDetailsTable\)|update\(operationReservationDetailsTable\)/.test(HISTORICAL_PROMOTE_SOURCE),
+  "Phase 1B.2 historical promotion must not write legacy operation_reservation_details",
 );
 assert.ok(
   !RESERVATIONS_ROUTE_SOURCE.includes("reservationsTable"),
