@@ -6,7 +6,8 @@ import { db } from "@workspace/db";
 import {
   sheetReservationImportsTable,
   operationsTable,
-  operationReservationDetailsTable,
+  reservationsTable,
+  bookingPartiesTable,
   customersTable,
   tourProductsTable,
   tourProductAliasesTable,
@@ -33,8 +34,8 @@ import {
 // No scraper/provider code exists here - the sheet is the user's own
 // first-party data source, mirroring the existing Gmail/Outlook intake.
 //
-// Faz 5.2: /approve now maps the raw row into structured operations /
-// operation_reservation_details fields instead of dumping the whole row into
+// Phase 1B.1: /approve maps the raw row into structured operations /
+// reservations / booking_parties fields instead of dumping the whole row into
 // notes (see PLAN_Sheet_Import_Mapping_Refactor.md paragraf 5a). rowData itself is
 // still never touched - it remains the single source of truth. Matching
 // against tour_products/ships/ports/port_calls/resources/vehicles is exact
@@ -52,8 +53,8 @@ import {
 //      /webhook, which resets it to "pending" - but matchedOperationId still
 //      points at the operation the earlier approval created. Approving it
 //      again used to INSERT a second operation, silently duplicating the
-//      booking. It now updates that same operation (and its reservation
-//      details row) in place instead.
+//      booking. It now updates that same operation and reservation hierarchy
+//      in place instead.
 // A consequence of (2): approvedAt/approvedBy can no longer be nulled by the
 // webhook's edit-reset, because /approve needs the previous approval's
 // timestamp to exist. From this point on, status is the only source of truth
@@ -203,7 +204,7 @@ function parseDateOnly(raw: string | null): string | null {
 
 // Faz 5.2: structured proposed mapping - the shape stored in
 // sheet_reservation_imports.mappedData and used to build the operations /
-// operation_reservation_details insert. Always fully derivable from rowData
+// reservations / booking_parties write. Always fully derivable from rowData
 // (mapSheetRowToStructuredFields below); a reviewer may override any field
 // via PATCH /:id/review before /approve runs.
 const mappedFieldsSchema = z.object({
@@ -514,7 +515,7 @@ router.patch("/:id/review", async (req, res) => {
 
 /**
  * POST /sheet-import/:id/approve
- * Faz 5.2: builds a structured operations row (+ operation_reservation_details)
+ * Phase 1B.1: builds a structured operation, reservation, and booking party
  * from the proposed mapping (mappedData if the reviewer edited it, otherwise
  * freshly derived from rowData) instead of dumping the whole row into notes.
  * Matching against tour_products/ships+ports/port_calls/resources/vehicles is
@@ -533,8 +534,8 @@ router.patch("/:id/review", async (req, res) => {
  *     than re-matching.
  *   - Operation: when this row was approved before (importRow.matchedOperationId
  *     is set) and that operation still exists, updates it in place instead
- *     of inserting a second one. The operations_source_sheet_import_idx
- *     unique index (migration 0018) backs this at the database level too.
+ *     of inserting a second one. Reservation.sourceSheetImportId owns that
+ *     idempotency guarantee; the operation link remains provenance only.
  */
 router.post("/:id/approve", async (req, res) => {
   const id = parseInt(req.params.id as string, 10);
@@ -561,6 +562,27 @@ router.post("/:id/approve", async (req, res) => {
 
       const rowData = importRow.rowData as SheetRow["rowData"];
       const fields = (importRow.mappedData as MappedFields | null) ?? mapSheetRowToStructuredFields(rowData);
+
+      // reservations.leadGuestName is deliberately NOT NULL. Sheet imports
+      // have always been expected to carry a guest/customer name; reject a
+      // malformed row before any write rather than inventing a traveler.
+      const leadGuestName = fields.customerName?.trim();
+      if (!leadGuestName) {
+        return { kind: "invalid_mapping" as const, error: "A lead guest name is required" };
+      }
+
+      // This is the idempotency owner for the new path. The import row lock
+      // serializes concurrent approvals of this row; this unique lookup also
+      // safely recovers a previously approved logical reservation after an
+      // edited webhook row is returned to pending.
+      const [existingReservation] = await tx
+        .select()
+        .from(reservationsTable)
+        .where(eq(reservationsTable.sourceSheetImportId, importRow.id))
+        .limit(1);
+      const previouslyMatchedOperationId = existingReservation?.tourOperationId
+        ?? importRow.matchedOperationId;
+      const previouslyMatchedCustomerId = importRow.matchedCustomerId;
 
       // ── Soft duplicate: same booking reference already on another operation ──
       // Mirrors POST /reservations/:id/create-draft's check (see
@@ -601,13 +623,6 @@ router.post("/:id/approve", async (req, res) => {
       if (unacknowledged.length > 0) {
         return { kind: "warnings_pending" as const, warnings };
       }
-
-      // Re-approval of a row that was approved before this edit: the
-      // operation and customer it already created are reused, not
-      // recreated. previouslyMatchedOperationId is re-checked against the
-      // database below in case that operation was since deleted.
-      const previouslyMatchedOperationId = importRow.matchedOperationId;
-      const previouslyMatchedCustomerId = importRow.matchedCustomerId;
 
       // Customer - matches an existing customer by email then phone (same
       // precedence as POST /reservations/:id/create-draft) before creating
@@ -807,9 +822,11 @@ router.post("/:id/approve", async (req, res) => {
         notes,
       };
 
-      // Re-approval: update the operation this row already created, instead
-      // of inserting a second one. Falls through to a fresh insert if that
-      // operation was deleted since the earlier approval.
+      // Existing reservation is the authoritative re-approval attachment.
+      // matchedOperationId is retained for compatibility with rows approved
+      // before this cutover, but never used for implicit operation matching.
+      // A row with neither link retains the current create-new-operation
+      // behavior; this phase adds no fuzzy or automatic grouping.
       let operation: typeof operationsTable.$inferSelect | undefined;
       if (previouslyMatchedOperationId) {
         [operation] = await tx
@@ -825,13 +842,38 @@ router.post("/:id/approve", async (req, res) => {
           .returning();
       }
 
-      const detailsValues = {
-        operationId: operation.id,
+      const reservationValues = {
+        tourOperationId: operation.id,
+        customerId,
+        leadGuestName,
+        reservationType: fields.tourType,
+        status: "new",
+        sourceType: "sheet_import",
+        sourceSheetImportId: importRow.id,
+        sourceBookingReference: fields.sourceBookingReference,
+      };
+      let reservation: typeof reservationsTable.$inferSelect;
+      if (existingReservation) {
+        [reservation] = await tx
+          .update(reservationsTable)
+          .set(reservationValues)
+          .where(eq(reservationsTable.id, existingReservation.id))
+          .returning();
+      } else {
+        [reservation] = await tx
+          .insert(reservationsTable)
+          .values(reservationValues)
+          .returning();
+      }
+
+      // booking_parties is a strict 1:1 child of reservations. Counts are
+      // copied exactly from Adult/CHD source fields; no Guest rows are
+      // created and PAX is never inferred from named-passenger rows.
+      const bookingPartyValues = {
+        reservationId: reservation.id,
         adultCount: fields.adultCount,
         childCount: fields.childCount,
-        passengerAges: fields.passengerAges,
         passengerLanguage: fields.passengerLanguage,
-        tourType: fields.tourType,
         tourCodeRaw: fields.tourCodeRaw,
         itineraryRaw: fields.itineraryRaw,
         shipScheduleRaw: fields.shipScheduleRaw,
@@ -841,18 +883,22 @@ router.post("/:id/approve", async (req, res) => {
         specialRequirements: fields.specialRequirements,
         externalSource: fields.externalSource,
         externalOperator: fields.externalOperator,
-        netAmount: fields.netAmount,
-        advanceAmount: fields.advanceAmount,
+        // Drizzle represents NUMERIC values as strings; preserve the parsed
+        // source amount without converting a missing value into zero.
+        netAmount: fields.netAmount === null ? null : String(fields.netAmount),
+        advanceAmount: fields.advanceAmount === null ? null : String(fields.advanceAmount),
         currency: fields.currency,
         collectionStatusRaw: fields.collectionStatusRaw,
       };
-      const updatedDetailsRows = await tx
-        .update(operationReservationDetailsTable)
-        .set(detailsValues)
-        .where(eq(operationReservationDetailsTable.operationId, operation.id))
-        .returning({ id: operationReservationDetailsTable.id });
-      if (updatedDetailsRows.length === 0) {
-        await tx.insert(operationReservationDetailsTable).values(detailsValues);
+      const updatedBookingPartyRows = await tx
+        .update(bookingPartiesTable)
+        .set(bookingPartyValues)
+        .where(eq(bookingPartiesTable.reservationId, reservation.id))
+        .returning();
+      const bookingParty = updatedBookingPartyRows[0]
+        ?? (await tx.insert(bookingPartiesTable).values(bookingPartyValues).returning())[0];
+      if (!bookingParty) {
+        throw new Error("Failed to create booking party");
       }
 
       const [updated] = await tx
@@ -870,7 +916,7 @@ router.post("/:id/approve", async (req, res) => {
         .where(eq(sheetReservationImportsTable.id, id))
         .returning();
 
-      return { kind: "approved" as const, importRow: updated, operation };
+      return { kind: "approved" as const, importRow: updated, operation, reservation, bookingParty };
     });
 
     if (result.kind === "not_found") {
@@ -883,6 +929,10 @@ router.post("/:id/approve", async (req, res) => {
         code: "warnings_pending",
         warnings: result.warnings,
       });
+      return;
+    }
+    if (result.kind === "invalid_mapping") {
+      res.status(422).json({ error: result.error });
       return;
     }
     if (result.kind === "already_reviewed") {
@@ -898,6 +948,8 @@ router.post("/:id/approve", async (req, res) => {
       entityId: id,
       metadata: {
         operationId: result.operation.id,
+        reservationId: result.reservation.id,
+        bookingPartyId: result.bookingParty.id,
         customerId: result.importRow.matchedCustomerId,
         tourProductMatchStatus: result.importRow.tourProductMatchStatus,
         portCallMatchStatus: result.importRow.portCallMatchStatus,
