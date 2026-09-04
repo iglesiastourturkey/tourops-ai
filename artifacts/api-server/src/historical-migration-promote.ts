@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import {
   buildPromotionProjectionFromExisting,
+  buildPromotionProjectionFromLegacy,
   buildPromotionProjectionFromStaging,
   decidePromotionOutcome,
   historicalImportTransitionBlock,
@@ -116,7 +117,7 @@ interface PromoteBatchSummary {
 }
 
 async function planPromotion(sourceKeys: string[], limit: number | null) {
-  const { db, historicalOperationImportsTable, operationsTable, operationReservationDetailsTable } =
+  const { db, historicalOperationImportsTable, operationsTable, reservationsTable, bookingPartiesTable, operationReservationDetailsTable } =
     await import("@workspace/db");
 
   const statusCounts = await db
@@ -184,11 +185,36 @@ async function planPromotion(sourceKeys: string[], limit: number | null) {
         .where(eq(operationsTable.sourceHistoricalKey, stagingRow.sourceKey));
       let existingProjection: ReturnType<typeof buildPromotionProjectionFromExisting> | null = null;
       if (existingOperation) {
-        const [existingDetails] = await db
+        const [existingReservation] = await db
           .select()
-          .from(operationReservationDetailsTable)
-          .where(eq(operationReservationDetailsTable.operationId, existingOperation.id));
-        existingProjection = buildPromotionProjectionFromExisting(existingOperation, existingDetails ?? null);
+          .from(reservationsTable)
+          .where(and(
+            eq(reservationsTable.tourOperationId, existingOperation.id),
+            eq(reservationsTable.sourceHistoricalKey, stagingRow.sourceKey),
+          ));
+        if (existingReservation) {
+          const [existingBookingParty] = await db
+            .select()
+            .from(bookingPartiesTable)
+            .where(eq(bookingPartiesTable.reservationId, existingReservation.id));
+          existingProjection = buildPromotionProjectionFromExisting(
+            existingOperation,
+            existingReservation,
+            existingBookingParty ?? null,
+          );
+        } else {
+          // Compatibility read only: old imported records retain their
+          // legacy details and are never backfilled by this cutover.
+          const [existingDetails] = await db
+            .select()
+            .from(operationReservationDetailsTable)
+            .where(eq(operationReservationDetailsTable.operationId, existingOperation.id));
+          existingProjection = buildPromotionProjectionFromLegacy(
+            existingOperation,
+            existingDetails ?? null,
+            target.reservation,
+          );
+        }
       }
       const { outcome } = decidePromotionOutcome(target, existingProjection);
       if (outcome === "conflict") potentialConflicts += 1;
@@ -233,7 +259,7 @@ async function promoteOne(
   sourceKey: string,
   actorProfileId: number | null,
 ): Promise<"inserted" | "existing" | "conflict" | "blocked" | "failed"> {
-  const { db, historicalOperationImportsTable, operationsTable, operationReservationDetailsTable } =
+  const { db, historicalOperationImportsTable, operationsTable, reservationsTable, bookingPartiesTable, operationReservationDetailsTable } =
     await import("@workspace/db");
   const { createAuditLog } = await import("./lib/audit");
 
@@ -278,12 +304,43 @@ async function promoteOne(
         .for("update");
 
       let existingProjection: ReturnType<typeof buildPromotionProjectionFromExisting> | null = null;
+      let existingReservationId: number | null = null;
+      let existingBookingPartyId: number | null = null;
       if (existingOperation) {
-        const [existingDetails] = await tx
+        const [existingReservation] = await tx
           .select()
-          .from(operationReservationDetailsTable)
-          .where(eq(operationReservationDetailsTable.operationId, existingOperation.id));
-        existingProjection = buildPromotionProjectionFromExisting(existingOperation, existingDetails ?? null);
+          .from(reservationsTable)
+          .where(and(
+            eq(reservationsTable.tourOperationId, existingOperation.id),
+            eq(reservationsTable.sourceHistoricalKey, sourceKey),
+          ))
+          .for("update");
+        if (existingReservation) {
+          const [existingBookingParty] = await tx
+            .select()
+            .from(bookingPartiesTable)
+            .where(eq(bookingPartiesTable.reservationId, existingReservation.id))
+            .for("update");
+          existingProjection = buildPromotionProjectionFromExisting(
+            existingOperation,
+            existingReservation,
+            existingBookingParty ?? null,
+          );
+          existingReservationId = existingReservation.id;
+          existingBookingPartyId = existingBookingParty?.id ?? null;
+        } else {
+          // Old imports remain readable for an idempotent replay, but are not
+          // backfilled or otherwise rewritten in this Phase 1B.2 cutover.
+          const [existingDetails] = await tx
+            .select()
+            .from(operationReservationDetailsTable)
+            .where(eq(operationReservationDetailsTable.operationId, existingOperation.id));
+          existingProjection = buildPromotionProjectionFromLegacy(
+            existingOperation,
+            existingDetails ?? null,
+            target.reservation,
+          );
+        }
       }
 
       const { outcome, targetHash } = decidePromotionOutcome(target, existingProjection);
@@ -293,6 +350,8 @@ async function promoteOne(
       }
 
       let operationId: number;
+      let reservationId = existingReservationId;
+      let bookingPartyId = existingBookingPartyId;
       if (outcome === "inserted") {
         // 6. Create operation (customerId/master-data FKs left NULL by design).
         const [created] = await tx.insert(operationsTable).values({
@@ -307,27 +366,48 @@ async function promoteOne(
         }).onConflictDoNothing({ target: operationsTable.sourceHistoricalKey }).returning();
 
         if (!created) {
-          // Lost a race against a concurrent promotion of the same key between
-          // steps 5 and 6 - re-read and treat as an idempotent replay instead
-          // of failing the record outright.
-          const [raced] = await tx.select().from(operationsTable).where(eq(operationsTable.sourceHistoricalKey, sourceKey));
-          if (!raced) throw new Error("Operasyon eklenemedi ve yeniden okunamadi");
-          operationId = raced.id;
+          // The transaction-wide advisory lock means this can only be an
+          // out-of-band writer. Fail closed rather than accepting an
+          // unverified Operation without its matching reservation hierarchy.
+          throw new PromotionRollback("conflict", "Ayni sourceHistoricalKey disarida olusturulmus; yeniden inceleme gerekli");
         } else {
           operationId = created.id;
-          // 7. Create the 1:1 reservation-details row.
-          await tx.insert(operationReservationDetailsTable).values({
-            operationId,
-            adultCount: target.reservationDetails.adultCount,
-            childCount: target.reservationDetails.childCount,
-            passengerLanguage: target.reservationDetails.passengerLanguage,
-            tourType: target.reservationDetails.tourType,
-            itineraryRaw: target.reservationDetails.itineraryRaw,
-            pickupPoint: target.reservationDetails.pickupPoint,
-            externalSource: target.reservationDetails.externalSource,
-            externalOperator: target.reservationDetails.externalOperator,
-            collectionStatusRaw: target.reservationDetails.collectionStatusRaw,
-          });
+          // 7. Create the reservation hierarchy. There are deliberately no
+          // Guest writes: Adult/CHD counts remain the authoritative PAX.
+          const [createdReservation] = await tx.insert(reservationsTable).values({
+            tourOperationId: operationId,
+            customerId: target.reservation.customerId,
+            leadGuestName: target.reservation.leadGuestName,
+            reservationType: target.reservation.reservationType,
+            status: target.reservation.status,
+            sourceType: target.reservation.sourceType,
+            sourceHistoricalKey: target.reservation.sourceHistoricalKey,
+            sourceBookingReference: target.reservation.sourceBookingReference,
+          }).returning({ id: reservationsTable.id });
+          if (!createdReservation) throw new Error("Reservation eklenemedi");
+          reservationId = createdReservation.id;
+
+          const [createdBookingParty] = await tx.insert(bookingPartiesTable).values({
+            reservationId,
+            adultCount: target.bookingParty.adultCount,
+            childCount: target.bookingParty.childCount,
+            passengerLanguage: target.bookingParty.passengerLanguage,
+            tourCodeRaw: null,
+            itineraryRaw: target.bookingParty.itineraryRaw,
+            shipScheduleRaw: null,
+            pickupPoint: target.bookingParty.pickupPoint,
+            mealIncluded: null,
+            entranceIncluded: null,
+            specialRequirements: null,
+            externalSource: target.bookingParty.externalSource,
+            externalOperator: target.bookingParty.externalOperator,
+            netAmount: null,
+            advanceAmount: null,
+            currency: target.bookingParty.currency,
+            collectionStatusRaw: target.bookingParty.collectionStatusRaw,
+          }).returning({ id: bookingPartiesTable.id });
+          if (!createdBookingParty) throw new Error("Booking party eklenemedi");
+          bookingPartyId = createdBookingParty.id;
         }
       } else if (existingOperation) {
         operationId = existingOperation.id;
@@ -354,7 +434,13 @@ async function promoteOne(
         module: "historical_migration",
         entityType: "operation",
         entityId: operationId,
-        metadata: { sourceKey, imported_operation_id: operationId, outcome },
+        metadata: {
+          sourceKey,
+          imported_operation_id: operationId,
+          reservationId,
+          bookingPartyId,
+          outcome,
+        },
         description: outcome === "existing"
           ? "Historical staging kaydi zaten operasyona donusturulmustu (idempotent tekrar)"
           : "Historical staging kaydi operasyona donusturuldu",

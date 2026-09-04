@@ -87,10 +87,12 @@ assert.equal(target.operation.tourProductId, null);
 assert.equal(target.operation.guideResourceId, null);
 assert.equal(target.operation.driverResourceId, null);
 assert.equal(target.operation.vehicleId, null);
-assert.equal(target.reservationDetails.netAmount, null, "Faz 3D-A must never invent a financial figure");
-assert.equal(target.reservationDetails.advanceAmount, null);
-assert.equal(target.reservationDetails.currency, null);
-assert.equal(target.reservationDetails.childCount, null, "blank child count must be preserved as null, never invented");
+assert.equal(target.bookingParty.netAmount, null, "Historical promotion must never invent a financial figure");
+assert.equal(target.bookingParty.advanceAmount, null);
+assert.equal(target.bookingParty.currency, null);
+assert.equal(target.bookingParty.childCount, null, "blank child count must be preserved as null, never invented");
+assert.equal(target.reservation.leadGuestName, "TEST CUSTOMER");
+assert.equal(target.reservation.sourceHistoricalKey, stagedRow.sourceKey);
 
 const targetHash = sha256OfProjection(target);
 assert.match(targetHash, /^[0-9a-f]{64}$/);
@@ -105,86 +107,53 @@ assert.equal(
 const case1 = decidePromotionOutcome(target, null);
 assert.equal(case1.outcome, "inserted", "no existing operation must insert");
 
-const identicalExisting = buildPromotionProjectionFromExisting(
-  {
-    sourceHistoricalKey: target.operation.sourceHistoricalKey,
-    sourceType: target.operation.sourceType,
-    sourceBookingReference: target.operation.sourceBookingReference,
-    startDate: target.operation.startDate,
-    endDate: target.operation.endDate,
-    pickupTime: target.operation.pickupTime,
-    notes: target.operation.notes,
-    customerId: null, tourId: null, portCallId: null, tourProductId: null,
-    guideResourceId: null, driverResourceId: null, vehicleId: null,
-  },
-  {
-    adultCount: target.reservationDetails.adultCount,
-    childCount: target.reservationDetails.childCount,
-    passengerLanguage: target.reservationDetails.passengerLanguage,
-    tourType: target.reservationDetails.tourType,
-    itineraryRaw: target.reservationDetails.itineraryRaw,
-    pickupPoint: target.reservationDetails.pickupPoint,
-    externalSource: target.reservationDetails.externalSource,
-    externalOperator: target.reservationDetails.externalOperator,
-    collectionStatusRaw: target.reservationDetails.collectionStatusRaw,
-    netAmount: null, advanceAmount: null, currency: null,
-  },
-);
+const existingOperation = {
+  sourceHistoricalKey: target.operation.sourceHistoricalKey,
+  sourceType: target.operation.sourceType,
+  sourceBookingReference: target.operation.sourceBookingReference,
+  startDate: target.operation.startDate,
+  endDate: target.operation.endDate,
+  pickupTime: target.operation.pickupTime,
+  notes: target.operation.notes,
+  customerId: null, tourId: null, portCallId: null, tourProductId: null,
+  guideResourceId: null, driverResourceId: null, vehicleId: null,
+};
+const existingReservation = {
+  customerId: target.reservation.customerId,
+  leadGuestName: target.reservation.leadGuestName,
+  reservationType: target.reservation.reservationType,
+  status: target.reservation.status,
+  sourceType: target.reservation.sourceType,
+  sourceHistoricalKey: target.reservation.sourceHistoricalKey,
+  sourceBookingReference: target.reservation.sourceBookingReference,
+};
+const existingBookingParty = {
+  adultCount: target.bookingParty.adultCount,
+  childCount: target.bookingParty.childCount,
+  passengerLanguage: target.bookingParty.passengerLanguage,
+  itineraryRaw: target.bookingParty.itineraryRaw,
+  pickupPoint: target.bookingParty.pickupPoint,
+  externalSource: target.bookingParty.externalSource,
+  externalOperator: target.bookingParty.externalOperator,
+  collectionStatusRaw: target.bookingParty.collectionStatusRaw,
+  netAmount: null, advanceAmount: null, currency: null,
+};
+const identicalExisting = buildPromotionProjectionFromExisting(existingOperation, existingReservation, existingBookingParty);
 const case2 = decidePromotionOutcome(target, identicalExisting);
 assert.equal(case2.outcome, "existing", "same key + identical projection must be an idempotent no-op");
 
 const differentExisting = buildPromotionProjectionFromExisting(
-  {
-    sourceHistoricalKey: target.operation.sourceHistoricalKey,
-    sourceType: target.operation.sourceType,
-    sourceBookingReference: target.operation.sourceBookingReference,
-    startDate: "2026-08-02", // different content under the same key
-    endDate: "2026-08-02",
-    pickupTime: target.operation.pickupTime,
-    notes: target.operation.notes,
-    customerId: null, tourId: null, portCallId: null, tourProductId: null,
-    guideResourceId: null, driverResourceId: null, vehicleId: null,
-  },
-  {
-    adultCount: target.reservationDetails.adultCount,
-    childCount: target.reservationDetails.childCount,
-    passengerLanguage: target.reservationDetails.passengerLanguage,
-    tourType: target.reservationDetails.tourType,
-    itineraryRaw: target.reservationDetails.itineraryRaw,
-    pickupPoint: target.reservationDetails.pickupPoint,
-    externalSource: target.reservationDetails.externalSource,
-    externalOperator: target.reservationDetails.externalOperator,
-    collectionStatusRaw: target.reservationDetails.collectionStatusRaw,
-    netAmount: null, advanceAmount: null, currency: null,
-  },
+  { ...existingOperation, startDate: "2026-08-02", endDate: "2026-08-02" },
+  existingReservation,
+  existingBookingParty,
 );
 const case3 = decidePromotionOutcome(target, differentExisting);
 assert.equal(case3.outcome, "conflict", "same key + different projection must conflict, never overwrite");
 
 const foreignCustomerExisting = buildPromotionProjectionFromExisting(
-  {
-    sourceHistoricalKey: target.operation.sourceHistoricalKey,
-    sourceType: target.operation.sourceType,
-    sourceBookingReference: target.operation.sourceBookingReference,
-    startDate: target.operation.startDate,
-    endDate: target.operation.endDate,
-    pickupTime: target.operation.pickupTime,
-    notes: target.operation.notes,
-    customerId: 42, tourId: null, portCallId: null, tourProductId: null,
-    guideResourceId: null, driverResourceId: null, vehicleId: null,
-  },
-  {
-    adultCount: target.reservationDetails.adultCount,
-    childCount: target.reservationDetails.childCount,
-    passengerLanguage: target.reservationDetails.passengerLanguage,
-    tourType: target.reservationDetails.tourType,
-    itineraryRaw: target.reservationDetails.itineraryRaw,
-    pickupPoint: target.reservationDetails.pickupPoint,
-    externalSource: target.reservationDetails.externalSource,
-    externalOperator: target.reservationDetails.externalOperator,
-    collectionStatusRaw: target.reservationDetails.collectionStatusRaw,
-    netAmount: null, advanceAmount: null, currency: null,
-  },
+  { ...existingOperation, customerId: 42 },
+  existingReservation,
+  existingBookingParty,
 );
 assert.equal(
   decidePromotionOutcome(target, foreignCustomerExisting).outcome,

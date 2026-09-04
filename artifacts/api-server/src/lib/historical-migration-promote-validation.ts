@@ -84,10 +84,8 @@ export function verifyStagedPayloadIntegrity(row: { payload: unknown; payloadSha
 }
 
 // ── Canonical promotion projection ───────────────────────────────────────────
-// Contains ONLY fields Phase 3D-A actually writes to `operations` and
-// `operation_reservation_details` (verified against
-// lib/db/src/schema/operations.ts and
-// lib/db/src/schema/operation_reservation_details.ts). Every master-data FK
+// Contains ONLY fields Phase 1B.2 writes to `operations`, `reservations`, and
+// `booking_parties` (verified against their Drizzle schemas). Every master-data FK
 // and customerId is a literal `null` here, not merely defaulted - so the
 // projection changes, and promotion correctly conflicts, if a later phase
 // ever starts writing one of them for the same sourceHistoricalKey outside
@@ -117,7 +115,17 @@ export interface PromotionOperationProjection {
   vehicleId: number | null;
 }
 
-export interface PromotionReservationDetailsProjection {
+export interface PromotionReservationProjection {
+  customerId: number | null;
+  leadGuestName: string;
+  reservationType: string | null;
+  status: "new";
+  sourceType: string;
+  sourceHistoricalKey: string;
+  sourceBookingReference: string | null;
+}
+
+export interface PromotionBookingPartyProjection {
   adultCount: number | null;
   childCount: number | null;
   passengerLanguage: string | null;
@@ -134,7 +142,8 @@ export interface PromotionReservationDetailsProjection {
 
 export interface PromotionProjection {
   operation: PromotionOperationProjection;
-  reservationDetails: PromotionReservationDetailsProjection;
+  reservation: PromotionReservationProjection;
+  bookingParty: PromotionBookingPartyProjection;
 }
 
 /** Builds the target projection from an approved staging row's payload. */
@@ -159,7 +168,16 @@ export function buildPromotionProjectionFromStaging(
       driverResourceId: null,
       vehicleId: null,
     },
-    reservationDetails: {
+    reservation: {
+      customerId: null,
+      leadGuestName: payload.customer.fullName,
+      reservationType: payload.reservationDetails.tourType,
+      status: "new",
+      sourceType: payload.operation.sourceType,
+      sourceHistoricalKey: sourceKey,
+      sourceBookingReference: payload.operation.sourceBookingReference,
+    },
+    bookingParty: {
       adultCount: payload.reservationDetails.adultCount,
       childCount: payload.reservationDetails.childCount,
       passengerLanguage: payload.reservationDetails.passengerLanguage,
@@ -194,30 +212,43 @@ export interface ExistingOperationRow {
   vehicleId: number | null;
 }
 
-/** Minimal shape of an existing operation_reservation_details row. */
-export interface ExistingReservationDetailsRow {
+/** Minimal shape of an existing Reservation row. */
+export interface ExistingReservationRow {
+  customerId: number | null;
+  leadGuestName: string;
+  reservationType: string | null;
+  status: string;
+  sourceType: string | null;
+  sourceHistoricalKey: string | null;
+  sourceBookingReference: string | null;
+}
+
+export interface ExistingBookingPartyRow {
   adultCount: number | null;
   childCount: number | null;
   passengerLanguage: string | null;
-  tourType: string | null;
+  // Present only for the legacy operation_reservation_details compatibility
+  // reader; booking_parties stores this on Reservation instead.
+  tourType?: string | null;
   itineraryRaw: string | null;
   pickupPoint: string | null;
   externalSource: string | null;
   externalOperator: string | null;
   collectionStatusRaw: string | null;
-  netAmount: number | null;
-  advanceAmount: number | null;
+  netAmount: number | string | null;
+  advanceAmount: number | string | null;
   currency: string | null;
 }
 
 /**
  * Reconstructs the same-shaped projection from an already-promoted operation
- * (+ its reservation-details row, if one exists) so it can be hashed and
+ * (+ its Reservation and BookingParty) so it can be hashed and
  * compared against the target projection on an idempotent replay.
  */
 export function buildPromotionProjectionFromExisting(
   operation: ExistingOperationRow,
-  details: ExistingReservationDetailsRow | null,
+  reservation: ExistingReservationRow,
+  bookingParty: ExistingBookingPartyRow | null,
 ): PromotionProjection {
   if (!operation.sourceHistoricalKey) {
     throw new Error("Var olan operasyon sourceHistoricalKey icermiyor, projeksiyon olusturulamaz");
@@ -239,21 +270,59 @@ export function buildPromotionProjectionFromExisting(
       driverResourceId: operation.driverResourceId,
       vehicleId: operation.vehicleId,
     },
-    reservationDetails: {
-      adultCount: details?.adultCount ?? null,
-      childCount: details?.childCount ?? null,
-      passengerLanguage: details?.passengerLanguage ?? null,
-      tourType: details?.tourType ?? null,
-      itineraryRaw: details?.itineraryRaw ?? null,
-      pickupPoint: details?.pickupPoint ?? null,
-      externalSource: details?.externalSource ?? null,
-      externalOperator: details?.externalOperator ?? null,
-      collectionStatusRaw: details?.collectionStatusRaw ?? null,
-      netAmount: details?.netAmount ?? null,
-      advanceAmount: details?.advanceAmount ?? null,
-      currency: details?.currency ?? null,
+    reservation: {
+      customerId: reservation.customerId,
+      leadGuestName: reservation.leadGuestName,
+      reservationType: reservation.reservationType,
+      status: reservation.status as "new",
+      sourceType: reservation.sourceType ?? "",
+      sourceHistoricalKey: reservation.sourceHistoricalKey ?? "",
+      sourceBookingReference: reservation.sourceBookingReference,
+    },
+    bookingParty: {
+      adultCount: bookingParty?.adultCount ?? null,
+      childCount: bookingParty?.childCount ?? null,
+      passengerLanguage: bookingParty?.passengerLanguage ?? null,
+      tourType: reservation.reservationType,
+      itineraryRaw: bookingParty?.itineraryRaw ?? null,
+      pickupPoint: bookingParty?.pickupPoint ?? null,
+      externalSource: bookingParty?.externalSource ?? null,
+      externalOperator: bookingParty?.externalOperator ?? null,
+      collectionStatusRaw: bookingParty?.collectionStatusRaw ?? null,
+      netAmount: bookingParty?.netAmount === null || bookingParty?.netAmount === undefined ? null : Number(bookingParty.netAmount),
+      advanceAmount: bookingParty?.advanceAmount === null || bookingParty?.advanceAmount === undefined ? null : Number(bookingParty.advanceAmount),
+      currency: bookingParty?.currency ?? null,
     },
   };
+}
+
+/**
+ * Read-only replay compatibility for a record promoted before Phase 1B.2.
+ * It deliberately does not backfill a Reservation or write the legacy table;
+ * it only preserves the prior Operation + details hash decision on an
+ * explicit replay while the historical rows remain in place.
+ */
+export function buildPromotionProjectionFromLegacy(
+  operation: ExistingOperationRow,
+  details: ExistingBookingPartyRow | null,
+  reservation: PromotionReservationProjection,
+): PromotionProjection {
+  return buildPromotionProjectionFromExisting(operation, {
+    ...reservation,
+    reservationType: details?.tourType ?? null,
+  }, {
+    adultCount: details?.adultCount ?? null,
+    childCount: details?.childCount ?? null,
+    passengerLanguage: details?.passengerLanguage ?? null,
+    itineraryRaw: details?.itineraryRaw ?? null,
+    pickupPoint: details?.pickupPoint ?? null,
+    externalSource: details?.externalSource ?? null,
+    externalOperator: details?.externalOperator ?? null,
+    collectionStatusRaw: details?.collectionStatusRaw ?? null,
+    netAmount: details?.netAmount ?? null,
+    advanceAmount: details?.advanceAmount ?? null,
+    currency: details?.currency ?? null,
+  });
 }
 
 export function sha256OfProjection(projection: PromotionProjection): string {
