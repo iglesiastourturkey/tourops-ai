@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@workspace/db";
 import {
   customersTable, googleConnectionsTable, operationsTable,
+  reservationsTable, bookingPartiesTable,
   reservationEmailImportsTable, reservationExtractionsTable,
 } from "@workspace/db/schema";
 import { requireAuth, requireActive, requirePermission } from "../lib/auth";
@@ -481,7 +482,18 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   const [item] = await db.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
   const [extraction] = await db.select().from(reservationExtractionsTable).where(eq(reservationExtractionsTable.importId, id)).limit(1);
   if (!item || !extraction) { res.status(409).json({ error: "İnceleme verisi bulunamadı" }); return; }
-  if (item.operationId) { const [existing] = await db.select().from(operationsTable).where(eq(operationsTable.id, item.operationId)).limit(1); res.json({ operation: existing, duplicate: true }); return; }
+  if (item.operationId) {
+    const [existing] = await db.select().from(operationsTable)
+      .where(eq(operationsTable.id, item.operationId)).limit(1);
+    const [reservation] = await db.select().from(reservationsTable)
+      .where(eq(reservationsTable.sourceEmailImportId, id)).limit(1);
+    const [bookingParty] = reservation
+      ? await db.select().from(bookingPartiesTable)
+        .where(eq(bookingPartiesTable.reservationId, reservation.id)).limit(1)
+      : [];
+    res.json({ operation: existing, reservation: reservation ?? null, bookingParty: bookingParty ?? null, duplicate: true });
+    return;
+  }
 
   // Runs after the idempotent replay above, so an already-processed import keeps
   // returning its operation instead of a 409.
@@ -525,7 +537,8 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
     return;
   }
 
-  if (!data.customerName) { res.status(400).json({ error: "Taslak için müşteri adı zorunludur", code: "customer_name_required" }); return; }
+  const leadGuestName = data.customerName;
+  if (!leadGuestName) { res.status(400).json({ error: "Taslak için müşteri adı zorunludur", code: "customer_name_required" }); return; }
   // operations.startDate is nullable at the schema level, but a dateless
   // operation is unusable downstream (daily ops, sheet sync), so this endpoint
   // must never create one.
@@ -560,7 +573,7 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
   let duplicates: DuplicateOperationMatch[] = [];
   let moreDuplicates = false;
   if (bookingReference) {
-    const matches = await db.select({
+    const operationMatches = await db.select({
       id: operationsTable.id, status: operationsTable.status,
       startDate: operationsTable.startDate, sourceType: operationsTable.sourceType,
     }).from(operationsTable).where(and(
@@ -572,6 +585,21 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
       // One more than is displayed, so "and more" can be stated honestly
       // without a second count query.
     )).limit(6);
+    // Reservation-level source references are now a first-class identity.
+    // Keep legacy Operations in this advisory search as well: old records
+    // were intentionally not backfilled during the Phase 1B cutovers.
+    const reservationMatches = await db.select({
+      id: operationsTable.id, status: operationsTable.status,
+      startDate: operationsTable.startDate, sourceType: operationsTable.sourceType,
+    }).from(reservationsTable)
+      .innerJoin(operationsTable, eq(reservationsTable.tourOperationId, operationsTable.id))
+      .where(and(
+        sql`lower(trim(${reservationsTable.sourceBookingReference})) = ${bookingReference}`,
+        sql`${reservationsTable.sourceEmailImportId} IS DISTINCT FROM ${id}`,
+      )).limit(6);
+    const matches = Array.from(new Map(
+      [...operationMatches, ...reservationMatches].map(match => [match.id, match]),
+    ).values()).slice(0, 6);
     moreDuplicates = matches.length > 5;
     duplicates = matches.slice(0, 5).map(match => ({
       ...match,
@@ -610,28 +638,109 @@ router.post("/:id/create-draft", requirePermission("reservations", "create"), as
     return;
   }
 
-  const identifier = data.customerEmail ? eq(customersTable.email, data.customerEmail) : data.customerPhone ? eq(customersTable.phone, data.customerPhone) : undefined;
-  let customer = identifier ? (await db.select().from(customersTable).where(identifier).limit(1))[0] : undefined;
-  if (!customer) [customer] = await db.insert(customersTable).values({ name: data.customerName, email: data.customerEmail, phone: data.customerPhone, notes: data.internalNotes }).returning();
   const notes = [data.tourName && `Tur: ${data.tourName}`, data.hotelName && `Otel: ${data.hotelName}`, data.pickupLocation && `Alış: ${data.pickupLocation}${data.pickupTime ? ` ${data.pickupTime}` : ""}`, data.dropoffLocation && `Bırakış: ${data.dropoffLocation}`, data.specialRequests && `Özel istekler: ${data.specialRequests}`, data.internalNotes].filter(Boolean).join("\n");
-  const [operation] = await db.transaction(async (tx) => {
-    const [fresh] = await tx.select().from(reservationEmailImportsTable).where(eq(reservationEmailImportsTable.id, id)).limit(1);
-    if (fresh?.operationId) return [await tx.select().from(operationsTable).where(eq(operationsTable.id, fresh.operationId)).limit(1).then(rows => rows[0])];
-    const [created] = await tx.insert(operationsTable).values({ customerId: customer.id, startDate: operationStartDate, endDate: operationEndDate, // Was hardcoded "gmail", which mislabelled every operation built from a
-    // manually entered reservation. Carry the import's own origin instead.
-    status: "draft", sourceType: item.source ?? "gmail", sourceEmailImportId: id, sourceBookingReference: data.bookingReference, notes }).onConflictDoNothing().returning();
-    if (!created) {
-      const [existing] = await tx.select().from(operationsTable).where(eq(operationsTable.sourceEmailImportId, id)).limit(1);
-      return [existing];
+  const result = await db.transaction(async (tx) => {
+    // The import row is the authoritative Gmail/Outlook/manual action
+    // identity. Lock it before reading its operation link so retries and
+    // concurrent clicks reuse one complete hierarchy.
+    const [fresh] = await tx.select().from(reservationEmailImportsTable)
+      .where(eq(reservationEmailImportsTable.id, id)).for("update");
+    if (!fresh) throw new Error("Rezervasyon bulunamadı");
+    if (fresh.operationId) {
+      const [operation] = await tx.select().from(operationsTable)
+        .where(eq(operationsTable.id, fresh.operationId)).limit(1);
+      if (!operation) throw new Error("Bagli operasyon bulunamadı");
+      const [reservation] = await tx.select().from(reservationsTable)
+        .where(eq(reservationsTable.sourceEmailImportId, id)).limit(1);
+      const [bookingParty] = reservation
+        ? await tx.select().from(bookingPartiesTable)
+          .where(eq(bookingPartiesTable.reservationId, reservation.id)).limit(1)
+        : [];
+      return { operation, reservation: reservation ?? null, bookingParty: bookingParty ?? null, replay: true };
     }
-    await tx.update(reservationEmailImportsTable).set({ operationId: created.id, status: "draft_created" }).where(and(eq(reservationEmailImportsTable.id, id), isNull(reservationEmailImportsTable.operationId)));
-    return [created];
+
+    // Preserve the established customer precedence (email, then phone) while
+    // moving the first customer write into the same atomic draft transaction.
+    const identifier = data.customerEmail
+      ? eq(customersTable.email, data.customerEmail)
+      : data.customerPhone ? eq(customersTable.phone, data.customerPhone) : undefined;
+    let customer = identifier
+      ? (await tx.select().from(customersTable).where(identifier).limit(1))[0]
+      : undefined;
+    if (!customer) {
+      [customer] = await tx.insert(customersTable).values({
+        name: leadGuestName,
+        email: data.customerEmail,
+        phone: data.customerPhone,
+        notes: data.internalNotes,
+      }).returning();
+    }
+    if (!customer) throw new Error("Musteri olusturulamadı");
+
+    const [created] = await tx.insert(operationsTable).values({
+      customerId: customer.id,
+      startDate: operationStartDate,
+      endDate: operationEndDate,
+      pickupTime: data.pickupTime,
+      status: "draft",
+      sourceType: item.source ?? "gmail",
+      sourceEmailImportId: id,
+      sourceBookingReference: data.bookingReference,
+      notes,
+    }).onConflictDoNothing().returning();
+    if (!created) {
+      // This is reachable only if an external writer bypassed the locked
+      // import row. Fail closed: never attach a fresh child hierarchy to an
+      // unverified Operation created outside this approval action.
+      throw new Error("Bu e-posta ici mevcut operasyonla celisiyor");
+    }
+
+    const [reservation] = await tx.insert(reservationsTable).values({
+      tourOperationId: created.id,
+      customerId: customer.id,
+      leadGuestName,
+      reservationType: null,
+      status: "new",
+      sourceType: item.source ?? "gmail",
+      sourceEmailImportId: id,
+      sourceBookingReference: data.bookingReference,
+    }).returning();
+    if (!reservation) throw new Error("Reservation olusturulamadı");
+
+    const [bookingParty] = await tx.insert(bookingPartiesTable).values({
+      reservationId: reservation.id,
+      adultCount: data.adultCount,
+      childCount: data.childCount,
+      passengerLanguage: data.guideLanguage,
+      mealIncluded: null,
+      entranceIncluded: null,
+      specialRequirements: data.specialRequests,
+      externalSource: data.agencyName,
+      externalOperator: null,
+      netAmount: data.amount === null ? null : String(data.amount),
+      advanceAmount: null,
+      currency: data.currency,
+      collectionStatusRaw: null,
+      tourCodeRaw: null,
+      itineraryRaw: data.tourName,
+      shipScheduleRaw: null,
+      pickupPoint: data.pickupLocation,
+    }).returning();
+    if (!bookingParty) throw new Error("Booking party olusturulamadı");
+
+    await tx.update(reservationEmailImportsTable)
+      .set({ operationId: created.id, status: "draft_created" })
+      .where(and(eq(reservationEmailImportsTable.id, id), isNull(reservationEmailImportsTable.operationId)));
+    return { operation: created, reservation, bookingParty, replay: false };
   });
   // acknowledgedWarnings records which soft checks the reviewer overrode, so a
   // later "why was this duplicate processed" question has an answer naming the
   // actor and what they were shown.
-  await createAuditLog({ eventType: "reservation_draft_created", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "operation", entityId: operation.id, metadata: { importId: id, operationId: operation.id, bookingReference: data.bookingReference, acknowledgedWarnings: warnings.map(warning => warning.code), duplicateOperationIds: duplicates.map(match => match.id) }, description: "Gmail rezervasyonundan operasyon taslağı oluşturuldu" });
-  res.status(201).json({ operation, duplicate: false });
+  const providerIdentity = item.source === "outlook"
+    ? { source: "outlook", outlookMessageId: item.outlookMessageId, outlookConversationId: item.outlookConversationId }
+    : { source: item.source ?? "gmail", gmailMessageId: item.gmailMessageId, gmailThreadId: item.gmailThreadId };
+  await createAuditLog({ eventType: "reservation_draft_created", actorProfileId: res.locals.profile.id, module: "reservations", entityType: "operation", entityId: result.operation.id, metadata: { importId: id, operationId: result.operation.id, reservationId: result.reservation?.id ?? null, bookingPartyId: result.bookingParty?.id ?? null, bookingReference: data.bookingReference, acknowledgedWarnings: warnings.map(warning => warning.code), duplicateOperationIds: duplicates.map(match => match.id), ...providerIdentity }, description: "E-posta rezervasyonundan operasyon taslağı oluşturuldu" });
+  res.status(result.replay ? 200 : 201).json({ operation: result.operation, reservation: result.reservation, bookingParty: result.bookingParty, duplicate: result.replay });
 });
 
 export default router;
