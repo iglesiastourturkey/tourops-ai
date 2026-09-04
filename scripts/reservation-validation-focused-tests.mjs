@@ -288,9 +288,9 @@ assert.ok(
 // reviewer has seen the warnings.
 const warningsAt = createDraftSource.indexOf("collectDraftWarnings");
 const confirmationAt = createDraftSource.indexOf('code: "draft_confirmation_required"');
-const firstWriteAt = createDraftSource.indexOf("db.insert(customersTable)");
+const firstWriteAt = createDraftSource.indexOf("tx.insert(customersTable)");
 assert.ok(warningsAt >= 0, "create-draft no longer collects draft warnings");
-assert.ok(firstWriteAt >= 0, "the customer insert was not found — update this assertion");
+assert.ok(firstWriteAt >= 0, "the transactional customer insert was not found — update this assertion");
 assert.ok(
   warningsAt < firstWriteAt && confirmationAt < firstWriteAt,
   "warnings must be computed and answered before create-draft writes anything",

@@ -223,8 +223,13 @@ assert.ok(
   "Phase 1B.2 historical promotion must not write legacy operation_reservation_details",
 );
 assert.ok(
-  !RESERVATIONS_ROUTE_SOURCE.includes("reservationsTable"),
-  "routes/reservations.ts (the create-draft handler) must not import or reference the new reservationsTable in Phase 1A",
+  RESERVATIONS_ROUTE_SOURCE.includes("reservationsTable")
+    && RESERVATIONS_ROUTE_SOURCE.includes("bookingPartiesTable"),
+  "Phase 1B.3 communications create-draft must write the reservation hierarchy",
+);
+assert.ok(
+  !/insert\(operationReservationDetailsTable\)|update\(operationReservationDetailsTable\)/.test(RESERVATIONS_ROUTE_SOURCE),
+  "Phase 1B.3 communications create-draft must not write legacy operation_reservation_details",
 );
 
 // ── 15: migration contains no destructive SQL ────────────────────────────
