@@ -1,3 +1,4 @@
+import { operationDetailRead } from "../lib/operation-detail-read";
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
@@ -255,5 +256,7 @@ router.get(
     return res.json(row);
   },
 );
+
+router.get("/my-operations/:id/detail", requirePermission("guide_workspace", "view"), operationDetailRead);
 
 export default router;

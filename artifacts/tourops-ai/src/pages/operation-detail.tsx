@@ -1,3 +1,4 @@
+import { OperationDomainWorkspace } from "@/components/OperationDomainWorkspace";
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useParams } from 'wouter';
 import { useAuth } from '@clerk/react';
@@ -868,6 +869,8 @@ export default function OperationDetailPage() {
           {isPdfLoading ? 'Hazırlanıyor...' : 'Operasyon Dosyası Oluştur'}
         </Button>
       </div>
+
+      <OperationDomainWorkspace operationId={id} />
 
       {/* ── Operation header ───────────────────────────────────────────────── */}
       {opLoading ? (

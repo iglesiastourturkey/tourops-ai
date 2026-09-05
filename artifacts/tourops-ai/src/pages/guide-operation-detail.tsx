@@ -1,3 +1,4 @@
+import { OperationDomainWorkspace } from "@/components/OperationDomainWorkspace";
 import { useParams } from 'wouter';
 import { Link } from 'wouter';
 import { AppShell } from '@/components/AppShell';
@@ -172,6 +173,8 @@ export default function GuideOperationDetailPage() {
             </div>
           )}
         </div>
+
+        <OperationDomainWorkspace operationId={operationId} surface="guide" />
 
         {/* Driver & vehicle */}
         {(op.driverName || op.driverPhone || op.vehiclePlate) && (
