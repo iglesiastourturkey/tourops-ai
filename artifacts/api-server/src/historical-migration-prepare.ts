@@ -39,7 +39,7 @@ const candidateSchema = z.object({
   issues: z.array(issueSchema),
 }).strict();
 
-const reportSchema = z.object({
+export const historicalDryRunReportSchema = z.object({
   version: z.literal(1),
   generatedAt: z.string().min(1),
   scope: z.object({
@@ -79,7 +79,7 @@ async function main() {
   if (!inputArg) usage();
 
   const inputPath = resolve(inputArg);
-  const parsed = reportSchema.safeParse(JSON.parse(await readFile(inputPath, "utf8")));
+  const parsed = historicalDryRunReportSchema.safeParse(JSON.parse(await readFile(inputPath, "utf8")));
   if (!parsed.success) {
     console.error("Gecersiz Faz 3A raporu:", parsed.error.issues);
     process.exit(2);
