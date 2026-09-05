@@ -4,9 +4,10 @@ import { AppShell } from '@/components/AppShell';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useListOperations } from '@workspace/api-client-react';
-import { ChevronLeft, ChevronRight, ExternalLink, RefreshCw, CalendarDays, List } from 'lucide-react';
-import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
-import { groupOperationsByDate, getMonthGrid, toDateKey, sortOperations } from '@/lib/calendar-grouping';
+import { ChevronLeft, ChevronRight, RefreshCw, CalendarDays, List } from 'lucide-react';
+import { OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
+import { groupOperationsByDate, getMonthGrid, toDateKey } from '@/lib/calendar-grouping';
+import { DailyOperationsBoard } from '@/components/DailyOperationsBoard';
 
 const WEEKDAY_LABELS = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
 const MONTH_LABELS = [
@@ -51,10 +52,6 @@ export default function CalendarPage() {
   }
 
   const monthGrid = useMemo(() => getMonthGrid(cursorDate), [cursorDate]);
-  const dayOperations = useMemo(
-    () => sortOperations(byDate.get(cursorKey) ?? []),
-    [byDate, cursorKey],
-  );
 
   return (
     <AppShell title="Takvim">
@@ -159,30 +156,7 @@ export default function CalendarPage() {
           </div>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden bg-card">
-          {dayOperations.length === 0 ? (
-            <div className="text-center text-muted-foreground py-10 text-sm">
-              Bu tarihte planlanmış operasyon yok
-            </div>
-          ) : (
-            <ul className="divide-y">
-              {dayOperations.map(op => (
-                <li key={op.id} className="p-3 flex items-center gap-3" data-testid={`row-calendar-operation-${op.id}`}>
-                  <span className="font-mono text-sm font-medium w-16 shrink-0">OP-{op.id}</span>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${OPERATION_STATUS_COLORS[op.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {OPERATION_STATUS_LABELS[op.status] ?? op.status}
-                  </span>
-                  <span className="text-sm text-muted-foreground truncate flex-1">
-                    {[op.guideName, op.driverName, op.vehiclePlate].filter(Boolean).join(' · ') || 'Rehber/şoför atanmadı'}
-                  </span>
-                  <Link href={`/operations/${op.id}`} className="text-muted-foreground hover:text-foreground shrink-0" data-testid={`link-calendar-operation-${op.id}`}>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <DailyOperationsBoard date={cursorKey} />
       )}
     </AppShell>
   );

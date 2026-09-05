@@ -1,4 +1,5 @@
 import { operationDetailRead } from "../lib/operation-detail-read";
+import { dailyOperationsRead } from "../lib/daily-operations-read";
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
@@ -90,6 +91,11 @@ router.post("/", requirePermission("operations", "create"), async (req, res) => 
     res.status(201).json(row);
   } catch { res.status(500).json({ error: "Failed to create operation" }); }
 });
+
+// Registered before "/:id" - Express treats "/daily" and "/:id" as the
+// same single-segment shape, matched in registration order, so this must
+// come first or "daily" would be parsed as an operation id (NaN) instead.
+router.get("/daily", requirePermission("operations", "view"), dailyOperationsRead);
 
 router.get("/:id", requirePermission("operations", "view"), async (req, res) => {
   try {

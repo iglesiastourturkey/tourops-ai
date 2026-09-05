@@ -99,6 +99,27 @@ export const OPERATION_STATUS_LABELS: Record<string, string> = {
   archived: 'Arşivlendi',
 };
 
+// Reservation-domain labels (Phase 1C/1D). Shared by OperationDomainWorkspace
+// (Operation Detail) and the Daily Operations Center so both screens render
+// the exact same Turkish text for the exact same underlying value - never
+// two independently-maintained copies that can drift apart.
+export const RESERVATION_STATUS_LABELS: Record<string, string> = {
+  new: 'Yeni',
+  confirmed: 'Onaylı',
+  completed: 'Tamamlandı',
+  canceled: 'İptal',
+  rebooked: 'Yeniden rezervasyon',
+  no_show: 'Katılmadı',
+};
+
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
+  manual: 'Manual',
+  gmail: 'Gmail',
+  outlook: 'Outlook',
+  sheet_import: 'Sheet Import',
+  historical_migration: 'Historical Migration',
+};
+
 export const OPERATION_STATUS_COLORS: Record<string, string> = {
   active: 'bg-green-100 text-green-700',
   planned: 'bg-gray-100 text-gray-600',
