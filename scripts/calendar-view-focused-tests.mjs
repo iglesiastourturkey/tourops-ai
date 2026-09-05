@@ -100,12 +100,28 @@ assert.ok(
   "calendar.tsx must reuse the shared AppShell layout, same as every other authenticated page",
 );
 assert.ok(
-  /import \{ groupOperationsByDate, getMonthGrid, toDateKey, sortOperations \} from '@\/lib\/calendar-grouping';/.test(CALENDAR_PAGE_SOURCE),
-  "calendar.tsx must import its grouping/grid helpers from the new calendar-grouping.ts module",
+  /import \{ groupOperationsByDate, getMonthGrid, toDateKey \} from '@\/lib\/calendar-grouping';/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx must still import the month-grid grouping helpers from calendar-grouping.ts",
 );
 assert.ok(
-  /import \{ OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate \} from '@\/lib\/labels';/.test(CALENDAR_PAGE_SOURCE),
-  "calendar.tsx must reuse the existing status label/color maps from lib/labels, not redeclare them",
+  /import \{ OPERATION_STATUS_COLORS, formatDate \} from '@\/lib\/labels';/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx must reuse the existing status color map from lib/labels for the month grid, not redeclare it",
+);
+// Phase 1D: the day view was upgraded from a bare id/status/guide list (fed
+// by sortOperations() over the full useListOperations() result) to the
+// batched, Reservation-domain-aware Daily Operations Center board. Month
+// view is untouched - only the day view's data source and rendering changed.
+assert.ok(
+  /import \{ DailyOperationsBoard \} from '@\/components\/DailyOperationsBoard';/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx's day view must render the shared DailyOperationsBoard component (Phase 1D), not a bespoke list",
+);
+assert.ok(
+  /<DailyOperationsBoard date=\{cursorKey\} \/>/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx must pass the currently-selected day (cursorKey) to DailyOperationsBoard",
+);
+assert.ok(
+  !/sortOperations/.test(CALENDAR_PAGE_SOURCE),
+  "calendar.tsx must no longer compute its own day-view ordering client-side - the daily endpoint now returns operations pre-sorted",
 );
 
 // ── 7. month/day view-mode toggle exists and both views are wired ───────────
@@ -132,9 +148,12 @@ assert.ok(
 );
 
 // ── 9. each day cell links through to the operation detail page ─────────────
+// Phase 1D: this link now lives inside DailyOperationsBoard.tsx (below),
+// which calendar.tsx's day view renders - see the Phase 1D focused tests
+// for the assertion against that file.
 assert.ok(
-  /href=\{`\/operations\/\$\{op\.id\}`\}/.test(CALENDAR_PAGE_SOURCE),
-  "calendar.tsx's day view must link each operation to /operations/:id, reusing the existing detail page",
+  !/href=\{`\/operations\/\$\{op\.id\}`\}/.test(CALENDAR_PAGE_SOURCE),
+  "the per-operation detail link no longer lives inline in calendar.tsx - it moved into DailyOperationsBoard.tsx",
 );
 assert.ok(
   !/pickupTime/.test(CALENDAR_PAGE_SOURCE),

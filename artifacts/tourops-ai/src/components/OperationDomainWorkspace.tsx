@@ -1,7 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { customFetch } from '@workspace/api-client-react';
 import { API_BASE } from '@/lib/api-base';
-import { OPERATION_STATUS_LABELS } from '@/lib/labels';
+import {
+  OPERATION_STATUS_LABELS,
+  RESERVATION_STATUS_LABELS as reservationStatuses,
+  SOURCE_TYPE_LABELS as sourceNames,
+} from '@/lib/labels';
 
 type Value = string | number | null;
 interface Party {
@@ -28,8 +32,6 @@ interface Detail {
   history: { activity: { id: number; eventType: string; actorName: string | null; createdAt: string }[] };
 }
 const missing = 'Belirtilmemiş';
-const sourceNames: Record<string, string> = { manual: 'Manual', gmail: 'Gmail', outlook: 'Outlook', sheet_import: 'Sheet Import', historical_migration: 'Historical Migration' };
-const reservationStatuses: Record<string, string> = { new: 'Yeni', confirmed: 'Onaylı', completed: 'Tamamlandı', canceled: 'İptal', rebooked: 'Yeniden rezervasyon', no_show: 'Katılmadı' };
 const source = (value: string | null) => value ? sourceNames[value] ?? value : missing;
 function Fields({ entries }: { entries: [string, Value | undefined][] }) {
   return <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-2 text-sm">
