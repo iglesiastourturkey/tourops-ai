@@ -124,7 +124,15 @@ function warningsFor(candidate: HistoricalOperationCandidate): HistoricalMigrati
 
 function dispositionFor(candidate: HistoricalOperationCandidate): HistoricalMigrationDisposition {
   if (!candidate.operationDate || !candidate.customerName) return "blocked";
-  if (candidate.issues.includes("possible_duplicate_content")) return "manual_review";
+
+  if (
+    candidate.issues.includes("possible_duplicate_content") ||
+    candidate.issues.includes("ambiguous_duplicate_content") ||
+    candidate.issues.includes("supplementary_booking_row")
+  ) {
+    return "manual_review";
+  }
+
   return "staging_ready";
 }
 

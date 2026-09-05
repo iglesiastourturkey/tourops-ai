@@ -1,0 +1,371 @@
+[
+  {
+    "group": 1,
+    "customer": "BRONA NEILAND",
+    "expected": "SAME_BOOKING_SUPPLEMENTARY_ROW",
+    "candidates": [
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 129,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "BRONA NEILAND",
+        "agency": null,
+        "operator": "VIATOR/ 2",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": null
+      },
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 142,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "BRONA NEILAND",
+        "agency": null,
+        "operator": "VIATOR/ 2",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "GIRIS DAHIL / YEMEK HARIC"
+      }
+    ]
+  },
+  {
+    "group": 2,
+    "customer": "MIKA KUBOTA FRASER",
+    "expected": "SAME_BOOKING_DIFFERENT_SERVICE",
+    "candidates": [
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "31",
+        "sourceRow": 3,
+        "operationDate": "2026-03-31",
+        "tourType": "REG",
+        "customerName": "MIKA KUBOTA FRASER",
+        "agency": "BESTT",
+        "operator": "IGLESIAS",
+        "adultCount": 4,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "SUHAN",
+        "language": "ING",
+        "tourSection": "REGULAR EPHESUS TOUR",
+        "notes": "SUHAN SEAPORT / SUHAN SEAPORT BIRAK"
+      },
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "31",
+        "sourceRow": 12,
+        "operationDate": "2026-03-31",
+        "tourType": "REG",
+        "customerName": "MIKA KUBOTA FRASER",
+        "agency": "BESTT",
+        "operator": "IGLESIAS",
+        "adultCount": 4,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "SUHAN",
+        "language": "ING",
+        "tourSection": "UCAK IPTAL OLDUGU ICIN, PMK TURU IPTAL",
+        "notes": "SUHAN - SUHAN"
+      }
+    ]
+  },
+  {
+    "group": 3,
+    "customer": "XAVIER MENDEZ",
+    "expected": "SAME_BOOKING_DIFFERENT_SERVICE",
+    "candidates": [
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "8",
+        "sourceRow": 49,
+        "operationDate": "2026-01-08",
+        "tourType": "REG",
+        "customerName": "XAVIER MENDEZ",
+        "agency": "CIRCUI",
+        "operator": "UMITAYH",
+        "adultCount": 7,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "SIGNATURE CAVE",
+        "language": null,
+        "tourSection": "SIGNATURE CAVE",
+        "notes": "DERVISH SHOW"
+      },
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "8",
+        "sourceRow": 50,
+        "operationDate": "2026-01-08",
+        "tourType": "REG",
+        "customerName": "XAVIER MENDEZ",
+        "agency": "CIRCUI",
+        "operator": "UMITAYH",
+        "adultCount": 7,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "SIGNATURE CAVE",
+        "language": null,
+        "tourSection": "TURK GECESI",
+        "notes": "TURK GECESI"
+      }
+    ]
+  },
+  {
+    "group": 4,
+    "customer": "ROBERT FUNK",
+    "expected": "SAME_BOOKING_SUPPLEMENTARY_ROW",
+    "candidates": [
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "7",
+        "sourceRow": 80,
+        "operationDate": "2026-05-07",
+        "tourType": "PVT",
+        "customerName": "ROBERT FUNK",
+        "agency": null,
+        "operator": "VIATOR",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "SUN PRINCESS / 07:00 - 18:00"
+      },
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "7",
+        "sourceRow": 114,
+        "operationDate": "2026-05-07",
+        "tourType": "PVT",
+        "customerName": "ROBERT FUNK",
+        "agency": null,
+        "operator": "VIATOR",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "EFES - M.ANA - ARTEMIS"
+      }
+    ]
+  },
+  {
+    "group": 5,
+    "customer": "ALEXANDER SMITH",
+    "expected": "SAME_BOOKING_DIFFERENT_SERVICE",
+    "candidates": [
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "13",
+        "sourceRow": 40,
+        "operationDate": "2026-05-13",
+        "tourType": "REG",
+        "customerName": "ALEXANDER SMITH",
+        "agency": "BESTT",
+        "operator": "ALIRIZA",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "HANCI",
+        "language": null,
+        "tourSection": "BALON TURU",
+        "notes": "DERVISH SHOW"
+      },
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "13",
+        "sourceRow": 41,
+        "operationDate": "2026-05-13",
+        "tourType": "REG",
+        "customerName": "ALEXANDER SMITH",
+        "agency": "BESTT",
+        "operator": "ALIRIZA",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "HANCI",
+        "language": null,
+        "tourSection": "TURK GECESI",
+        "notes": "TURK GECESI"
+      }
+    ]
+  },
+  {
+    "group": 6,
+    "customer": "NANCY DE LEON",
+    "expected": "SAME_BOOKING_SUPPLEMENTARY_ROW",
+    "candidates": [
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 127,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "NANCY DE LEON",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 6,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": null
+      },
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 140,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "NANCY DE LEON",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 6,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "ENCHANTED PRINCESS / 07:00 - 16:00"
+      }
+    ]
+  },
+  {
+    "group": 7,
+    "customer": "ABIM SODIPO",
+    "expected": "SAME_BOOKING_SUPPLEMENTARY_ROW",
+    "candidates": [
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "26",
+        "sourceRow": 91,
+        "operationDate": "2026-08-26",
+        "tourType": "REG",
+        "customerName": "ABIM SODIPO",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 11,
+        "childCount": null,
+        "pickupTime": "09:00",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "ODYSSEY OF THE SEAS / 09:00 - 19:00"
+      },
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "26",
+        "sourceRow": 92,
+        "operationDate": "2026-08-26",
+        "tourType": "REG",
+        "customerName": "ABIM SODIPO",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 11,
+        "childCount": null,
+        "pickupTime": "09:00",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "EFES - HALI - M.ANA - ARTEMIS"
+      }
+    ]
+  },
+  {
+    "group": 8,
+    "customer": "ABUL KASSEM MD RAFIUL ALAM",
+    "expected": "SAME_BOOKING_DIFFERENT_SERVICE",
+    "candidates": [
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "13",
+        "sourceRow": 30,
+        "operationDate": "2026-06-13",
+        "tourType": "REG",
+        "customerName": "ABUL KASSEM MD RAFIUL ALAM",
+        "agency": "BESTT",
+        "operator": "ANDR",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "MISTY CAVE",
+        "language": "ING",
+        "tourSection": "REGULAR NORTHERN TOUR",
+        "notes": "MISTY CAVE / MISTY CAVE"
+      },
+      {
+        "sourceKind": "sejour",
+        "worksheetName": "13",
+        "sourceRow": 48,
+        "operationDate": "2026-06-13",
+        "tourType": "REG",
+        "customerName": "ABUL KASSEM MD RAFIUL ALAM",
+        "agency": "BESTT",
+        "operator": "ANDR",
+        "adultCount": 2,
+        "childCount": null,
+        "pickupTime": null,
+        "pickupPoint": "MISTY CAVE",
+        "language": null,
+        "tourSection": "TURK GECESI",
+        "notes": "TURK GECESI"
+      }
+    ]
+  },
+  {
+    "group": 9,
+    "customer": "SHIVANI ANDREWS",
+    "expected": "SAME_BOOKING_SUPPLEMENTARY_ROW",
+    "candidates": [
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 128,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "SHIVANI ANDREWS",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 4,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": null
+      },
+      {
+        "sourceKind": "gemi",
+        "worksheetName": "30",
+        "sourceRow": 141,
+        "operationDate": "2026-05-30",
+        "tourType": "REG",
+        "customerName": "SHIVANI ANDREWS",
+        "agency": null,
+        "operator": "VIATOR/2",
+        "adultCount": 4,
+        "childCount": null,
+        "pickupTime": "07:30",
+        "pickupPoint": "KUS LIMAN",
+        "language": "ING",
+        "tourSection": "PRIVATE EPHESUS TOUR",
+        "notes": "EFES - HALI - M.ANA - ARTEMIS"
+      }
+    ]
+  }
+]

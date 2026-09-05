@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type ExcelJS from "exceljs";
 
+import { classifyHistoricalDuplicateGroup } from "./historical-duplicate-classification";
+import { duplicateClassificationToIssues } from "./historical-duplicate-integration";
+
 export type LegacySourceKind = "gemi" | "sejour";
 
 export interface HistoricalWorkbookDescriptor {
@@ -15,7 +18,9 @@ export type HistoricalCandidateIssue =
   | "missing_operation_date"
   | "missing_customer_name"
   | "missing_booking_reference"
-  | "possible_duplicate_content";
+  | "possible_duplicate_content"
+  | "ambiguous_duplicate_content"
+  | "supplementary_booking_row";
 
 export interface HistoricalOperationCandidate {
   sourceKey: string;
@@ -297,9 +302,34 @@ export function buildHistoricalDryRunReport(
   }
   for (const matches of byFingerprint.values()) {
     if (matches.length < 2) continue;
+
+    const classification = classifyHistoricalDuplicateGroup(
+      matches.map(candidate => ({
+        sourceKind: candidate.sourceKind,
+        worksheetName: candidate.worksheetName,
+        sourceRow: candidate.sourceRow,
+        operationDate: candidate.operationDate,
+        tourType: candidate.reservationType,
+        customerName: candidate.customerName,
+        agency: candidate.agency,
+        operator: candidate.operator,
+        adultCount: candidate.adultCount,
+        childCount: candidate.childCount,
+        pickupTime: candidate.pickupTime,
+        pickupPoint: candidate.pickupPoint,
+        language: candidate.language,
+        tourSection: candidate.tourSectionRaw,
+        notes: candidate.notesRaw,
+      })),
+    );
+
+    const duplicateIssues = duplicateClassificationToIssues(classification);
+
     for (const candidate of matches) {
-      if (!candidate.issues.includes("possible_duplicate_content")) {
-        candidate.issues.push("possible_duplicate_content");
+      for (const issue of duplicateIssues) {
+        if (!candidate.issues.includes(issue)) {
+          candidate.issues.push(issue);
+        }
       }
     }
   }

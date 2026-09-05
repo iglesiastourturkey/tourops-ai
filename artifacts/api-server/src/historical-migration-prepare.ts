@@ -10,6 +10,8 @@ const issueSchema = z.enum([
   "missing_customer_name",
   "missing_booking_reference",
   "possible_duplicate_content",
+  "ambiguous_duplicate_content",
+  "supplementary_booking_row",
 ]);
 
 const candidateSchema = z.object({
