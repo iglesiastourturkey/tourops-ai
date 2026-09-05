@@ -28,9 +28,10 @@
     "test:historical-pending-inspect": "node scripts/historical-pending-inspect-focused-tests.mjs",
     "test:historical-customer-link": "node scripts/historical-customer-link-focused-tests.mjs",
     "test:historical-pickup-time-correction": "node scripts/historical-pickup-time-correction-focused-tests.mjs",
-    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:communications-reservation-phase1b3 && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:sheet-import-phase1b1 && pnpm run test:historical-promotion-phase1b2 && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging && pnpm run test:historical-promotion && pnpm run test:historical-customer-resolution && pnpm run test:historical-pending-inspect && pnpm run test:historical-customer-link && pnpm run test:reservation-domain-phase1a",
+    "test": "pnpm run test:reservation-guards && pnpm run test:reservation-validation && pnpm run test:deletion-guards && pnpm run test:storage-guide-document && pnpm run test:communications-readonly && pnpm run test:communications-integration && pnpm run test:communications-reservation-phase1b3 && pnpm run test:offline-sync && pnpm run test:sheet-import-hardening && pnpm run test:sheet-import-duplicate-warning && pnpm run test:sheet-import-phase1b1 && pnpm run test:historical-promotion-phase1b2 && pnpm run test:calendar && pnpm run test:navigation && pnpm run test:historical-migration && pnpm run test:historical-staging && pnpm run test:historical-promotion && pnpm run test:historical-customer-resolution && pnpm run test:historical-pending-inspect && pnpm run test:historical-customer-link && pnpm run test:reservation-domain-phase1a && pnpm run test:operation-detail-phase1c",
     "verify": "pnpm run typecheck && pnpm run build && pnpm run test",
-    "test:reservation-domain-phase1a": "node scripts/reservation-domain-phase1a-focused-tests.mjs"
+    "test:reservation-domain-phase1a": "node scripts/reservation-domain-phase1a-focused-tests.mjs",
+    "test:operation-detail-phase1c": "node scripts/operation-detail-phase1c-focused-tests.mjs"
   },
   "private": true,
   "dependencies": {

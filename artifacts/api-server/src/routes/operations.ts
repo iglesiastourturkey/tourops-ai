@@ -1,3 +1,4 @@
+import { operationDetailRead } from "../lib/operation-detail-read";
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
@@ -732,5 +733,7 @@ async function updateCompletionRate(operationId: number) {
     .set({ completionRate: total > 0 ? (done / total) * 100 : 0 })
     .where(eq(operationsTable.id, operationId));
 }
+
+router.get("/:id/detail", requirePermission("operations", "view"), operationDetailRead);
 
 export default router;

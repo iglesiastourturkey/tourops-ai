@@ -1,3 +1,4 @@
+import { operationDetailRead } from "../lib/operation-detail-read";
 /**
  * /api/field/* — Field Operations Center
  *
@@ -1115,5 +1116,7 @@ router.get("/operations/:id/location", requirePermission("field_operations", "vi
   if (!row) return res.status(404).json({ error: "Konum verisi bulunamadı" });
   return res.json(row);
 });
+
+router.get("/operations/:id/detail", requirePermission("field_operations", "view"), operationDetailRead);
 
 export default router;

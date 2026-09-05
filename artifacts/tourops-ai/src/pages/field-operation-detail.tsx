@@ -1,3 +1,4 @@
+import { OperationDomainWorkspace } from "@/components/OperationDomainWorkspace";
 import { useState } from 'react';
 import { useRoute, Link } from 'wouter';
 import { FieldShell } from '@/components/FieldShell';
@@ -375,6 +376,8 @@ export default function FieldOperationDetailPage() {
           </div>
         )}
       </div>
+
+      <OperationDomainWorkspace operationId={op.id} surface="field" />
 
       {/* Assignments */}
       <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm mb-4">
