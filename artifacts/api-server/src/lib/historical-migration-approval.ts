@@ -32,6 +32,13 @@ export interface ApproveHistoricalImportParams {
   sourceKey: string;
   actorProfileId: number;
   reviewNotes?: string | null;
+  /**
+   * Optional fail-closed warning allowlist for controlled batch review.
+   * When supplied, it is re-checked while the staging row is locked so a
+   * warning-profile change between batch selection and approval cannot slip
+   * through the low-risk gate.
+   */
+  allowedWarnings?: readonly string[];
 }
 
 export interface RejectHistoricalImportParams {
@@ -63,6 +70,19 @@ export async function approveHistoricalImport(params: ApproveHistoricalImportPar
 
     const blocked = historicalImportTransitionBlock("approve", row.status);
     if (blocked) return { ok: false, code: "invalid_transition", message: blocked };
+
+    if (params.allowedWarnings) {
+      const allowed = new Set(params.allowedWarnings);
+      const warnings = Array.isArray(row.warnings) ? row.warnings : [];
+      const disallowed = warnings.filter(warning => !allowed.has(warning));
+      if (disallowed.length > 0) {
+        return {
+          ok: false,
+          code: "invalid_transition",
+          message: `Warning profili kontrollu batch allowlist'i disinda: ${disallowed.join(", ")}`,
+        };
+      }
+    }
 
     const updated = await tx
       .update(historicalOperationImportsTable)
