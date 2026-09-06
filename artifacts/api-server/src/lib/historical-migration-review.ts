@@ -122,6 +122,46 @@ function warningsFor(candidate: HistoricalOperationCandidate): HistoricalMigrati
     .map(({ code }) => code);
 }
 
+export function buildHistoricalStagingRecord(
+  candidate: HistoricalOperationCandidate,
+): HistoricalStagingRecord {
+  if (!candidate.operationDate || !candidate.customerName) {
+    throw new Error("Staging adayi tarih ve musteri adi olmadan hazirlanamaz");
+  }
+
+  return {
+    idempotencyKey: candidate.sourceKey,
+    requiresHumanApproval: true,
+    provenance: {
+      sourceFileId: candidate.sourceFileId,
+      sourceKind: candidate.sourceKind,
+      worksheetName: candidate.worksheetName,
+      sourceRow: candidate.sourceRow,
+    },
+    customer: { fullName: candidate.customerName },
+    operation: {
+      sourceType: "historical_legacy",
+      sourceBookingReference: null,
+      startDate: candidate.operationDate,
+      endDate: candidate.operationDate,
+      pickupTime: candidate.pickupTime,
+      notes: candidate.notesRaw,
+    },
+    reservationDetails: {
+      adultCount: candidate.adultCount,
+      childCount: candidate.childCount,
+      passengerLanguage: candidate.language,
+      tourType: candidate.reservationType,
+      itineraryRaw: candidate.tourSectionRaw,
+      pickupPoint: candidate.pickupPoint,
+      externalSource: candidate.agency,
+      externalOperator: candidate.operator,
+      collectionStatusRaw: candidate.collectionStatusRaw,
+    },
+    warnings: warningsFor(candidate),
+  };
+}
+
 function dispositionFor(candidate: HistoricalOperationCandidate): HistoricalMigrationDisposition {
   if (!candidate.operationDate || !candidate.customerName) return "blocked";
 
@@ -171,43 +211,7 @@ export function buildHistoricalMigrationPreparation(
       continue;
     }
 
-    // dispositionFor only returns staging_ready when both values exist. Keep
-    // this local guard so TypeScript and future refactors preserve that gate.
-    if (!candidate.operationDate || !candidate.customerName) {
-      throw new Error("Staging adayi tarih ve musteri adi olmadan hazirlanamaz");
-    }
-
-    records.push({
-      idempotencyKey: candidate.sourceKey,
-      requiresHumanApproval: true,
-      provenance: {
-        sourceFileId: candidate.sourceFileId,
-        sourceKind: candidate.sourceKind,
-        worksheetName: candidate.worksheetName,
-        sourceRow: candidate.sourceRow,
-      },
-      customer: { fullName: candidate.customerName },
-      operation: {
-        sourceType: "historical_legacy",
-        sourceBookingReference: null,
-        startDate: candidate.operationDate,
-        endDate: candidate.operationDate,
-        pickupTime: candidate.pickupTime,
-        notes: candidate.notesRaw,
-      },
-      reservationDetails: {
-        adultCount: candidate.adultCount,
-        childCount: candidate.childCount,
-        passengerLanguage: candidate.language,
-        tourType: candidate.reservationType,
-        itineraryRaw: candidate.tourSectionRaw,
-        pickupPoint: candidate.pickupPoint,
-        externalSource: candidate.agency,
-        externalOperator: candidate.operator,
-        collectionStatusRaw: candidate.collectionStatusRaw,
-      },
-      warnings,
-    });
+    records.push(buildHistoricalStagingRecord(candidate));
   }
 
   const shared = {
