@@ -41,6 +41,8 @@ import ForbiddenPage from '@/pages/forbidden';
 import ForgotPasswordPage from '@/pages/forgot-password';
 import ReservationsPage from '@/pages/reservations';
 import ReservationDetailPage from '@/pages/reservation-detail';
+import ReservationRecordsPage from '@/pages/reservation-records';
+import ReservationRecordDetailPage from '@/pages/reservation-record-detail';
 
 // ── Lazy loaded: heavy role-specific pages not needed on first paint ───────────
 const GuideOperationDetailPage     = lazy(() => import('@/pages/guide-operation-detail'));
@@ -426,6 +428,8 @@ function Router() {
 <Route path="/calendar" component={() => <ProtectedRoleRoute component={CalendarPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/reservations/:id" component={() => <ProtectedRoleRoute component={ReservationDetailPage} roles={['admin', 'operations']} />} />
       <Route path="/reservations" component={() => <ProtectedRoleRoute component={ReservationsPage} roles={['admin', 'operations']} />} />
+      <Route path="/reservation-records/:id" component={() => <ProtectedRoleRoute component={ReservationRecordDetailPage} roles={['admin', 'operations']} />} />
+      <Route path="/reservation-records" component={() => <ProtectedRoleRoute component={ReservationRecordsPage} roles={['admin', 'operations']} />} />
       <Route path="/notifications" component={() => <ProtectedRoute component={NotificationsPage} />} />
       <Route path="/accounting/operations/:id" component={() => <ProtectedRoleRoute component={AccountingOperationPage} roles={['admin', 'accounting', 'operations']} />} />
       <Route path="/accounting/transactions" component={() => <ProtectedRoleRoute component={AccountingTransactionsPage} roles={['admin', 'accounting', 'operations']} />} />

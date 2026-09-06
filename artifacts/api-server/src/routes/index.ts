@@ -20,6 +20,7 @@ import rolesRouter from "./roles";
 import systemRouter from "./system";
 import auditRouter from "./audit";
 import reservationsRouter from "./reservations";
+import reservationRecordsRouter from "./reservation-records";
 import outlookRouter from "./outlook";
 import contactRouter from "./contact";
 import communicationsRouter from "./communications";
@@ -54,6 +55,7 @@ router.use("/audit", auditRouter);
 // outlook.ts's more specific literal routes.
 router.use("/reservations", outlookRouter);
 router.use("/reservations", reservationsRouter);
+router.use("/reservation-records", reservationRecordsRouter);
 router.use(contactRouter);
 router.use("/communications", communicationsRouter);
 router.use("/external-observations", externalObservationsRouter);
