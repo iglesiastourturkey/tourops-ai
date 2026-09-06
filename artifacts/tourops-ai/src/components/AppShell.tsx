@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { UserButton } from '@clerk/react';
 import { useListNotifications } from '@workspace/api-client-react';
@@ -109,7 +109,17 @@ const STANDALONE_HREFS = ['/dashboard', '/guide'] as const;
 const HEADER_ONLY_HREFS = new Set(['/notifications']);
 
 function isRouteActive(location: string, href: string) {
-  return location === href || (href !== '/dashboard' && location.startsWith(`${href}/`));
+  if (location === href) return true;
+  if (!location.startsWith(`${href}/`)) return false;
+
+  // Prefer the most-specific nav route. For example `/accounting/settings`
+  // should activate only "Muhasebe Ayarları", while `/operations/123` should
+  // still activate its `/operations` parent entry.
+  return !navItems.some(item => (
+    item.href !== href
+    && item.href.length > href.length
+    && (location === item.href || location.startsWith(`${item.href}/`))
+  ));
 }
 
 // Base-path-safe logo: resolves against Vite's BASE_URL at build time so it
@@ -161,6 +171,15 @@ export function AppShell({ children, title }: AppShellProps) {
   const { data: notifications } = useListNotifications();
   const unreadCount = notifications?.filter(n => !n.isRead).length ?? 0;
   const { role, isLoading: profileLoading, permissionSet, allPermissions, permissionsLoaded } = useProfile();
+
+  useEffect(() => {
+    const activeGroup = NAV_GROUPS.find(group => group.hrefs.some(href => isRouteActive(location, href)));
+    if (!activeGroup) return;
+    setOpenGroups(current => {
+      if (current.has(activeGroup.id)) return current;
+      return new Set([...current, activeGroup.id]);
+    });
+  }, [location]);
 
   const visibleNavItems = navItems.filter(item => {
     if (profileLoading || !permissionsLoaded) return false;
