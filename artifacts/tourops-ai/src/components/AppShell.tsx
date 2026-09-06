@@ -330,7 +330,7 @@ export function AppShell({ children, title }: AppShellProps) {
   return (
     <div className="flex h-screen bg-background overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 bg-sidebar">
+      <aside className="hidden lg:flex flex-col w-60 flex-shrink-0 bg-sidebar">
         <SidebarContent />
       </aside>
 
