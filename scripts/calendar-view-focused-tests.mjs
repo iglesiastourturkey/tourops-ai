@@ -172,9 +172,11 @@ assert.ok(
 );
 
 // ── 11. AppShell.tsx: the "Takvim" nav entry exists, gated by the same ──────
-// permission as the Operations list it complements.
+// permission as the Operations list it complements. The icon assertion is
+// deliberately resilient to additional lucide icons being listed after
+// CalendarDays in the same multiline import block.
 assert.ok(
-  /CalendarDays,?\s*\}\s*from\s*'lucide-react';/.test(APP_SHELL_SOURCE),
+  /import\s*\{[\s\S]*?\bCalendarDays\b[\s\S]*?\}\s*from\s*['"]lucide-react['"];/.test(APP_SHELL_SOURCE),
   "AppShell.tsx must import the CalendarDays icon from lucide-react",
 );
 assert.ok(
