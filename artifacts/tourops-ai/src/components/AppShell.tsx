@@ -6,7 +6,7 @@ import { OfflineIndicator } from '@/components/OfflineIndicator';
 import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
-  BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, CalendarDays,
+  BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, ClipboardCheck, CalendarDays,
   ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ const navItems: NavItem[] = [
   { icon: ClipboardList,   label: 'Operasyon Planlama', href: '/operations',          permission: ['operations',       'view']   },
   { icon: CalendarDays,    label: 'Takvim',             href: '/calendar',            permission: ['operations',       'view']   },
   { icon: Inbox,           label: 'Gelen Rezervasyonlar', href: '/reservations',      permission: ['reservations',     'view']   },
+  { icon: ClipboardCheck,  label: 'Rezervasyonlar',     href: '/reservation-records', permission: ['reservations',     'view']   },
   { icon: HardHat,         label: 'Operasyon Merkezi',  href: '/field',               permission: ['field_operations', 'view']   },
   { icon: Bell,            label: 'Bildirimler',        href: '/notifications',       permission: ['notifications',    'view']   },
   { icon: Settings,        label: 'Ayarlar',            href: '/settings',            permission: ['settings',         'view']   },
@@ -69,7 +70,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'reservations',
     label: 'Rezervasyonlar',
     icon: Inbox,
-    hrefs: ['/requests/new', '/reservations', '/quotations', '/sheet-import'],
+    hrefs: ['/requests/new', '/reservations', '/reservation-records', '/quotations', '/sheet-import'],
   },
   {
     id: 'operations',
