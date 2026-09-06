@@ -1,10 +1,6 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { db, pool } from "@workspace/db";
-import { historicalOperationImportsTable } from "@workspace/db/schema";
-import { approveHistoricalImport } from "./lib/historical-migration-approval";
-import { verifyOperatorPermission } from "./lib/historical-migration-operator";
 
 const MAX_BATCH = 25;
 const CONFIRMATION = "TOURPILOT_2026_HISTORICAL_LOW_RISK_APPROVAL";
@@ -34,26 +30,6 @@ function parseLimit(args: string[]): number {
   return limit;
 }
 
-async function selectCandidates(limit: number) {
-  const allowedJson = JSON.stringify(LOW_RISK_WARNINGS);
-  return db
-    .select({
-      id: historicalOperationImportsTable.id,
-      sourceKey: historicalOperationImportsTable.sourceKey,
-      operationDate: historicalOperationImportsTable.operationDate,
-      customerName: historicalOperationImportsTable.customerName,
-      warnings: historicalOperationImportsTable.warnings,
-      approvalVersion: historicalOperationImportsTable.approvalVersion,
-    })
-    .from(historicalOperationImportsTable)
-    .where(and(
-      eq(historicalOperationImportsTable.status, "pending"),
-      sql`${historicalOperationImportsTable.warnings} <@ ${allowedJson}::jsonb`,
-    ))
-    .orderBy(asc(historicalOperationImportsTable.id))
-    .limit(limit);
-}
-
 async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes("--approve-batch");
@@ -67,59 +43,92 @@ async function main() {
     if (!confirmed) throw new Error(`--approve-batch icin --confirm-batch ${CONFIRMATION} zorunludur`);
   }
 
+  // Validate the dedicated staging target before importing any module that
+  // initializes @workspace/db. Never fall back to a generic DATABASE_URL.
   const connectionString = validateTarget();
   process.env.DATABASE_URL = connectionString;
 
-  const candidates = await selectCandidates(limit);
-  const invalid = candidates.filter(row =>
-    !row.customerName.trim()
-    || !Array.isArray(row.warnings)
-    || row.warnings.some(warning => !LOW_RISK_WARNINGS.includes(warning as typeof LOW_RISK_WARNINGS[number]))
-  );
-  if (invalid.length > 0) throw new Error(`Low-risk preflight basarisiz; ${invalid.length} aday allowlist/integrity disinda`);
+  const [{ db, pool }, { historicalOperationImportsTable }] = await Promise.all([
+    import("@workspace/db"),
+    import("@workspace/db/schema"),
+  ]);
 
-  if (!apply) {
+  try {
+    const allowedJson = JSON.stringify(LOW_RISK_WARNINGS);
+    const candidates = await db
+      .select({
+        id: historicalOperationImportsTable.id,
+        sourceKey: historicalOperationImportsTable.sourceKey,
+        operationDate: historicalOperationImportsTable.operationDate,
+        customerName: historicalOperationImportsTable.customerName,
+        warnings: historicalOperationImportsTable.warnings,
+        approvalVersion: historicalOperationImportsTable.approvalVersion,
+      })
+      .from(historicalOperationImportsTable)
+      .where(and(
+        eq(historicalOperationImportsTable.status, "pending"),
+        sql`${historicalOperationImportsTable.warnings} <@ ${allowedJson}::jsonb`,
+      ))
+      .orderBy(asc(historicalOperationImportsTable.id))
+      .limit(limit);
+
+    const invalid = candidates.filter(row =>
+      !row.customerName.trim()
+      || !Array.isArray(row.warnings)
+      || row.warnings.some(warning => !LOW_RISK_WARNINGS.includes(warning as typeof LOW_RISK_WARNINGS[number]))
+    );
+    if (invalid.length > 0) throw new Error(`Low-risk preflight basarisiz; ${invalid.length} aday allowlist/integrity disinda`);
+
+    if (!apply) {
+      console.log(JSON.stringify({
+        mode: "historical-low-risk-batch-plan",
+        databaseWrites: false,
+        requestedLimit: limit,
+        selected: candidates.length,
+        allowedWarnings: LOW_RISK_WARNINGS,
+        selectedSourceKeys: candidates.map(row => row.sourceKey),
+        requiresApplyConfirmation: true,
+      }, null, 2));
+      return;
+    }
+
+    const [{ approveHistoricalImport }, { verifyOperatorPermission }] = await Promise.all([
+      import("./lib/historical-migration-approval"),
+      import("./lib/historical-migration-operator"),
+    ]);
+
+    const verification = await verifyOperatorPermission(operatorProfileId as number, "historical_migration", "approve");
+    if (!verification.ok) throw new Error(verification.message);
+
+    let approved = 0;
+    const failed: Array<{ sourceKey: string; code: string; message: string }> = [];
+    for (const candidate of candidates) {
+      const result = await approveHistoricalImport({
+        sourceKey: candidate.sourceKey,
+        actorProfileId: operatorProfileId as number,
+        allowedWarnings: LOW_RISK_WARNINGS,
+        reviewNotes: "controlled_low_risk_batch",
+      });
+      if (!result.ok) {
+        failed.push({ sourceKey: candidate.sourceKey, code: result.code, message: result.message });
+        break;
+      }
+      approved += 1;
+    }
+
     console.log(JSON.stringify({
-      mode: "historical-low-risk-batch-plan",
-      databaseWrites: false,
+      mode: "historical-low-risk-batch-approve",
+      databaseWrites: approved > 0,
       requestedLimit: limit,
       selected: candidates.length,
-      allowedWarnings: LOW_RISK_WARNINGS,
-      selectedSourceKeys: candidates.map(row => row.sourceKey),
-      requiresApplyConfirmation: true,
+      approved,
+      failed,
     }, null, 2));
-    return;
+
+    if (failed.length > 0) process.exitCode = 1;
+  } finally {
+    await pool.end();
   }
-
-  const verification = await verifyOperatorPermission(operatorProfileId as number, "historical_migration", "approve");
-  if (!verification.ok) throw new Error(verification.message);
-
-  let approved = 0;
-  const failed: Array<{ sourceKey: string; code: string; message: string }> = [];
-  for (const candidate of candidates) {
-    const result = await approveHistoricalImport({
-      sourceKey: candidate.sourceKey,
-      actorProfileId: operatorProfileId as number,
-      allowedWarnings: LOW_RISK_WARNINGS,
-      reviewNotes: "controlled_low_risk_batch",
-    });
-    if (!result.ok) {
-      failed.push({ sourceKey: candidate.sourceKey, code: result.code, message: result.message });
-      break;
-    }
-    approved += 1;
-  }
-
-  console.log(JSON.stringify({
-    mode: "historical-low-risk-batch-approve",
-    databaseWrites: approved > 0,
-    requestedLimit: limit,
-    selected: candidates.length,
-    approved,
-    failed,
-  }, null, 2));
-
-  if (failed.length > 0) process.exitCode = 1;
 }
 
 const isEntrypoint = process.argv[1]
@@ -127,12 +136,8 @@ const isEntrypoint = process.argv[1]
   : false;
 
 if (isEntrypoint) {
-  main()
-    .catch(error => {
-      console.error(error instanceof Error ? error.message : "Historical low-risk batch basarisiz");
-      process.exitCode = 1;
-    })
-    .finally(async () => {
-      await pool.end();
-    });
+  main().catch(error => {
+    console.error(error instanceof Error ? error.message : "Historical low-risk batch basarisiz");
+    process.exit(1);
+  });
 }
