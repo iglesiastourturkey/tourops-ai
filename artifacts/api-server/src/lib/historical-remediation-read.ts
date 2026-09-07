@@ -131,6 +131,10 @@ export async function getHistoricalRemediationDetail(id: number) {
   return {
     ...projectQueueRow(row),
     status: row.historical.status,
+    // Phase 3E.3: expose the CAS token the Phase 3E.2 mutation engine compares
+    // against (approvalVersion). Read-only surfacing — mutation semantics are
+    // untouched; the detail read stays pending-only and writes nothing.
+    approvalVersion: row.historical.approvalVersion,
     payloadSha256: row.historical.payloadSha256,
     payloadHashIntegrity: sha256OfHistoricalStagingRecord(payload) === row.historical.payloadSha256,
     historicalRecord: {
