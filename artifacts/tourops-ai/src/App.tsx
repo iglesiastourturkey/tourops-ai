@@ -68,6 +68,8 @@ const ExternalObservationsPage     = lazy(() => import('@/pages/external-observa
 const SheetImportReviewPage        = lazy(() => import('@/pages/sheet-import-review'));
 const SheetImportDetailPage      = lazy(() => import('@/pages/sheet-import-detail'));
 const CalendarPage = lazy(() => import('@/pages/calendar'));
+const HistoricalRemediationPage = lazy(() => import('@/pages/historical-remediation'));
+const HistoricalRemediationDetailPage = lazy(() => import('@/pages/historical-remediation-detail'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -178,6 +180,20 @@ function ProtectedRoleRoute({ component: Comp, roles }: { component: React.Compo
       <Show when="signed-out"><Redirect to="/" /></Show>
     </>
   );
+}
+
+function PermissionRoute({ component: Comp, permission }: { component: React.ComponentType; permission: [string, string] }) {
+  const { role, isLoading, permissionSet, allPermissions, permissionsLoaded } = useProfile();
+  if (isLoading || !permissionsLoaded) return null;
+  if (role === null) return <Redirect to="/" />;
+  if (role !== 'super_admin' && !allPermissions && !permissionSet.has(`${permission[0]}.${permission[1]}`)) {
+    return <Redirect to="/forbidden" />;
+  }
+  return <Comp />;
+}
+
+function ProtectedPermissionRoute({ component, permission }: { component: React.ComponentType; permission: [string, string] }) {
+  return <><Show when="signed-in"><MustChangePasswordGuard><PermissionRoute component={component} permission={permission} /></MustChangePasswordGuard></Show><Show when="signed-out"><Redirect to="/" /></Show></>;
 }
 
 /**
@@ -406,6 +422,8 @@ function Router() {
       <Route path="/external-observations" component={() => <ProtectedRoleRoute component={ExternalObservationsPage} roles={['admin', 'operations']} />} />
       <Route path="/sheet-import" component={() => <ProtectedRoleRoute component={SheetImportReviewPage} roles={['admin', 'operations']} />} />
         <Route path="/sheet-import/:id" component={() => <ProtectedRoleRoute component={SheetImportDetailPage} roles={['admin', 'operations']} />} />
+      <Route path="/historical-remediation/:id" component={() => <ProtectedPermissionRoute component={HistoricalRemediationDetailPage} permission={['historical_migration', 'review']} />} />
+      <Route path="/historical-remediation" component={() => <ProtectedPermissionRoute component={HistoricalRemediationPage} permission={['historical_migration', 'review']} />} />
       <Route path="/customers/:id" component={() => <ProtectedRoleRoute component={CustomerDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/suppliers" component={() => <ProtectedRoleRoute component={SuppliersPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/suppliers/:id" component={() => <ProtectedRoleRoute component={SupplierDetailPage} roles={['admin', 'operations', 'accounting']} />} />
