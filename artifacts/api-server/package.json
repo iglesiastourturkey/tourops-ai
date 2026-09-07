@@ -21,6 +21,7 @@
     "historical:pending-inspect": "tsx src/historical-pending-inspect.ts",
     "historical:customer-link": "tsx src/historical-customer-link.ts",
     "historical:pickup-time-correction": "tsx src/historical-pickup-time-correction.ts",
+    "historical:evidence": "tsx src/historical-source-evidence-loader.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

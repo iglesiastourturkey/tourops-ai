@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
   BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, ClipboardCheck, CalendarDays,
-  ChevronDown,
+  ChevronDown, ArchiveRestore,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,6 +57,7 @@ const navItems: NavItem[] = [
   { icon: UserCog,         label: 'Kullanıcı Yönetimi', href: '/users',               permission: ['users',            'manage'] },
   { icon: Shield,          label: 'Rol Yönetimi',       href: '/roles',               permission: ['roles',            'manage'] },
   { icon: Monitor,         label: 'Sistem Kontrolü',    href: '/system-control',      permission: ['system_control',   'manage'] },
+  { icon: ArchiveRestore,  label: 'Tarihsel İyileştirme', href: '/historical-remediation', permission: ['historical_migration', 'review'] },
   { icon: Shield,          label: 'Denetim Kayıtları',  href: '/audit',               superAdminOnly: true },
 ];
 
@@ -100,7 +101,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'admin',
     label: 'Yönetim',
     icon: Settings,
-    hrefs: ['/settings', '/users', '/roles', '/system-control', '/audit'],
+    hrefs: ['/settings', '/users', '/roles', '/system-control', '/historical-remediation', '/audit'],
   },
 ];
 
