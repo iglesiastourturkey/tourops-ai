@@ -2,6 +2,7 @@ import { db } from "@workspace/db";
 import { historicalOperationImportsTable, historicalSourceEvidenceTable } from "@workspace/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 import { parseHistoricalStagingRecord, sha256OfHistoricalStagingRecord } from "./historical-migration-stage-validation";
+import { deriveHistoricalReviewReadiness } from "./historical-remediation-review-readiness";
 
 export const REMEDIATION_WARNING_FIELDS = {
   missing_agency: "externalSource",
@@ -17,7 +18,10 @@ export const RESIDUAL_REVIEW_WARNINGS = new Set(["missing_agency", "missing_chil
 export type HistoricalRemediationState = "UNRESOLVED" | "READY_FOR_REVIEW";
 
 export function deriveHistoricalRemediationState(warnings: readonly string[]): HistoricalRemediationState {
-  return warnings.some(warning => !RESIDUAL_REVIEW_WARNINGS.has(warning)) ? "UNRESOLVED" : "READY_FOR_REVIEW";
+  // List/detail reads are pending-only; the status-aware 3E.4 helper keeps
+  // this projection identical on real data while guaranteeing non-pending
+  // rows can never derive READY_FOR_REVIEW.
+  return deriveHistoricalReviewReadiness("pending", warnings);
 }
 
 export function warningProfile(warnings: readonly string[]): string {
