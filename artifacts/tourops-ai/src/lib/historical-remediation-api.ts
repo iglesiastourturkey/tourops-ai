@@ -60,11 +60,32 @@ export type RemediationMutationResult = {
   approvalVersion: number;
 };
 
+// Phase 3E.4B — the approval handoff accepts ONLY the optimistic-concurrency
+// expectations. No correction field/value is accepted here.
+export type ApprovalHandoffRequest = {
+  expectedVersion: number;
+  expectedPayloadHash: string;
+};
+
+// Shape returned by POST /:sourceKey/approve (Phase 3E.4B approval handoff).
+export type ApprovalHandoffResult = {
+  id: number;
+  sourceKey: string;
+  status: 'approved';
+  approvalVersion: number;
+  payloadSha256: string;
+};
+
 export const historicalRemediationApi = {
   list: (params: URLSearchParams) => customFetch<RemediationList>(`/api/historical-remediation?${params}`),
   get: (id: number) => customFetch<RemediationDetail>(`/api/historical-remediation/${id}`),
   remediate: (sourceKey: string, body: RemediationMutationRequest) =>
     customFetch<RemediationMutationResult>(`/api/historical-remediation/${encodeURIComponent(sourceKey)}/remediate`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  approve: (sourceKey: string, body: ApprovalHandoffRequest) =>
+    customFetch<ApprovalHandoffResult>(`/api/historical-remediation/${encodeURIComponent(sourceKey)}/approve`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),

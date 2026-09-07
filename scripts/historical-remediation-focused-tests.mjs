@@ -29,7 +29,7 @@ check(loader.includes('Evidence conflict bulundu'), 'conflict gate');
 check(route.includes('requirePermission("historical_migration", "review")'), 'server RBAC');
 check((route.match(/router\.get\(/g) ?? []).length === 2, 'exactly two GET endpoints');
 check(route.includes('requirePermission("historical_migration", "remediate")'), 'mutation RBAC is separate from review');
-check((route.match(/router\.post\(/g) ?? []).length === 1 && route.includes('router.post("/:sourceKey/remediate"'), 'exactly one controlled mutation endpoint');
+check((route.match(/router\.post\(/g) ?? []).length === 2 && route.includes('router.post("/:sourceKey/remediate"') && route.includes('router.post("/:sourceKey/approve"'), 'exactly two controlled mutation endpoints (remediate + 3E.4B approve)');
 check(!/router\.(put|patch|delete)\(/.test(route), 'no uncontrolled mutation endpoints');
 check(service.includes('"UNRESOLVED" | "READY_FOR_REVIEW"'), 'derived states');
 check(!migration.includes('remediation_state'), 'derived states not persisted');

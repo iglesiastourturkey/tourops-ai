@@ -114,7 +114,7 @@ for (const forbidden of ['bulk', 'Bulk', 'approve', 'Approve', 'reject', 'Reject
   check(!panelCode.includes(forbidden), `I: panel code contains no "${forbidden}" surface`);
 }
 check((detailPage.match(/HistoricalRemediationPanel/g) ?? []).length === 2, 'I: detail page wires the panel once (import + render), nothing else added');
-check(!/router\.(put|patch|delete)\(/.test(route) && (route.match(/router\.post\(/g) ?? []).length === 1,
-  'I: backend remediation router still exposes exactly one POST and no PUT/PATCH/DELETE');
+check(!/router\.(put|patch|delete)\(/.test(route) && (route.match(/router\.post\(/g) ?? []).length === 2 && route.includes('router.post("/:sourceKey/remediate"') && route.includes('router.post("/:sourceKey/approve"'),
+  'I: backend remediation router exposes exactly remediate + 3E.4B approve POSTs and no PUT/PATCH/DELETE');
 
 console.log(`historical remediation UI (phase 3E.3) focused tests: ${count} assertions passed`);

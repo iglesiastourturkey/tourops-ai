@@ -32,7 +32,7 @@ check(route.includes('requirePermission("historical_migration", "review")'), "GE
 check(route.includes('requirePermission("historical_migration", "remediate")'), "POST route requires remediate permission");
 check(route.includes('router.post("/:sourceKey/remediate"'), "exactly one remediation POST route");
 check(!/router\.(put|patch|delete)\(/.test(route), "remediation router must not expose PUT/PATCH/DELETE");
-check(!route.includes("approve") && !route.includes("reject") && !route.includes("promote"), "route must not expose lifecycle mutations");
+check(!route.includes("reject") && !route.includes("promote") && route.split('router.post("/:sourceKey/approve")').length - 1 <= 1, "route exposes no reject/promote lifecycle mutations (3E.4B authorizes at most the single approve handoff)");
 check(validation.includes('"pickupTime"') && validation.includes('"passengerLanguage"') && validation.includes('"pickupPoint"') && validation.includes('"adultCount"') && validation.includes('"externalOperator"'), "exactly five fields are supported");
 check(service.includes('"unsupported_field"'), "unsupported fields must fail as validation errors");
 check(service.includes('"invalid_source_key"'), "source keys must be exact historical keys");
