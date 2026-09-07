@@ -52,9 +52,11 @@ router.get("/:id", requireAuth, requirePermission("historical_migration", "revie
   }
 });
 
-const remediationBodySchema = z.object({
+export const remediationBodySchema = z.object({
   field: z.enum(REMEDIATION_FIELDS),
-  value: z.unknown(),
+  value: z.unknown().refine((val) => val !== undefined, {
+    message: "Required",
+  }),
   expectedVersion: z.number().int().positive(),
   expectedPayloadHash: z.string().regex(/^[0-9a-f]{64}$/),
 }).strict();
@@ -69,7 +71,10 @@ router.post("/:sourceKey/remediate", requireAuth, requirePermission("historical_
     const sourceKey = Array.isArray(req.params.sourceKey) ? req.params.sourceKey[0] : req.params.sourceKey;
     res.json(await remediateHistoricalImport({
       sourceKey,
-      ...parsed.data,
+      field: parsed.data.field,
+      value: parsed.data.value,
+      expectedVersion: parsed.data.expectedVersion,
+      expectedPayloadHash: parsed.data.expectedPayloadHash,
       actorProfileId: res.locals.profile.id,
     }));
   } catch (error) {

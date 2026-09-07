@@ -58,4 +58,30 @@ check(valueValidationIndex !== -1 && valueValidationIndex < nextPayloadIndex, "s
 check(schema.includes('approvalVersion: integer("approval_version")'), "existing approval version is reused");
 check(existsSync(path.join(root, "lib/db/migrations/0024_historical_source_evidence.sql")), "Phase 3E.1 migration remains present and unchanged");
 
+check(route.includes("value: z.unknown().refine"), "route schema must require an explicit value property");
+check(route.includes("val !== undefined"), "missing value must fail structural validation");
+check(route.includes("value: parsed.data.value"), "provided value must reach service params explicitly");
+check(!route.includes("...parsed.data"), "service params must not rely on object spread inference");
+check(service.includes("validateRemediationValue(params.field, params.value)"), "field/value semantic validation remains in mutation service");
+check(service.includes("value: unknown"), "mutation service value contract remains required unknown");
+
+const routeSchemaCheck = tsx
+  ? spawnSync(tsx, ["--eval", `
+import assert from "node:assert/strict";
+import { remediationBodySchema } from ${JSON.stringify(path.join(api, "routes/historical-remediation.ts"))};
+const base = { field: "pickupTime", expectedVersion: 1, expectedPayloadHash: "a".repeat(64) };
+const missing = remediationBodySchema.safeParse(base);
+assert.equal(missing.success, false, "missing value property must be structurally invalid");
+const explicitUndefined = remediationBodySchema.safeParse({ ...base, value: undefined });
+assert.equal(explicitUndefined.success, false, "undefined value must be structurally invalid");
+const provided = remediationBodySchema.safeParse({ ...base, value: "08:30" });
+assert.equal(provided.success, true, "provided value must parse");
+assert.equal(provided.data.value, "08:30", "provided value must reach parsed params");
+console.log("route value schema checks passed");
+`], { cwd: root, encoding: "utf8", env: { ...process.env, DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://unused:unused@localhost:5432/unused" } })
+  : null;
+if (routeSchemaCheck) {
+  assert.equal(routeSchemaCheck.status, 0, routeSchemaCheck.stderr || routeSchemaCheck.stdout);
+}
+
 console.log("historical remediation mutation focused tests: passed");
