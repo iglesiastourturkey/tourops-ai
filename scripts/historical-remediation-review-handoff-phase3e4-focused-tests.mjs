@@ -4,17 +4,14 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-// Phase 3E.4 — safe manual review handoff focused tests.
+// Phase 3E.4A — review readiness signal focused tests (updated for 3E.4B).
 //
 // Static-source assertions in the style of the 3E.2/3E.3 focused tests plus a
 // runtime check of the pure readiness helper (DB-free module, no connection).
 //
-// Architectural fact pinned here: historical approval has NO reusable HTTP
-// endpoint on main — approveHistoricalImport() is only reachable via the
-// controlled CLI entrypoints (historical-migration-review-action.ts,
-// historical-migration-low-risk-batch.ts). Phase 3E.4 therefore ships the
-// derived readiness + localized indicators only, and explicitly does NOT
-// invent an approval route/CTA. The negative assertions below lock that in.
+// Pre-3E.4B this file pinned "no HTTP approval endpoint". Phase 3E.4B
+// authorizes exactly one handoff (POST /:sourceKey/approve + one detail-page
+// panel); the assertions below pin that exact surface and nothing more.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = rel => readFileSync(path.join(root, rel), 'utf8');
@@ -83,29 +80,36 @@ check(readService.includes('eq(historicalOperationImportsTable.status, "pending"
 check(!codeOf(readService).includes('db.transaction') && !codeOf(readService).includes('.for("update")'),
   'E: read model performs no writes or row locks');
 
-// --- F. approval endpoint: NOT reused because none exists --------------------
-check(!route.includes('approveHistoricalImport') && !route.includes('rejectHistoricalImport'),
-  'F: remediation router does not call the approval service (no HTTP approval endpoint exists on main)');
-check((route.match(/router\.post\(/g) ?? []).length === 1 && route.includes('router.post("/:sourceKey/remediate"'),
-  'F: remediation router still exposes exactly the one remediate POST');
+// --- F. approval endpoint: 3E.4B handoff ---------------------------------------
+// Pre-3E.4B this section pinned "no HTTP approval endpoint". Phase 3E.4B
+// authorizes exactly one: POST /:sourceKey/approve reusing the approval
+// service with caller version/hash + readiness enforcement. No other approval
+// surface may exist.
+check(route.includes('approveHistoricalImport({') && !route.includes('rejectHistoricalImport'),
+  'F: remediation router calls the approval service exactly once (the 3E.4B handoff), no reject path');
+check((route.match(/router\.post\(/g) ?? []).length === 2 && route.includes('router.post("/:sourceKey/remediate"') && route.includes('router.post("/:sourceKey/approve"'),
+  'F: remediation router exposes exactly remediate + approve POSTs');
 check(!/router\.(put|patch|delete)\(/.test(route), 'F: no PUT/PATCH/DELETE added');
-check(!approval.includes('expectedVersion') && !approval.includes('expectedPayloadHash'),
-  'F: approval service takes no client version/hash (server-side CAS) — nothing to pass through a future route');
+check(approval.includes('expectedVersion?: number;') && approval.includes('requireReadyForReview?: boolean;'),
+  'F: approval service accepts caller version/hash + readiness as opt-in guards (CLI callers unaffected)');
 
 // --- G. permission behavior --------------------------------------------------
 check(route.includes('requirePermission("historical_migration", "review")'), 'G: list/detail still require review only');
 check(route.includes('requirePermission("historical_migration", "remediate")'), 'G: remediate still requires remediate');
-check(!codeOf(route).includes('"approve"'), 'G: remediation router grants no approve surface');
+check((codeOf(route).match(/requirePermission\("historical_migration", "approve"\)/g) ?? []).length === 1,
+  'G: remediation router grants exactly one approve surface (the 3E.4B handoff)');
 check(!codeOf(queuePage).includes('usePermission') && !codeOf(detailPage).includes('usePermission'),
   'G: queue/detail add no permission hook — indicators are read-scoped, approval control untouched');
 
-// --- H. indicators, no CTA ---------------------------------------------------
+// --- H. indicators + the single 3E.4B handoff wiring ---------------------------
 check(queuePage.includes('İncelemeye Hazır'), 'H: queue shows the ready indicator');
 check(detailPage.includes('İncelemeye Hazır'), 'H: detail shows the ready indicator');
 check(queuePage.includes('Çözülmedi') && detailPage.includes('Çözülmedi'), 'H: unresolved state with warning count is shown');
-for (const cta of ['Onayla', 'Onay', 'approveHistoricalImport', 'historicalRemediationApi.approve', '/approve']) {
-  check(!codeOf(queuePage).includes(cta) && !codeOf(detailPage).includes(cta), `H: no approval CTA surface ("${cta}") in queue/detail`);
+for (const cta of ['Onayla', 'approveHistoricalImport', 'historicalRemediationApi.approve', '/approve']) {
+  check(!codeOf(queuePage).includes(cta), `H: no approval CTA surface ("${cta}") on the queue list`);
 }
+check((detailPage.match(/HistoricalApprovalHandoffPanel/g) ?? []).length === 2,
+  'H: detail wires the 3E.4B handoff panel exactly once (import + render), nothing else added');
 check(!codeOf(panel).includes('/approve') && !panel.includes('approveHistoricalImport'),
   'H: remediation panel gained no approval call (3E.3 single-field mutation untouched)');
 

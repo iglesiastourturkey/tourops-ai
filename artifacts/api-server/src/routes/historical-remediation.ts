@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { getHistoricalRemediationDetail, listHistoricalRemediation } from "../lib/historical-remediation-read";
 import { HistoricalRemediationError, remediateHistoricalImport } from "../lib/historical-remediation-mutation";
+import { approveHistoricalImport } from "../lib/historical-migration-approval";
 import { REMEDIATION_FIELDS } from "../lib/historical-remediation-mutation-validation";
 
 const router = Router();
@@ -83,6 +84,54 @@ router.post("/:sourceKey/remediate", requireAuth, requirePermission("historical_
       return;
     }
     res.status(500).json({ error: "Historical remediation failed" });
+  }
+});
+
+// Phase 3E.4B: one-record approval handoff. Body carries ONLY the
+// optimistic-concurrency expectations — no correction field/value is accepted
+// here. This endpoint approves a single ready record only and exposes no
+// other state transitions, single-record only.
+export const approvalBodySchema = z.object({
+  expectedVersion: z.number().int().positive(),
+  expectedPayloadHash: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+
+router.post("/:sourceKey/approve", requireAuth, requirePermission("historical_migration", "approve"), async (req, res) => {
+  const parsed = approvalBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid historical approval request", details: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const sourceKey = Array.isArray(req.params.sourceKey) ? req.params.sourceKey[0] : req.params.sourceKey;
+    const result = await approveHistoricalImport({
+      sourceKey,
+      actorProfileId: res.locals.profile.id,
+      expectedVersion: parsed.data.expectedVersion,
+      expectedPayloadHash: parsed.data.expectedPayloadHash,
+      requireReadyForReview: true,
+    });
+    if (!result.ok) {
+      if (result.code === "not_found") {
+        res.status(404).json({ error: result.message, code: result.code });
+        return;
+      }
+      if (result.code === "forbidden" || result.code === "operator_not_found" || result.code === "operator_inactive") {
+        res.status(403).json({ error: result.message, code: result.code });
+        return;
+      }
+      res.status(409).json({ error: result.message, code: result.code });
+      return;
+    }
+    res.json({
+      id: result.id,
+      sourceKey: result.sourceKey,
+      status: result.status,
+      approvalVersion: result.approvalVersion,
+      payloadSha256: result.payloadSha256,
+    });
+  } catch {
+    res.status(500).json({ error: "Historical approval failed" });
   }
 });
 
