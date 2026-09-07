@@ -2,9 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import { requireAuth, requirePermission } from "../lib/auth";
 import { getHistoricalRemediationDetail, listHistoricalRemediation } from "../lib/historical-remediation-read";
+import { HistoricalRemediationError, remediateHistoricalImport } from "../lib/historical-remediation-mutation";
+import { REMEDIATION_FIELDS } from "../lib/historical-remediation-mutation-validation";
 
 const router = Router();
-router.use(requireAuth, requirePermission("historical_migration", "review"));
 
 const querySchema = z.object({
   missingField: z.string().trim().max(80).optional(),
@@ -20,7 +21,7 @@ const querySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(50),
 }).strict();
 
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, requirePermission("historical_migration", "review"), async (req, res) => {
   const parsed = querySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid remediation filters", details: parsed.error.flatten() });
@@ -33,7 +34,7 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.get("/:id", async (req, res) => {
+router.get("/:id", requireAuth, requirePermission("historical_migration", "review"), async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id) || id <= 0) {
     res.status(400).json({ error: "Invalid historical remediation id" });
@@ -48,6 +49,35 @@ router.get("/:id", async (req, res) => {
     res.json(detail);
   } catch {
     res.status(500).json({ error: "Historical remediation detail could not be loaded" });
+  }
+});
+
+const remediationBodySchema = z.object({
+  field: z.enum(REMEDIATION_FIELDS),
+  value: z.unknown(),
+  expectedVersion: z.number().int().positive(),
+  expectedPayloadHash: z.string().regex(/^[0-9a-f]{64}$/),
+}).strict();
+
+router.post("/:sourceKey/remediate", requireAuth, requirePermission("historical_migration", "remediate"), async (req, res) => {
+  const parsed = remediationBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid historical remediation request", details: parsed.error.flatten() });
+    return;
+  }
+  try {
+    const sourceKey = Array.isArray(req.params.sourceKey) ? req.params.sourceKey[0] : req.params.sourceKey;
+    res.json(await remediateHistoricalImport({
+      sourceKey,
+      ...parsed.data,
+      actorProfileId: res.locals.profile.id,
+    }));
+  } catch (error) {
+    if (error instanceof HistoricalRemediationError) {
+      res.status(error.statusCode).json({ error: error.message, code: error.code });
+      return;
+    }
+    res.status(500).json({ error: "Historical remediation failed" });
   }
 });
 

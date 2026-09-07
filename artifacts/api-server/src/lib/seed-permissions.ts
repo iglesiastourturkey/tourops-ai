@@ -191,6 +191,7 @@ const MATRIX: PermRow[] = [
   // this is irreversible historical-record promotion, not day-to-day
   // operations work, matching operations.purge/operations.approve above.
   ["historical_migration", "review",  ["admin"]],
+  ["historical_migration", "remediate", ["admin"]],
   ["historical_migration", "approve", ["admin"]],
   ["historical_migration", "reject",  ["admin"]],
   ["historical_migration", "promote", ["admin"]],
