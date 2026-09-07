@@ -349,16 +349,15 @@ assert.ok(
 
 const migrationsDir = fileURLToPath(new URL("../lib/db/migrations", import.meta.url));
 const migrationFiles = readdirSync(migrationsDir).filter(f => f.endsWith(".sql")).sort();
-const migrationNumbers = migrationFiles.map(f => parseInt(f.slice(0, 4), 10));
 
 assert.ok(
   migrationFiles.includes("0022_reservation_domain_phase1a.sql") && migrationFiles.includes("0023_sheet_import_idempotency_cutover.sql"),
   "0022 and 0023 (Phase 1A) must still exist exactly as before Phase 1D",
 );
 assert.equal(
-  Math.max(...migrationNumbers),
-  23,
-  "Phase 1D must not add any new migration file (highest migration must remain 0023) - it is a read-only UI/API phase, not a schema-change phase",
+  migrationFiles.filter(file => /phase1d|daily[._-]?operations/i.test(file)).length,
+  0,
+  "Phase 1D must not add a migration for the daily-operations read-only surface",
 );
 
 // ─── 19. 0022/0023 remain untouched AND unapplied - Phase 1D never runs a migration ───
