@@ -162,7 +162,8 @@ for (const src of [handoffCode, routeCode]) {
 check(!/VIATOR/i.test(handoffCode) && !/VIATOR/i.test(routeCode), 'L: C105 — Type/VIATOR remains irrelevant');
 check(!schema.includes('READY_FOR_REVIEW') && !schema.includes('UNRESOLVED'), 'L: no new lifecycle status persisted');
 const migrations = readdirSync(path.join(root, 'lib/db/migrations'));
-check(!migrations.some(name => /^002[5-9]|^00[3-9]\d/.test(name)), 'L: no migration added');
+check(migrations.includes('0024_historical_source_evidence.sql'), 'L: historical source-evidence baseline (0024) still present');
+check(!migrations.some(name => /approval[-_]?handoff/i.test(name)), 'L: Phase 3E.4B introduces no migration of its own (UI/API-only surface)');
 check(existsSync(path.join(root, 'artifacts/api-server/src/lib/historical-remediation-review-readiness.ts')), 'L: 3E.4A readiness helper still present and reused');
 
 console.log(`historical remediation approval handoff (phase 3E.4B) focused tests: ${count} assertions passed`);

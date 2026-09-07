@@ -136,7 +136,9 @@ check(!schema.includes('READY_FOR_REVIEW') && !schema.includes('UNRESOLVED'),
 check(schema.includes(`status IN ('pending', 'approved', 'rejected', 'imported')`) || schema.includes("'pending', 'approved', 'rejected', 'imported'"),
   'K: status enum/state machine untouched');
 const migrations = readdirSync(path.join(root, 'lib/db/migrations'));
-check(!migrations.some(name => /^002[5-9]|^00[3-9]\d/.test(name)) && existsSync(path.join(root, 'lib/db/migrations/0024_historical_source_evidence.sql')),
-  'K: no migration added (0024 remains the latest)');
+check(existsSync(path.join(root, 'lib/db/migrations/0024_historical_source_evidence.sql')),
+  'K: historical source-evidence baseline (0024) still present');
+check(!migrations.some(name => /review[-_]?handoff/i.test(name)),
+  'K: Phase 3E.4 introduces no migration of its own (UI/API-only surface)');
 
 console.log(`historical remediation review handoff (phase 3E.4) focused tests: ${count} assertions passed`);

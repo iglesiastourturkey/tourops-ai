@@ -174,6 +174,15 @@ const MATRIX: PermRow[] = [
   // does not thereby need the ability to destroy them.
   ["reservations", "delete", ["admin"]],
 
+  // personnel — Phase 2D.1 canonical Guide/Driver identity foundation.
+  // No delete: a Resource is deactivated via personnel.update (active:
+  // false), never hard-deleted, matching the existing convention for
+  // records still referenceable from historical data (same reasoning as
+  // suppliers/customers using archive instead of delete).
+  ["personnel", "view",   ["admin","operations"]],
+  ["personnel", "create", ["admin","operations"]],
+  ["personnel", "update", ["admin","operations"]],
+
   // system_control — super_admin only
   ["system_control", "view",   []],
   ["system_control", "manage", []],
