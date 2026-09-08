@@ -19,18 +19,19 @@ import {
   useListOperationReceipts, useCreateOperationReceipt, useDeleteOperationReceipt,
   useListOperationDocuments, useCreateOperationDocument, useDeleteOperationDocument, useListOperationActivity,
   useGetAgencySettings, useGetTour, useListTourDays, useGetCustomer, useGetQuotation,
-  useListProfiles, useListSuppliers, useUpdateOperationReceipt, customFetch,
+  useListProfiles, useListSuppliers, useListResources, useUpdateOperationReceipt, customFetch,
 } from '@workspace/api-client-react';
 import type { OperationReceipt } from '@workspace/api-client-react';
 import {
   getGetOperationQueryKey, getListOperationTasksQueryKey, getListOperationReceiptsQueryKey, getListOperationsQueryKey,
   getGetTourQueryKey, getListTourDaysQueryKey, getGetCustomerQueryKey, getListProfilesQueryKey,
-  getListOperationDocumentsQueryKey, getListOperationActivityQueryKey, getListSuppliersQueryKey,
+  getListOperationDocumentsQueryKey, getListOperationActivityQueryKey, getListSuppliersQueryKey, getListResourcesQueryKey,
 } from '@workspace/api-client-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/usePermission';
 import {
-  ArrowLeft, Plus, Trash2, User, Car, AlertTriangle,
+  ArrowLeft, Plus, Trash2, User, Car, AlertTriangle, IdCard,
   FileDown, Receipt, Camera, AlertCircle, MoreHorizontal, ScanLine, CheckCheck, Loader2, FileText, Pencil, Upload, History, ExternalLink, CalendarDays, ClipboardList,
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -110,6 +111,11 @@ interface GuideForm {
   emergencyContact2Name: string;
   emergencyContact2Phone: string;
   assignedGuideUserId: string | null;
+  // Phase 2C: canonical Personnel/Resource identity (independent of
+  // assignedGuideUserId, which is login access, and of driverSupplierId,
+  // which is the pre-existing supplier-based driver record).
+  guideResourceId: number | null;
+  driverResourceId: number | null;
 }
 
 interface ReceiptForm {
@@ -152,6 +158,14 @@ export default function OperationDetailPage() {
   const canEdit = allPermissions || ['admin', 'operations'].includes(role ?? '');
   /** Can add/delete receipts (admin, operations, guide) */
   const canManageReceipts = allPermissions || ['admin', 'operations', 'guide'].includes(role ?? '');
+  /**
+   * Phase 2C: canonical Resource assignment is gated on the dedicated
+   * operations.assign permission (not the canEdit role list above), matching
+   * the same permission the backend's PATCH /field/operations/:id/assignments
+   * now enforces server-side whenever guideResourceId/driverResourceId are
+   * present in the request body.
+   */
+  const canAssignPersonnel = usePermission('operations', 'assign');
 
   // ── Dialog state ─────────────────────────────────────────────────────────
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
@@ -171,6 +185,7 @@ export default function OperationDetailPage() {
     emergencyContact1Name: '', emergencyContact1Phone: '',
     emergencyContact2Name: '', emergencyContact2Phone: '',
     assignedGuideUserId: null,
+    guideResourceId: null, driverResourceId: null,
   });
   const [isSavingGuide, setIsSavingGuide] = useState(false);
   const [assignmentWarnings, setAssignmentWarnings] = useState<string[]>([]);
@@ -329,6 +344,19 @@ export default function OperationDetailPage() {
     { query: { enabled: canEdit, queryKey: getListSuppliersQueryKey({ category: 'driver', isActive: true }) } },
   );
 
+  // ── Canonical Personnel/Resource lists (Phase 2C) ───────────────────────
+  // Independent of guideProfiles/driverSuppliers above — these are the
+  // canonical GUIDE/DRIVER identities from Personel (Phase 2D.1/2D.2), only
+  // fetched when the user can actually use the picker.
+  const guideResourceParams = { type: 'GUIDE' as const, active: true };
+  const { data: guideResources } = useListResources(guideResourceParams, {
+    query: { enabled: canAssignPersonnel, queryKey: getListResourcesQueryKey(guideResourceParams) },
+  });
+  const driverResourceParams = { type: 'DRIVER' as const, active: true };
+  const { data: driverResources } = useListResources(driverResourceParams, {
+    query: { enabled: canAssignPersonnel, queryKey: getListResourcesQueryKey(driverResourceParams) },
+  });
+
   // ── Assignment dialog mode ──────────────────────────────────────────────
   // The operation stores only the resulting name/phone/plate, not which record
   // they came from, so the mode is re-derived on load: a guide name without a
@@ -417,6 +445,8 @@ export default function OperationDetailPage() {
         emergencyContact2Name: operation.emergencyContact2Name ?? '',
         emergencyContact2Phone: operation.emergencyContact2Phone ?? '',
         assignedGuideUserId: operation.assignedGuideUserId ?? null,
+        guideResourceId: operation.guideResourceId ?? null,
+        driverResourceId: operation.driverResourceId ?? null,
       });
     }
   }, [operation]);
@@ -572,6 +602,15 @@ export default function OperationDetailPage() {
           driverName: guideForm.driverName || undefined,
           driverPhone: guideForm.driverPhone || undefined,
           vehiclePlate: guideForm.vehiclePlate.trim().toUpperCase() || undefined,
+          // Phase 2C: canonical Resource assignment, independent of the
+          // fields above. Only sent when the user can actually assign
+          // personnel — omitting the keys entirely (rather than sending
+          // null) means the backend leaves any existing assignment
+          // untouched for users without operations.assign.
+          ...(canAssignPersonnel ? {
+            guideResourceId: guideForm.guideResourceId,
+            driverResourceId: guideForm.driverResourceId,
+          } : {}),
         }),
       });
       await new Promise<void>((resolve, reject) => {
@@ -1411,6 +1450,61 @@ export default function OperationDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* ── Canonical Personnel (Phase 2C) ───────────────────────────
+                 Independent of the Rehber Seç / Şoför Seç pickers above:
+                 those manage assignedGuideUserId (login access) and the
+                 supplier-based driver record respectively. This links the
+                 operation to the canonical Resource identity from Personel
+                 (Phase 2D.1/2D.2) instead — a separate fact from either,
+                 never inferred from name/text. Hidden entirely for users
+                 without operations.assign, matching the server-side gate. */}
+            {canAssignPersonnel && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <IdCard className="w-3.5 h-3.5" />Personel Kaydı (Sistem Kimliği)
+                </p>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Personel sayfasındaki kayıtlı rehber/şoför kimliğiyle eşleştirir. Yukarıdaki hesap/şoför bilgilerinden bağımsızdır.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Rehber Personeli</label>
+                    <Select
+                      value={guideForm.guideResourceId != null ? String(guideForm.guideResourceId) : '__none__'}
+                      onValueChange={v => setGuideForm(f => ({ ...f, guideResourceId: v === '__none__' ? null : Number(v) }))}
+                    >
+                      <SelectTrigger data-testid="select-guide-resource">
+                        <SelectValue placeholder="Personel seç..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Bağlantı yok —</SelectItem>
+                        {(guideResources ?? []).map(r => (
+                          <SelectItem key={r.id} value={String(r.id)}>{r.name}{r.company ? ` · ${r.company}` : ''}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Şoför Personeli</label>
+                    <Select
+                      value={guideForm.driverResourceId != null ? String(guideForm.driverResourceId) : '__none__'}
+                      onValueChange={v => setGuideForm(f => ({ ...f, driverResourceId: v === '__none__' ? null : Number(v) }))}
+                    >
+                      <SelectTrigger data-testid="select-driver-resource">
+                        <SelectValue placeholder="Personel seç..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Bağlantı yok —</SelectItem>
+                        {(driverResources ?? []).map(r => (
+                          <SelectItem key={r.id} value={String(r.id)}>{r.name}{r.company ? ` · ${r.company}` : ''}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* ── Emergency contacts ──────────────────────────────────────── */}
             <div>

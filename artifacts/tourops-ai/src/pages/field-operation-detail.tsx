@@ -12,8 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { customFetch } from '@workspace/api-client-react';
+import { customFetch, useListResources, getListResourcesQueryKey } from '@workspace/api-client-react';
 import { useToast } from '@/hooks/use-toast';
+import { usePermission } from '@/hooks/usePermission';
 import { useOfflineQueue } from '@/contexts/OfflineQueueContext';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
@@ -93,6 +94,10 @@ interface OperationDetail {
   driverPhone: string | null;
   vehiclePlate: string | null;
   assignedGuideUserId: string | null;
+  // Phase 2C: canonical Personnel/Resource identity FK, independent of
+  // assignedGuideUserId (login access).
+  guideResourceId: number | null;
+  driverResourceId: number | null;
   emergencyContact1Name: string | null;
   emergencyContact1Phone: string | null;
   emergencyContact2Name: string | null;
@@ -169,6 +174,11 @@ export default function FieldOperationDetailPage() {
   const [driverName, setDriverName] = useState('');
   const [driverPhone, setDriverPhone] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
+  // Phase 2C: canonical Personnel/Resource assignment, independent of the
+  // guideId (login account) / free-text fields above.
+  const [guideResourceId, setGuideResourceId] = useState<number | null>(null);
+  const [driverResourceId, setDriverResourceId] = useState<number | null>(null);
+  const canAssignPersonnel = usePermission('operations', 'assign');
 
   // Note form
   const [noteText, setNoteText] = useState('');
@@ -188,6 +198,18 @@ export default function FieldOperationDetailPage() {
     queryKey: ['field-guides'],
     queryFn: () => customFetch(`${API_BASE}/field/guides`),
     enabled: assignDialog === 'guide',
+  });
+
+  // Phase 2C: canonical GUIDE/DRIVER resources, independent of the
+  // field-guides login list above and only fetched when the relevant
+  // dialog is open and the user can actually assign personnel.
+  const guideResourceParams = { type: 'GUIDE' as const, active: true };
+  const { data: guideResources } = useListResources(guideResourceParams, {
+    query: { enabled: assignDialog === 'guide' && canAssignPersonnel, queryKey: getListResourcesQueryKey(guideResourceParams) },
+  });
+  const driverResourceParams = { type: 'DRIVER' as const, active: true };
+  const { data: driverResources } = useListResources(driverResourceParams, {
+    query: { enabled: assignDialog === 'driver' && canAssignPersonnel, queryKey: getListResourcesQueryKey(driverResourceParams) },
   });
 
   const statusMutation = useMutation({
@@ -412,6 +434,7 @@ export default function FieldOperationDetailPage() {
                 setGuideId(op.assignedGuideUserId ?? '');
                 setGuideName(op.guideName ?? '');
                 setGuidePhone(op.guidePhone ?? '');
+                setGuideResourceId(op.guideResourceId ?? null);
                 setAssignDialog('guide');
               }}
               className="text-xs text-blue-600 font-medium border border-blue-200 rounded-lg px-2 py-1 shrink-0"
@@ -456,6 +479,7 @@ export default function FieldOperationDetailPage() {
                 setDriverName(op.driverName ?? '');
                 setDriverPhone(op.driverPhone ?? '');
                 setVehiclePlate(op.vehiclePlate ?? '');
+                setDriverResourceId(op.driverResourceId ?? null);
                 setAssignDialog('driver');
               }}
               className="text-xs text-blue-600 font-medium border border-blue-200 rounded-lg px-2 py-1 shrink-0"
@@ -740,11 +764,26 @@ export default function FieldOperationDetailPage() {
             )}
             <Input placeholder="Rehber adı" value={guideName} onChange={e => setGuideName(e.target.value)} className="text-sm" />
             <Input placeholder="Rehber telefonu" value={guidePhone} onChange={e => setGuidePhone(e.target.value)} type="tel" className="text-sm" />
+            {canAssignPersonnel && (
+              <div className="pt-2 border-t">
+                <p className="text-[10px] text-gray-400 font-medium mb-1">Personel Kaydı (Sistem Kimliği) — yukarıdakinden bağımsız</p>
+                <Select value={guideResourceId != null ? String(guideResourceId) : '__none__'} onValueChange={v => setGuideResourceId(v === '__none__' ? null : Number(v))}>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="Personel seç..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Bağlantı yok —</SelectItem>
+                    {(guideResources ?? []).map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setAssignDialog(null)} className="flex-1">Vazgeç</Button>
             <Button
-              onClick={() => assignMutation.mutate({ guideName, guidePhone, assignedGuideUserId: guideId || undefined })}
+              onClick={() => assignMutation.mutate({
+                guideName, guidePhone, assignedGuideUserId: guideId || undefined,
+                ...(canAssignPersonnel ? { guideResourceId } : {}),
+              })}
               disabled={assignMutation.isPending}
               className="flex-1 bg-[#0B1F3A]"
             >
@@ -762,11 +801,26 @@ export default function FieldOperationDetailPage() {
             <Input placeholder="Şoför adı" value={driverName} onChange={e => setDriverName(e.target.value)} className="text-sm" />
             <Input placeholder="Şoför telefonu" value={driverPhone} onChange={e => setDriverPhone(e.target.value)} type="tel" className="text-sm" />
             <Input placeholder="Araç plakası (örn. 34 ABC 07)" value={vehiclePlate} onChange={e => setVehiclePlate(e.target.value)} className="text-sm font-mono uppercase" />
+            {canAssignPersonnel && (
+              <div className="pt-2 border-t">
+                <p className="text-[10px] text-gray-400 font-medium mb-1">Personel Kaydı (Sistem Kimliği) — yukarıdakinden bağımsız</p>
+                <Select value={driverResourceId != null ? String(driverResourceId) : '__none__'} onValueChange={v => setDriverResourceId(v === '__none__' ? null : Number(v))}>
+                  <SelectTrigger className="text-sm"><SelectValue placeholder="Personel seç..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Bağlantı yok —</SelectItem>
+                    {(driverResources ?? []).map(r => <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter className="flex gap-2">
             <Button variant="outline" onClick={() => setAssignDialog(null)} className="flex-1">Vazgeç</Button>
             <Button
-              onClick={() => assignMutation.mutate({ driverName, driverPhone, vehiclePlate: vehiclePlate.toUpperCase() })}
+              onClick={() => assignMutation.mutate({
+                driverName, driverPhone, vehiclePlate: vehiclePlate.toUpperCase(),
+                ...(canAssignPersonnel ? { driverResourceId } : {}),
+              })}
               disabled={assignMutation.isPending}
               className="flex-1 bg-[#0B1F3A]"
             >

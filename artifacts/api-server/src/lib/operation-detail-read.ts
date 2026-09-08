@@ -26,7 +26,13 @@ export const operationDetailRead: RequestHandler = async (req, res) => {
       tourArrivalTime: toursTable.shipArrivalTime, tourDepartureTime: toursTable.shipDepartureTime,
       guideResourceName: resourcesTable.name, guideResourcePhone: resourcesTable.phone,
       guideCompany: resourcesTable.company, assignedGuideName: profilesTable.name,
+      // Phase 2C: surfaced so the frontend can tell CANONICAL / LEGACY_ONLY /
+      // UNASSIGNED apart (see classifyAssignmentState in
+      // lib/operation-assignment.ts) without a second request — additive,
+      // nothing above this line changes shape or meaning.
+      guideResourceActive: resourcesTable.active,
       driverResourceName: driver.name, driverResourcePhone: driver.phone, driverCompany: driver.company,
+      driverResourceActive: driver.active,
       vehiclePlate: vehiclesTable.plate, vehicleType: vehiclesTable.type, vehicleCapacity: vehiclesTable.capacity, vehicleCompany: vehiclesTable.company,
     }).from(operationsTable)
       .leftJoin(toursTable, eq(operationsTable.tourId, toursTable.id))

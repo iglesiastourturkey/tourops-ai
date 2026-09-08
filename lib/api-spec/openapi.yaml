@@ -2421,6 +2421,13 @@ components:
         driverName: { type: ["string", "null"] }
         driverPhone: { type: ["string", "null"] }
         vehiclePlate: { type: ["string", "null"] }
+        # Phase 2C: canonical Personnel/Resource identity FK (see
+        # lib/db/schema/operations.ts). Additive/optional — nothing above
+        # this line changes shape or meaning. null means unassigned or
+        # legacy-text-only (see the OperationDetail context's
+        # guideResourceName/driverResourceName for the joined display data).
+        guideResourceId: { type: ["number", "null"] }
+        driverResourceId: { type: ["number", "null"] }
         emergencyContact1Name: { type: ["string", "null"] }
         emergencyContact1Phone: { type: ["string", "null"] }
         emergencyContact2Name: { type: ["string", "null"] }
@@ -2450,6 +2457,9 @@ components:
         driverName: { type: ["string", "null"] }
         driverPhone: { type: ["string", "null"] }
         vehiclePlate: { type: ["string", "null"] }
+        # Phase 2C: canonical Personnel/Resource identity FK. Additive/optional.
+        guideResourceId: { type: ["number", "null"] }
+        driverResourceId: { type: ["number", "null"] }
         emergencyContact1Name: { type: ["string", "null"] }
         emergencyContact1Phone: { type: ["string", "null"] }
         emergencyContact2Name: { type: ["string", "null"] }
