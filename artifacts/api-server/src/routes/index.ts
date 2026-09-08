@@ -27,6 +27,7 @@ import communicationsRouter from "./communications";
 import externalObservationsRouter from "./external-observations";
 import sheetImportRouter from "./sheet-import";
 import historicalRemediationRouter from "./historical-remediation";
+import resourcesRouter from "./resources";
 
 const router: IRouter = Router();
 
@@ -62,5 +63,6 @@ router.use("/communications", communicationsRouter);
 router.use("/external-observations", externalObservationsRouter);
 router.use("/sheet-import", sheetImportRouter);
 router.use("/historical-remediation", historicalRemediationRouter);
+router.use("/resources", resourcesRouter);
 
 export default router;
