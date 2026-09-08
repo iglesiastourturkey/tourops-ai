@@ -37,6 +37,8 @@ Source of truth:
 Development:
 - VS Code
 - Claude Code
+- Codex
+- Cowork for orchestration when multi-tool or multi-workstream coordination is genuinely useful
 - Replit may be used only as an AI-assisted prototyping/development tool
 
 ## Product Principle
@@ -66,6 +68,30 @@ For every meaningful implementation, refactor, bug fix, migration, integration, 
 - verify the Definition of Done before reporting completion
 
 Use the `engineering-quality` skill for all non-trivial code and architecture work.
+
+## AI Efficiency Principle
+
+AI-assisted engineering must maximize useful output without sacrificing correctness or safety.
+
+For non-trivial planning, implementation, debugging, review, and multi-agent work:
+
+- use the `ai-efficiency` skill
+- use the cheapest sufficiently capable model
+- avoid duplicate repository discovery across Claude Code, Codex, Cowork, and subagents
+- freeze scope and acceptance criteria before significant implementation
+- reuse concise handoffs instead of replaying full context
+- create only the minimum number of agents that adds real value
+- prefer focused tests and targeted file reads before broad repo-wide work
+- do not let reviewers restart architecture without evidence that the frozen plan is wrong
+- stop and report rather than silently expanding into DB, auth, security, destructive, or broad cross-file changes
+
+For complex work, the preferred separation is:
+
+reason/root-cause once
+→ implement the frozen plan
+→ independently verify
+
+Do not make multiple models independently rediscover the same task unless independent investigation is explicitly required for safety or correctness.
 
 ## Critical Operational Rules
 
@@ -114,6 +140,7 @@ Read when relevant:
 @.claude/docs/coding-standards.md
 @.claude/docs/engineering-constitution.md
 @.claude/docs/definition-of-done.md
+@.claude/docs/ai-orchestration.md
 
 ## Skills
 
@@ -122,6 +149,7 @@ Use relevant skills rather than loading everything blindly.
 Mandatory baseline for non-trivial engineering work:
 
 - engineering-quality
+- ai-efficiency
 
 Important TourPilot domain skills:
 
@@ -154,20 +182,22 @@ Do not create agents merely to increase agent count.
 
 Avoid concurrent writes to the same files.
 
+Do not assign overlapping discovery work to multiple agents unless independent verification is required.
+
 ## Model Routing
 
 Use the cheapest sufficiently capable model.
 
-Haiku:
+Haiku / fast lightweight model:
 - trivial UI/copy/search/cleanup
 
-Sonnet:
+Sonnet / normal implementation model:
 - normal implementation
 - frontend/backend/API
 - CRUD
 - standard testing
 
-Opus:
+Opus / strong reasoning model:
 - architecture
 - difficult debugging
 - authentication/security
@@ -175,32 +205,38 @@ Opus:
 - concurrency/idempotency
 - cross-system design
 
+Codex is preferred for well-scoped implementation, focused refactors, tests, and mechanical changes from a frozen plan.
+
+Cowork is preferred for genuine orchestration across tools, files, GitHub, or independent workstreams—not as an unnecessary wrapper around a task one coding agent can finish.
+
 Preferred pattern for complex tasks:
 
-Opus planning/root cause
-→ Sonnet implementation
-→ Haiku trivial cleanup
+strong reasoning for planning/root cause
+→ implementation model or Codex
+→ focused independent review
 
 ## Development Workflow
 
 For significant features:
 
 1. Inspect current git status.
-2. Inspect existing implementation.
+2. Inspect existing implementation with the smallest useful context.
 3. Load `engineering-quality`.
-4. Use model-router.
-5. Use plan-tourpilot.
-6. Identify relevant domain skills.
-7. Create only necessary subagents.
-8. Freeze the implementation plan.
-9. Implement the smallest coherent solution.
-10. Run tests/typecheck/build.
-11. Run tester.
-12. Run reviewer.
-13. Fix blocker/high findings.
-14. Re-run verification.
-15. Apply the Definition of Done.
-16. Report one consolidated result.
+4. Load `ai-efficiency`.
+5. Use model-router.
+6. Use plan-tourpilot.
+7. Identify relevant domain skills only.
+8. Define goal, acceptance criteria, scope, out-of-scope areas, risks, and stop conditions.
+9. Create only necessary subagents.
+10. Freeze the implementation plan.
+11. Implement the smallest coherent solution without reopening architecture unless evidence invalidates the plan.
+12. Run focused tests/typecheck/build first.
+13. Run broader verification where Definition of Done, release risk, or shared infrastructure requires it.
+14. Run tester/reviewer only where they add independent value.
+15. Fix blocker/high findings.
+16. Re-run relevant verification.
+17. Apply the Definition of Done.
+18. Report one consolidated result.
 
 Do not push to GitHub unless explicitly requested.
 
@@ -257,3 +293,5 @@ After implementation provide one concise report containing:
 - tests/builds
 - remaining risks
 - READY or BLOCKED
+
+Do not include long exploratory narration when a concise evidence-based summary is sufficient.
