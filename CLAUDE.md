@@ -47,6 +47,26 @@ Humans approve critical actions.
 
 Accuracy is more important than speed.
 
+## Engineering Principle
+
+TourPilot must be engineered as a long-lived operational platform, not as a disposable prototype.
+
+Kaizen + Clean Code + Reliability are mandatory defaults for non-trivial work.
+
+For every meaningful implementation, refactor, bug fix, migration, integration, or architecture task:
+
+- inspect before editing
+- identify the real requirement or root cause
+- prefer the smallest coherent and reversible change
+- preserve working behavior unless change is intentional
+- keep business rules deterministic and explicit
+- protect data integrity, authorization, idempotency, and auditability
+- test critical failure paths, not only happy paths
+- avoid creating parallel architecture or a second source of truth
+- verify the Definition of Done before reporting completion
+
+Use the `engineering-quality` skill for all non-trivial code and architecture work.
+
 ## Critical Operational Rules
 
 Never:
@@ -92,12 +112,18 @@ Read when relevant:
 @.claude/docs/operations-rules.md
 @.claude/docs/integrations.md
 @.claude/docs/coding-standards.md
+@.claude/docs/engineering-constitution.md
+@.claude/docs/definition-of-done.md
 
 ## Skills
 
 Use relevant skills rather than loading everything blindly.
 
-Important TourPilot skills:
+Mandatory baseline for non-trivial engineering work:
+
+- engineering-quality
+
+Important TourPilot domain skills:
 
 - plan-tourpilot
 - model-router
@@ -161,18 +187,20 @@ For significant features:
 
 1. Inspect current git status.
 2. Inspect existing implementation.
-3. Use model-router.
-4. Use plan-tourpilot.
-5. Identify relevant domain skills.
-6. Create only necessary subagents.
-7. Freeze the implementation plan.
-8. Implement.
-9. Run tests/typecheck/build.
-10. Run tester.
-11. Run reviewer.
-12. Fix blocker/high findings.
-13. Re-run verification.
-14. Report one consolidated result.
+3. Load `engineering-quality`.
+4. Use model-router.
+5. Use plan-tourpilot.
+6. Identify relevant domain skills.
+7. Create only necessary subagents.
+8. Freeze the implementation plan.
+9. Implement the smallest coherent solution.
+10. Run tests/typecheck/build.
+11. Run tester.
+12. Run reviewer.
+13. Fix blocker/high findings.
+14. Re-run verification.
+15. Apply the Definition of Done.
+16. Report one consolidated result.
 
 Do not push to GitHub unless explicitly requested.
 
@@ -194,6 +222,13 @@ Where applicable:
 - retry/failure behavior
 - PWA/mobile review
 - security review
+- data-integrity review
+- observability/audit review
+- backward-compatibility review
+
+The authoritative completion checklist is:
+
+@.claude/docs/definition-of-done.md
 
 ## Git Safety
 
