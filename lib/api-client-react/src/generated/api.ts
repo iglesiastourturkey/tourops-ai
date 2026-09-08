@@ -52,6 +52,7 @@ import type {
   ListProfilesParams,
   ListQuotationsParams,
   ListReservationImportsParams,
+  ListResourcesParams,
   ListSuppliersParams,
   ListToursParams,
   Notification,
@@ -84,6 +85,13 @@ import type {
   ReservationImportDetail,
   ReservationReview,
   ReservationScanResult,
+  Resource,
+  ResourceAlias,
+  ResourceAliasCreateInput,
+  ResourceCreateInput,
+  ResourceDetail,
+  ResourceListItem,
+  ResourceUpdateInput,
   SuccessResponse,
   Supplier,
   SupplierInput,
@@ -1329,6 +1337,455 @@ export const useDeleteSupplier = <TError = ErrorType<unknown>,
         TContext
       > => {
       return useMutation(getDeleteSupplierMutationOptions(options));
+    }
+
+export const getListResourcesUrl = (params?: ListResourcesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/resources?${stringifiedParams}` : `/api/resources`
+}
+
+/**
+ * @summary List canonical personnel (Guide/Driver) records
+ */
+export const listResources = async (params?: ListResourcesParams, options?: Parameters<typeof customFetch>[1]): Promise<ResourceListItem[]> => {
+
+  return customFetch<ResourceListItem[]>(getListResourcesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListResourcesQueryKey = (params?: ListResourcesParams,) => {
+    return [
+    `/api/resources`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListResourcesQueryOptions = <TData = Awaited<ReturnType<typeof listResources>>, TError = ErrorType<unknown>>(params?: ListResourcesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListResourcesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listResources>>> = ({ signal }) => listResources(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listResources>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type ListResourcesQueryResult = NonNullable<Awaited<ReturnType<typeof listResources>>>
+export type ListResourcesQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary List canonical personnel (Guide/Driver) records
+ */
+
+export function useListResources<TData = Awaited<ReturnType<typeof listResources>>, TError = ErrorType<unknown>>(
+ params?: ListResourcesParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof listResources>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getListResourcesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getCreateResourceUrl = () => {
+
+
+
+
+  return `/api/resources`
+}
+
+/**
+ * @summary Create a personnel (Guide/Driver) record
+ */
+export const createResource = async (resourceCreateInput: ResourceCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<Resource> => {
+
+  return customFetch<Resource>(getCreateResourceUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resourceCreateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateResourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResource>>, TError,{data: BodyType<ResourceCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createResource>>, TError,{data: BodyType<ResourceCreateInput>}, TContext> => {
+
+const mutationKey = ['createResource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createResource>>, {data: BodyType<ResourceCreateInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createResource(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateResourceMutationResult = NonNullable<Awaited<ReturnType<typeof createResource>>>
+    export type CreateResourceMutationBody = BodyType<ResourceCreateInput>
+    export type CreateResourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Create a personnel (Guide/Driver) record
+ */
+export const useCreateResource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResource>>, TError,{data: BodyType<ResourceCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createResource>>,
+        TError,
+        {data: BodyType<ResourceCreateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateResourceMutationOptions(options));
+    }
+
+export const getGetResourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}`
+}
+
+/**
+ * @summary Get a personnel record by ID, including aliases and linked-profile summary
+ */
+export const getResource = async (id: number, options?: Parameters<typeof customFetch>[1]): Promise<ResourceDetail> => {
+
+  return customFetch<ResourceDetail>(getGetResourceUrl(id),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetResourceQueryKey = (id: number,) => {
+    return [
+    `/api/resources/${id}`
+    ] as const;
+    }
+
+
+export const getGetResourceQueryOptions = <TData = Awaited<ReturnType<typeof getResource>>, TError = ErrorType<void>>(id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResource>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetResourceQueryKey(id);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getResource>>> = ({ signal }) => getResource(id, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getResource>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type GetResourceQueryResult = NonNullable<Awaited<ReturnType<typeof getResource>>>
+export type GetResourceQueryError = ErrorType<void>
+
+
+/**
+ * @summary Get a personnel record by ID, including aliases and linked-profile summary
+ */
+
+export function useGetResource<TData = Awaited<ReturnType<typeof getResource>>, TError = ErrorType<void>>(
+ id: number, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getResource>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getGetResourceQueryOptions(id,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getUpdateResourceUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}`
+}
+
+/**
+ * @summary Update a personnel record (type is immutable after creation)
+ */
+export const updateResource = async (id: number,
+    resourceUpdateInput: ResourceUpdateInput, options?: Parameters<typeof customFetch>[1]): Promise<Resource> => {
+
+  return customFetch<Resource>(getUpdateResourceUrl(id),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resourceUpdateInput)
+  }
+);}
+
+
+
+
+
+export const getUpdateResourceMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResource>>, TError,{id: number;data: BodyType<ResourceUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof updateResource>>, TError,{id: number;data: BodyType<ResourceUpdateInput>}, TContext> => {
+
+const mutationKey = ['updateResource'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof updateResource>>, {id: number;data: BodyType<ResourceUpdateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  updateResource(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type UpdateResourceMutationResult = NonNullable<Awaited<ReturnType<typeof updateResource>>>
+    export type UpdateResourceMutationBody = BodyType<ResourceUpdateInput>
+    export type UpdateResourceMutationError = ErrorType<void>
+
+    /**
+ * @summary Update a personnel record (type is immutable after creation)
+ */
+export const useUpdateResource = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof updateResource>>, TError,{id: number;data: BodyType<ResourceUpdateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof updateResource>>,
+        TError,
+        {id: number;data: BodyType<ResourceUpdateInput>},
+        TContext
+      > => {
+      return useMutation(getUpdateResourceMutationOptions(options));
+    }
+
+export const getCreateResourceAliasUrl = (id: number,) => {
+
+
+
+
+  return `/api/resources/${id}/aliases`
+}
+
+/**
+ * @summary Add a known alias/spelling for a personnel record
+ */
+export const createResourceAlias = async (id: number,
+    resourceAliasCreateInput: ResourceAliasCreateInput, options?: Parameters<typeof customFetch>[1]): Promise<ResourceAlias> => {
+
+  return customFetch<ResourceAlias>(getCreateResourceAliasUrl(id),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(resourceAliasCreateInput)
+  }
+);}
+
+
+
+
+
+export const getCreateResourceAliasMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResourceAlias>>, TError,{id: number;data: BodyType<ResourceAliasCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createResourceAlias>>, TError,{id: number;data: BodyType<ResourceAliasCreateInput>}, TContext> => {
+
+const mutationKey = ['createResourceAlias'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createResourceAlias>>, {id: number;data: BodyType<ResourceAliasCreateInput>}> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  createResourceAlias(id,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateResourceAliasMutationResult = NonNullable<Awaited<ReturnType<typeof createResourceAlias>>>
+    export type CreateResourceAliasMutationBody = BodyType<ResourceAliasCreateInput>
+    export type CreateResourceAliasMutationError = ErrorType<void>
+
+    /**
+ * @summary Add a known alias/spelling for a personnel record
+ */
+export const useCreateResourceAlias = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createResourceAlias>>, TError,{id: number;data: BodyType<ResourceAliasCreateInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createResourceAlias>>,
+        TError,
+        {id: number;data: BodyType<ResourceAliasCreateInput>},
+        TContext
+      > => {
+      return useMutation(getCreateResourceAliasMutationOptions(options));
+    }
+
+export const getDeleteResourceAliasUrl = (id: number,
+    aliasId: number,) => {
+
+
+
+
+  return `/api/resources/${id}/aliases/${aliasId}`
+}
+
+/**
+ * @summary Remove an alias from a personnel record
+ */
+export const deleteResourceAlias = async (id: number,
+    aliasId: number, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteResourceAliasUrl(id,aliasId),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteResourceAliasMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteResourceAlias>>, TError,{id: number;aliasId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteResourceAlias>>, TError,{id: number;aliasId: number}, TContext> => {
+
+const mutationKey = ['deleteResourceAlias'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteResourceAlias>>, {id: number;aliasId: number}> = (props) => {
+          const {id,aliasId} = props ?? {};
+
+          return  deleteResourceAlias(id,aliasId,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteResourceAliasMutationResult = NonNullable<Awaited<ReturnType<typeof deleteResourceAlias>>>
+
+    export type DeleteResourceAliasMutationError = ErrorType<void>
+
+    /**
+ * @summary Remove an alias from a personnel record
+ */
+export const useDeleteResourceAlias = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteResourceAlias>>, TError,{id: number;aliasId: number}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof deleteResourceAlias>>,
+        TError,
+        {id: number;aliasId: number},
+        TContext
+      > => {
+      return useMutation(getDeleteResourceAliasMutationOptions(options));
     }
 
 export const getListToursUrl = (params?: ListToursParams,) => {

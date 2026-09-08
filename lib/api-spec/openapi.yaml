@@ -38,6 +38,8 @@ tags:
     description: Object storage upload and serving endpoints
   - name: contact
     description: Public landing-page contact form
+  - name: personnel
+    description: Canonical Guide/Driver identity management (Phase 2D.1/2D.2)
 paths:
   /healthz:
     get:
@@ -334,6 +336,149 @@ paths:
       responses:
         "204":
           description: Deleted
+
+  # ─── PERSONNEL (Phase 2D.1 canonical Resource/Guide-Driver identity) ──────
+  /resources:
+    get:
+      operationId: listResources
+      tags: [personnel]
+      summary: List canonical personnel (Guide/Driver) records
+      parameters:
+        - name: type
+          in: query
+          description: Filter by resource type
+          schema: { type: string, enum: [GUIDE, DRIVER] }
+        - name: active
+          in: query
+          description: Filter by active status
+          schema: { type: boolean }
+        - name: q
+          in: query
+          description: Search name, phone, email, or company
+          schema: { type: string }
+      responses:
+        "200":
+          description: List of personnel records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceListItem"
+    post:
+      operationId: createResource
+      tags: [personnel]
+      summary: Create a personnel (Guide/Driver) record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceCreateInput"
+      responses:
+        "201":
+          description: Created personnel record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          description: Invalid fields
+  /resources/{id}:
+    get:
+      operationId: getResource
+      tags: [personnel]
+      summary: Get a personnel record by ID, including aliases and linked-profile summary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "200":
+          description: Personnel detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateResource
+      tags: [personnel]
+      summary: Update a personnel record (type is immutable after creation)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceUpdateInput"
+      responses:
+        "200":
+          description: Updated personnel record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Resource"
+        "400":
+          description: Invalid fields, or linked profile not found
+        "404":
+          description: Not found
+        "409":
+          description: Linked profile already linked to a different personnel record
+  /resources/{id}/aliases:
+    post:
+      operationId: createResourceAlias
+      tags: [personnel]
+      summary: Add a known alias/spelling for a personnel record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceAliasCreateInput"
+      responses:
+        "201":
+          description: Created alias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResourceAlias"
+        "400":
+          description: Invalid fields
+        "404":
+          description: Personnel record not found
+        "409":
+          description: This alias is already recorded for this personnel record
+  /resources/{id}/aliases/{aliasId}:
+    delete:
+      operationId: deleteResourceAlias
+      tags: [personnel]
+      summary: Remove an alias from a personnel record
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: number }
+        - name: aliasId
+          in: path
+          required: true
+          schema: { type: number }
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Alias not found
 
   # ─── TOURS ───────────────────────────────────────────────────────────────
   /tours:
@@ -1824,6 +1969,118 @@ components:
         vehicleInfo: { type: string }
         isActive: { type: boolean }
         archivedAt: { type: string, format: date-time }
+
+    # ── Personnel (Phase 2D.1 canonical Resource/Guide-Driver identity) ────
+    # List response omits `notes` (admin-only field, not needed for the list
+    # view) and exposes only `hasLinkedLogin` rather than a full linked-profile
+    # summary — matches personnelListRead exactly (artifacts/api-server/src/lib/personnel-read.ts).
+    ResourceListItem:
+      type: object
+      properties:
+        id: { type: number }
+        type: { type: string, enum: [GUIDE, DRIVER] }
+        name: { type: string }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        languages: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        licenseNumber: { type: ["string", "null"] }
+        active: { type: boolean }
+        linkedProfileId: { type: ["number", "null"] }
+        hasLinkedLogin: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, type, name, active, hasLinkedLogin, createdAt, updatedAt]
+    # Response shape of POST/PATCH /resources — the full resource row
+    # (includes notes + normalizedName, but no aliases/linkedProfile — those
+    # are detail-only, see ResourceDetail).
+    Resource:
+      type: object
+      properties:
+        id: { type: number }
+        type: { type: string, enum: [GUIDE, DRIVER] }
+        name: { type: string }
+        normalizedName: { type: string }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        languages: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        licenseNumber: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        active: { type: boolean }
+        linkedProfileId: { type: ["number", "null"] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+      required: [id, type, name, normalizedName, active, createdAt, updatedAt]
+    ResourceLinkedProfileSummary:
+      type: object
+      description: >-
+        Minimal, safe summary of a linked TourPilot login. Never includes
+        clerkUserId or anything session-related (see personnelDetailRead).
+      properties:
+        id: { type: number }
+        name: { type: ["string", "null"] }
+        email: { type: string }
+        role: { type: string }
+        isActive: { type: boolean }
+      required: [id, email, role, isActive]
+    ResourceDetail:
+      allOf:
+        - $ref: "#/components/schemas/Resource"
+        - type: object
+          properties:
+            aliases:
+              type: array
+              items:
+                $ref: "#/components/schemas/ResourceAlias"
+            linkedProfile:
+              oneOf:
+                - $ref: "#/components/schemas/ResourceLinkedProfileSummary"
+                - type: "null"
+          required: [aliases, linkedProfile]
+    ResourceCreateInput:
+      type: object
+      properties:
+        type: { type: string, enum: [GUIDE, DRIVER] }
+        name: { type: string }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        languages: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        licenseNumber: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+      required: [type, name]
+    # `type` is deliberately absent — immutable after creation, see
+    # personnel-write.ts. `linkedProfileId`: explicit null unlinks, omitted
+    # leaves untouched, a number sets/replaces it (validated server-side).
+    ResourceUpdateInput:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: ["string", "null"] }
+        email: { type: ["string", "null"] }
+        languages: { type: ["string", "null"] }
+        company: { type: ["string", "null"] }
+        licenseNumber: { type: ["string", "null"] }
+        notes: { type: ["string", "null"] }
+        active: { type: boolean }
+        linkedProfileId: { type: ["number", "null"] }
+    ResourceAlias:
+      type: object
+      properties:
+        id: { type: number }
+        resourceId: { type: number }
+        source: { type: string, enum: [SHEET_IMPORT, PERFORMANCE_2026, MANUAL, LEGACY_OPERATION] }
+        alias: { type: string }
+        normalizedAlias: { type: string }
+        createdAt: { type: string, format: date-time }
+      required: [id, resourceId, source, alias, normalizedAlias, createdAt]
+    ResourceAliasCreateInput:
+      type: object
+      properties:
+        source: { type: string, enum: [SHEET_IMPORT, PERFORMANCE_2026, MANUAL, LEGACY_OPERATION] }
+        alias: { type: string }
+      required: [source, alias]
 
     # ── Tours ────────────────────────────────────────────────────────────
     Tour:

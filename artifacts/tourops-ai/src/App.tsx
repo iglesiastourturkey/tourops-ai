@@ -70,6 +70,8 @@ const SheetImportDetailPage      = lazy(() => import('@/pages/sheet-import-detai
 const CalendarPage = lazy(() => import('@/pages/calendar'));
 const HistoricalRemediationPage = lazy(() => import('@/pages/historical-remediation'));
 const HistoricalRemediationDetailPage = lazy(() => import('@/pages/historical-remediation-detail'));
+const PersonnelPage = lazy(() => import('@/pages/personnel'));
+const PersonnelDetailPage = lazy(() => import('@/pages/personnel-detail'));
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, '');
@@ -426,6 +428,8 @@ function Router() {
       <Route path="/historical-remediation" component={() => <ProtectedPermissionRoute component={HistoricalRemediationPage} permission={['historical_migration', 'review']} />} />
       <Route path="/customers/:id" component={() => <ProtectedRoleRoute component={CustomerDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/suppliers" component={() => <ProtectedRoleRoute component={SuppliersPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/personnel/:id" component={() => <ProtectedPermissionRoute component={PersonnelDetailPage} permission={['personnel', 'view']} />} />
+      <Route path="/personnel" component={() => <ProtectedPermissionRoute component={PersonnelPage} permission={['personnel', 'view']} />} />
       <Route path="/suppliers/:id" component={() => <ProtectedRoleRoute component={SupplierDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/tours/new" component={() => <ProtectedRoleRoute component={TourNewPage} roles={['admin', 'operations']} />} />
       <Route path="/tours/:id" component={() => <ProtectedRoleRoute component={TourDetailPage} roles={['admin', 'operations', 'guide', 'accounting']} />} />

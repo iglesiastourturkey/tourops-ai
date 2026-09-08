@@ -237,6 +237,163 @@ export interface SupplierUpdate {
   archivedAt?: string;
 }
 
+export type ResourceListItemType = typeof ResourceListItemType[keyof typeof ResourceListItemType];
+
+
+export const ResourceListItemType = {
+  GUIDE: 'GUIDE',
+  DRIVER: 'DRIVER',
+} as const;
+
+export interface ResourceListItem {
+  id: number;
+  type: ResourceListItemType;
+  name: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  languages?: string | null;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  licenseNumber?: string | null;
+  active: boolean;
+  /** @nullable */
+  linkedProfileId?: number | null;
+  hasLinkedLogin: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ResourceType = typeof ResourceType[keyof typeof ResourceType];
+
+
+export const ResourceType = {
+  GUIDE: 'GUIDE',
+  DRIVER: 'DRIVER',
+} as const;
+
+export interface Resource {
+  id: number;
+  type: ResourceType;
+  name: string;
+  normalizedName: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  languages?: string | null;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  licenseNumber?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  active: boolean;
+  /** @nullable */
+  linkedProfileId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Minimal, safe summary of a linked TourPilot login. Never includes clerkUserId or anything session-related (see personnelDetailRead).
+ */
+export interface ResourceLinkedProfileSummary {
+  id: number;
+  /** @nullable */
+  name?: string | null;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
+
+export type ResourceAliasSource = typeof ResourceAliasSource[keyof typeof ResourceAliasSource];
+
+
+export const ResourceAliasSource = {
+  SHEET_IMPORT: 'SHEET_IMPORT',
+  PERFORMANCE_2026: 'PERFORMANCE_2026',
+  MANUAL: 'MANUAL',
+  LEGACY_OPERATION: 'LEGACY_OPERATION',
+} as const;
+
+export interface ResourceAlias {
+  id: number;
+  resourceId: number;
+  source: ResourceAliasSource;
+  alias: string;
+  normalizedAlias: string;
+  createdAt: string;
+}
+
+export type ResourceDetail = Resource & ({
+  aliases: ResourceAlias[];
+  linkedProfile: ResourceLinkedProfileSummary | null;
+});
+
+export type ResourceCreateInputType = typeof ResourceCreateInputType[keyof typeof ResourceCreateInputType];
+
+
+export const ResourceCreateInputType = {
+  GUIDE: 'GUIDE',
+  DRIVER: 'DRIVER',
+} as const;
+
+export interface ResourceCreateInput {
+  type: ResourceCreateInputType;
+  name: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  languages?: string | null;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  licenseNumber?: string | null;
+  /** @nullable */
+  notes?: string | null;
+}
+
+export interface ResourceUpdateInput {
+  name?: string;
+  /** @nullable */
+  phone?: string | null;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  languages?: string | null;
+  /** @nullable */
+  company?: string | null;
+  /** @nullable */
+  licenseNumber?: string | null;
+  /** @nullable */
+  notes?: string | null;
+  active?: boolean;
+  /** @nullable */
+  linkedProfileId?: number | null;
+}
+
+export type ResourceAliasCreateInputSource = typeof ResourceAliasCreateInputSource[keyof typeof ResourceAliasCreateInputSource];
+
+
+export const ResourceAliasCreateInputSource = {
+  SHEET_IMPORT: 'SHEET_IMPORT',
+  PERFORMANCE_2026: 'PERFORMANCE_2026',
+  MANUAL: 'MANUAL',
+  LEGACY_OPERATION: 'LEGACY_OPERATION',
+} as const;
+
+export interface ResourceAliasCreateInput {
+  source: ResourceAliasCreateInputSource;
+  alias: string;
+}
+
 export interface Tour {
   id: number;
   name: string;
@@ -1313,6 +1470,29 @@ search?: string;
 category?: string;
 isActive?: boolean;
 };
+
+export type ListResourcesParams = {
+/**
+ * Filter by resource type
+ */
+type?: ListResourcesType;
+/**
+ * Filter by active status
+ */
+active?: boolean;
+/**
+ * Search name, phone, email, or company
+ */
+q?: string;
+};
+
+export type ListResourcesType = typeof ListResourcesType[keyof typeof ListResourcesType];
+
+
+export const ListResourcesType = {
+  GUIDE: 'GUIDE',
+  DRIVER: 'DRIVER',
+} as const;
 
 export type ListToursParams = {
 search?: string;

@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
   BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, ClipboardCheck, CalendarDays,
-  ChevronDown, ArchiveRestore,
+  ChevronDown, ArchiveRestore, IdCard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -44,6 +44,7 @@ const navItems: NavItem[] = [
   { icon: FileSpreadsheet, label: 'Sheet İçe Aktarım',  href: '/sheet-import',        allowedRoles: ['admin', 'operations'] },
   { icon: Building2,       label: 'Tedarikçiler',       href: '/suppliers',           permission: ['suppliers',        'view']   },
   { icon: MapPin,          label: 'Turlar',             href: '/tours',               permission: ['tours',            'view']   },
+  { icon: IdCard,          label: 'Personel',           href: '/personnel',           permission: ['personnel',        'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',          permission: ['quotations',       'view']   },
   { icon: ClipboardList,   label: 'Operasyon Planlama', href: '/operations',          permission: ['operations',       'view']   },
   { icon: CalendarDays,    label: 'Takvim',             href: '/calendar',            permission: ['operations',       'view']   },
@@ -77,7 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'operations',
     label: 'Operasyon',
     icon: ClipboardList,
-    hrefs: ['/operations', '/calendar', '/field', '/external-observations'],
+    hrefs: ['/operations', '/calendar', '/field', '/external-observations', '/personnel'],
   },
   {
     id: 'crm',
