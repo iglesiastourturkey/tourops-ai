@@ -461,6 +461,176 @@ export const DeleteSupplierResponse = zod.void()
 
 
 /**
+ * @summary List canonical personnel (Guide/Driver) records
+ */
+export const ListResourcesQueryParams = zod.object({
+  "type": zod.enum(['GUIDE', 'DRIVER']).optional().describe('Filter by resource type'),
+  "active": zod.coerce.boolean().optional().describe('Filter by active status'),
+  "q": zod.coerce.string().optional().describe('Search name, phone, email, or company')
+})
+
+export const ListResourcesResponseItem = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['GUIDE', 'DRIVER']),
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "active": zod.boolean(),
+  "linkedProfileId": zod.number().nullish(),
+  "hasLinkedLogin": zod.boolean(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+export const ListResourcesResponse = zod.array(ListResourcesResponseItem)
+
+
+/**
+ * @summary Create a personnel (Guide/Driver) record
+ */
+export const CreateResourceBody = zod.object({
+  "type": zod.enum(['GUIDE', 'DRIVER']),
+  "name": zod.string(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "notes": zod.string().nullish()
+})
+
+export const CreateResourceResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['GUIDE', 'DRIVER']),
+  "name": zod.string(),
+  "normalizedName": zod.string(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "active": zod.boolean(),
+  "linkedProfileId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Get a personnel record by ID, including aliases and linked-profile summary
+ */
+export const GetResourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const GetResourceResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['GUIDE', 'DRIVER']),
+  "name": zod.string(),
+  "normalizedName": zod.string(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "active": zod.boolean(),
+  "linkedProfileId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+}).and(zod.object({
+  "aliases": zod.array(zod.object({
+  "id": zod.number(),
+  "resourceId": zod.number(),
+  "source": zod.enum(['SHEET_IMPORT', 'PERFORMANCE_2026', 'MANUAL', 'LEGACY_OPERATION']),
+  "alias": zod.string(),
+  "normalizedAlias": zod.string(),
+  "createdAt": zod.coerce.date()
+})),
+  "linkedProfile": zod.union([zod.object({
+  "id": zod.number(),
+  "name": zod.string().nullish(),
+  "email": zod.string(),
+  "role": zod.string(),
+  "isActive": zod.boolean()
+}).describe('Minimal, safe summary of a linked TourPilot login. Never includes clerkUserId or anything session-related (see personnelDetailRead).'),zod.null()])
+}))
+
+
+/**
+ * @summary Update a personnel record (type is immutable after creation)
+ */
+export const UpdateResourceParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const UpdateResourceBody = zod.object({
+  "name": zod.string().optional(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "active": zod.boolean().optional(),
+  "linkedProfileId": zod.number().nullish()
+})
+
+export const UpdateResourceResponse = zod.object({
+  "id": zod.number(),
+  "type": zod.enum(['GUIDE', 'DRIVER']),
+  "name": zod.string(),
+  "normalizedName": zod.string(),
+  "phone": zod.string().nullish(),
+  "email": zod.string().nullish(),
+  "languages": zod.string().nullish(),
+  "company": zod.string().nullish(),
+  "licenseNumber": zod.string().nullish(),
+  "notes": zod.string().nullish(),
+  "active": zod.boolean(),
+  "linkedProfileId": zod.number().nullish(),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Add a known alias/spelling for a personnel record
+ */
+export const CreateResourceAliasParams = zod.object({
+  "id": zod.coerce.number()
+})
+
+export const CreateResourceAliasBody = zod.object({
+  "source": zod.enum(['SHEET_IMPORT', 'PERFORMANCE_2026', 'MANUAL', 'LEGACY_OPERATION']),
+  "alias": zod.string()
+})
+
+export const CreateResourceAliasResponse = zod.object({
+  "id": zod.number(),
+  "resourceId": zod.number(),
+  "source": zod.enum(['SHEET_IMPORT', 'PERFORMANCE_2026', 'MANUAL', 'LEGACY_OPERATION']),
+  "alias": zod.string(),
+  "normalizedAlias": zod.string(),
+  "createdAt": zod.coerce.date()
+})
+
+
+/**
+ * @summary Remove an alias from a personnel record
+ */
+export const DeleteResourceAliasParams = zod.object({
+  "id": zod.coerce.number(),
+  "aliasId": zod.coerce.number()
+})
+
+export const DeleteResourceAliasResponse = zod.void()
+
+
+/**
  * @summary List all tours
  */
 export const ListToursQueryParams = zod.object({

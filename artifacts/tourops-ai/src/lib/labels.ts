@@ -226,3 +226,16 @@ export function formatDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '-';
   return new Date(dateStr).toLocaleDateString('tr-TR');
 }
+
+// ── Personnel (Phase 2D.2) ─────────────────────────────────────────────────
+export const RESOURCE_TYPE_LABELS: Record<string, string> = {
+  GUIDE: 'Rehber',
+  DRIVER: 'Şoför',
+};
+
+export const RESOURCE_ALIAS_SOURCE_LABELS: Record<string, string> = {
+  SHEET_IMPORT: 'Sheet İçe Aktarım',
+  PERFORMANCE_2026: '2026 Performans Tablosu',
+  MANUAL: 'Manuel',
+  LEGACY_OPERATION: 'Geçmiş Operasyon',
+};
