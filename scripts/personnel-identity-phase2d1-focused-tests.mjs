@@ -206,7 +206,16 @@ assert.ok(
   /guideName,\s*\n\s*guidePhone,\s*\n\s*assignedGuideUserId,\s*\n\s*driverName,\s*\n\s*driverPhone,\s*\n\s*vehiclePlate,/.test(fieldRouteSource),
   "PATCH /field/operations/:id/assignments must remain untouched in this phase — the write-path canonicalization fix is explicitly Phase 2C's job, not 2D.1's",
 );
-assert.ok(!/guideResourceId/.test(fieldRouteSource) && !/driverResourceId/.test(fieldRouteSource),
-  "the manual assignment endpoint must NOT be wired to guide_resource_id/driver_resource_id in this phase — that remains Phase 2C scope");
+// Superseded by Phase 2C (scripts/canonical-operation-assignment-phase2c-focused-tests.mjs),
+// which was explicitly tasked with wiring the manual assignment endpoint to
+// guide_resource_id/driver_resource_id — exactly what this 2D.1-era guard
+// used to forbid. The invariant 2D.1 actually cared about (assignedGuideUserId,
+// the separate login-access field, is never conflated with the canonical
+// resource FK) is what's re-asserted here instead of the now-obsolete "not yet
+// wired" placeholder.
+assert.ok(/guideResourceId\?: number \| null;/.test(fieldRouteSource) && /driverResourceId\?: number \| null;/.test(fieldRouteSource),
+  "Phase 2C: guideResourceId/driverResourceId are now accepted as optional, independent fields on this endpoint");
+assert.ok(!/guideResourceId\s*=\s*assignedGuideUserId|assignedGuideUserId\s*=\s*guideResourceId/.test(fieldRouteSource),
+  "the canonical resource FK and the login-access field must never be assigned from one another");
 
 console.log("personnel-identity-phase2d1: all focused assertions passed");

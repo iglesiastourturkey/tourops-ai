@@ -33,6 +33,20 @@ interface Detail {
 }
 const missing = 'Belirtilmemiş';
 const source = (value: string | null) => value ? sourceNames[value] ?? value : missing;
+/**
+ * Phase 2C display-state classification (CANONICAL / LEGACY_ONLY /
+ * UNASSIGNED — see operation-assignment.ts's classifyAssignmentState on the
+ * backend, mirrored here rather than shared across packages for one
+ * three-line rule). `resourceName` is the joined resources.name from the
+ * /detail context: it is non-null only when the operation's
+ * guideResourceId/driverResourceId FK actually resolved, so its presence is
+ * equivalent evidence to the FK itself for display purposes.
+ */
+function assignmentStateLabel(resourceName: Value | undefined, legacyName: string | null): string {
+  if (resourceName) return `${resourceName} · Personel kaydıyla eşleşti`;
+  if (legacyName) return `${legacyName} · Personel kaydıyla henüz eşleştirilmedi`;
+  return 'Atanmadı';
+}
 function Fields({ entries }: { entries: [string, Value | undefined][] }) {
   return <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-2 text-sm">
     {entries.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="whitespace-pre-wrap break-words">{value == null || value === '' ? missing : value}</dd></div>)}
@@ -77,8 +91,8 @@ export function OperationDomainWorkspace({ operationId, surface = 'operations' }
         ['Alış noktaları', pickups], ['Diller', languages], ['Gemi', c.shipName ?? c.tourShipName], ['Liman', c.portName ?? c.tourPortName],
         ['Cruise', c.cruiseLine], ['Gemi varış', [c.arrivalDate, c.arrivalTime ?? c.tourArrivalTime].filter(Boolean).join(' ')],
         ['Gemi kalkış', [c.departureDate, c.departureTime ?? c.tourDepartureTime].filter(Boolean).join(' ')],
-        ['Rehber', op.guideName ?? c.guideResourceName ?? c.assignedGuideName], ['Rehber telefon', op.guidePhone ?? c.guideResourcePhone],
-        ['Sürücü', op.driverName ?? c.driverResourceName], ['Sürücü telefon', op.driverPhone ?? c.driverResourcePhone],
+        ['Rehber', assignmentStateLabel(c.guideResourceName, op.guideName)], ['Rehber telefon', op.guidePhone ?? c.guideResourcePhone],
+        ['Sürücü', assignmentStateLabel(c.driverResourceName, op.driverName)], ['Sürücü telefon', op.driverPhone ?? c.driverResourcePhone],
         ['Araç', op.vehiclePlate ?? c.vehiclePlate], ['Araç tipi / kapasite', [c.vehicleType, c.vehicleCapacity].filter(v => v != null).join(' / ')],
         ['Rehber firması', c.guideCompany], ['Sürücü firması', c.driverCompany], ['Araç firması', c.vehicleCompany], ['Operasyon kaynağı', source(op.sourceType)],
       ]} />

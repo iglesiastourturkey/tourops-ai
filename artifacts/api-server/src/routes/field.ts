@@ -19,6 +19,7 @@ import {
   profilesTable,
   toursTable,
   customersTable,
+  resourcesTable,
 } from "@workspace/db/schema";
 import {
   eq, desc, asc, and, or, gte, lte, sql, isNull, ne, not, like,
@@ -28,6 +29,8 @@ import { replayIdempotentResponse, rememberIdempotentResponse } from "../lib/ide
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { createAuditLog } from "../lib/audit";
 import { createNotification as createNotificationEntry } from "../lib/notifications";
+import { hasPermission } from "../lib/permissions";
+import { validateAssignmentCandidate, scanResourceConflicts } from "../lib/operation-assignment";
 import multer from "multer";
 import type { Request, Response } from "express";
 
@@ -345,6 +348,9 @@ router.get("/operations/:id", requirePermission("field_operations", "view"), asy
         driverPhone: operationsTable.driverPhone,
         vehiclePlate: operationsTable.vehiclePlate,
         assignedGuideUserId: operationsTable.assignedGuideUserId,
+        // Phase 2C: canonical Personnel/Resource identity FK, additive.
+        guideResourceId: operationsTable.guideResourceId,
+        driverResourceId: operationsTable.driverResourceId,
         emergencyContact1Name: operationsTable.emergencyContact1Name,
         emergencyContact1Phone: operationsTable.emergencyContact1Phone,
         emergencyContact2Name: operationsTable.emergencyContact2Name,
@@ -491,6 +497,8 @@ router.patch("/operations/:id/assignments", requirePermission("field_operations"
       driverName,
       driverPhone,
       vehiclePlate,
+      guideResourceId,
+      driverResourceId,
     } = req.body as {
       guideName?: string;
       guidePhone?: string;
@@ -498,73 +506,296 @@ router.patch("/operations/:id/assignments", requirePermission("field_operations"
       driverName?: string;
       driverPhone?: string;
       vehiclePlate?: string;
+      // Phase 2C: canonical Personnel/Resource assignment (GUIDE/DRIVER).
+      // Optional and independent of assignedGuideUserId (login access) —
+      // see operation-assignment.ts's module doc. `null` means "unassign
+      // the canonical resource"; `undefined`/absent means "leave as-is".
+      guideResourceId?: number | null;
+      driverResourceId?: number | null;
     };
 
-    const [op] = await db
-      .select()
-      .from(operationsTable)
-      .where(eq(operationsTable.id, opId))
-      .limit(1);
-    if (!op) return res.status(404).json({ error: "Operasyon bulunamadı" });
+    // Phase 2C safety-review fix: the whole read-check-write sequence below
+    // (load operation, validate resource, scan conflicts, update, audit) now
+    // runs in one db.transaction — same convention as resources.ts / the
+    // historical-migration-* files — instead of as separate unguarded
+    // statements. Two protections, matching the codebase's own dual-layer
+    // precedent in historical-migration-promote.ts:
+    //  1. pg_advisory_xact_lock(2026, 8) — a dedicated key (existing keys:
+    //     3=historical staging, 4=historical promotion, 5=customer-link,
+    //     6=pickup-time-correction, 7=source-evidence-loader), serializing
+    //     ALL concurrent canonical assignment mutations globally. This is
+    //     what actually closes the race the row lock below cannot: two
+    //     different operations (different rows) both racing to claim the
+    //     same resource for overlapping dates never interleave their
+    //     conflict-scan-then-write, because the second transaction cannot
+    //     even begin its scan until the first has committed or rolled back.
+    //  2. SELECT ... FOR UPDATE on the target operation's own row, so two
+    //     concurrent PATCHes on the SAME operation can't interleave either.
+    // Every early exit below returns a plain { error } descriptor instead of
+    // calling res.* from inside the transaction callback, so the response is
+    // sent exactly once, after the transaction has actually committed (or
+    // rolled back) — never before, and never twice.
+    type AssignmentTxResult =
+      | { error: { status: number; body: Record<string, unknown> } }
+      | { updated: typeof operationsTable.$inferSelect; warnings: string[]; notify: boolean };
 
-    // Conflict checks
-    const warnings: string[] = [];
+    const result = await db.transaction(async (tx): Promise<AssignmentTxResult> => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(2026, 8)`);
 
-    if (assignedGuideUserId && op.startDate && op.endDate) {
-      const guideConflicts = await db
-        .select({ id: operationsTable.id })
+      const [op] = await tx
+        .select()
         .from(operationsTable)
-        .where(
-          and(
-            eq(operationsTable.assignedGuideUserId, assignedGuideUserId),
-            ne(operationsTable.id, opId),
-            not(sql`${operationsTable.status} = ANY(ARRAY['completed','cancelled','archived']::text[])`),
-            lte(operationsTable.startDate, op.endDate),
-            gte(operationsTable.endDate, op.startDate),
-          ),
-        );
-      if (guideConflicts.length > 0) {
-        return res.status(409).json({
-          error: `Rehber ${guideName ?? "seçilen"} aynı tarihlerde başka bir operasyona atanmış durumda (OPR-${guideConflicts[0]?.id}).`,
-        });
+        .where(eq(operationsTable.id, opId))
+        .for("update");
+      if (!op) return { error: { status: 404, body: { error: "Operasyon bulunamadı" } } };
+
+      // Phase 2C: assigning/changing/removing a canonical Resource is a
+      // stricter capability than the legacy free-text fields this endpoint
+      // already accepts — gated on the existing, previously-unused
+      // operations.assign permission (see seed-permissions.ts) rather than
+      // widening field_operations.update's existing meaning. Only enforced
+      // when the caller actually touches these two fields, so every existing
+      // legacy-only assignment request behaves exactly as before.
+      if (guideResourceId !== undefined || driverResourceId !== undefined) {
+        const canAssign = await hasPermission(res.locals.profile.id, res.locals.profile.role, "operations", "assign");
+        if (!canAssign) {
+          return { error: { status: 403, body: { error: "Personel ataması için yetkiniz bulunmamaktadır." } } };
+        }
       }
+
+      // Conflict checks
+      const warnings: string[] = [];
+
+      if (assignedGuideUserId && op.startDate && op.endDate) {
+        const guideConflicts = await tx
+          .select({ id: operationsTable.id })
+          .from(operationsTable)
+          .where(
+            and(
+              eq(operationsTable.assignedGuideUserId, assignedGuideUserId),
+              ne(operationsTable.id, opId),
+              not(sql`${operationsTable.status} = ANY(ARRAY['completed','cancelled','archived']::text[])`),
+              lte(operationsTable.startDate, op.endDate),
+              gte(operationsTable.endDate, op.startDate),
+            ),
+          );
+        if (guideConflicts.length > 0) {
+          return {
+            error: {
+              status: 409,
+              body: { error: `Rehber ${guideName ?? "seçilen"} aynı tarihlerde başka bir operasyona atanmış durumda (OPR-${guideConflicts[0]?.id}).` },
+            },
+          };
+        }
+      }
+
+      if (vehiclePlate && op.startDate && op.endDate) {
+        const vehicleConflicts = await tx
+          .select({ id: operationsTable.id })
+          .from(operationsTable)
+          .where(
+            and(
+              eq(operationsTable.vehiclePlate, vehiclePlate),
+              ne(operationsTable.id, opId),
+              not(sql`${operationsTable.status} = ANY(ARRAY['completed','cancelled','archived']::text[])`),
+              lte(operationsTable.startDate, op.endDate),
+              gte(operationsTable.endDate, op.startDate),
+            ),
+          );
+        if (vehicleConflicts.length > 0) {
+          warnings.push(`Araç ${vehiclePlate} aynı tarihlerde başka bir operasyonda kullanılıyor (OPR-${vehicleConflicts[0]?.id}).`);
+        }
+      }
+
+      // Phase 2C: canonical Resource assignment (GUIDE/DRIVER). Validated
+      // server-side regardless of what the frontend already checked — see
+      // operation-assignment.ts. `null` unassigns (clears the FK only; the
+      // legacy guideName/driverName text snapshot is left untouched, which is
+      // exactly what makes the record read as LEGACY_ONLY afterwards rather
+      // than silently losing its history — see classifyAssignmentState).
+      let resolvedGuideResource: { id: number; name: string; phone: string | null } | null = null;
+      let resolvedDriverResource: { id: number; name: string; phone: string | null } | null = null;
+
+      if (guideResourceId != null) {
+        const [candidate] = await tx.select({ id: resourcesTable.id, type: resourcesTable.type, active: resourcesTable.active, name: resourcesTable.name, phone: resourcesTable.phone })
+          .from(resourcesTable).where(eq(resourcesTable.id, guideResourceId)).limit(1);
+        const verdict = validateAssignmentCandidate(candidate, "GUIDE");
+        if (!verdict.ok) return { error: { status: 400, body: { error: verdict.error, code: verdict.code } } };
+        resolvedGuideResource = candidate!;
+
+        const guideResourceOthers = await tx.select({ id: operationsTable.id, startDate: operationsTable.startDate, endDate: operationsTable.endDate, status: operationsTable.status })
+          .from(operationsTable).where(and(eq(operationsTable.guideResourceId, guideResourceId), ne(operationsTable.id, opId)));
+        const guideScan = scanResourceConflicts(
+          { id: opId, startDate: op.startDate, endDate: op.endDate, status: op.status },
+          guideResourceOthers,
+        );
+        if (guideScan.conflicts.length > 0) {
+          return {
+            error: {
+              status: 409,
+              body: { error: `${candidate!.name} aynı tarihlerde başka bir operasyona rehber olarak atanmış durumda (OPR-${guideScan.conflicts[0]!.id}).` },
+            },
+          };
+        }
+        for (const other of guideScan.indeterminate) {
+          warnings.push(`${candidate!.name} için OPR-${other.id} ile tarih çakışması, tarih bilgisi eksik olduğundan doğrulanamadı.`);
+        }
+      }
+
+      if (driverResourceId != null) {
+        const [candidate] = await tx.select({ id: resourcesTable.id, type: resourcesTable.type, active: resourcesTable.active, name: resourcesTable.name, phone: resourcesTable.phone })
+          .from(resourcesTable).where(eq(resourcesTable.id, driverResourceId)).limit(1);
+        const verdict = validateAssignmentCandidate(candidate, "DRIVER");
+        if (!verdict.ok) return { error: { status: 400, body: { error: verdict.error, code: verdict.code } } };
+        resolvedDriverResource = candidate!;
+
+        const driverResourceOthers = await tx.select({ id: operationsTable.id, startDate: operationsTable.startDate, endDate: operationsTable.endDate, status: operationsTable.status })
+          .from(operationsTable).where(and(eq(operationsTable.driverResourceId, driverResourceId), ne(operationsTable.id, opId)));
+        const driverScan = scanResourceConflicts(
+          { id: opId, startDate: op.startDate, endDate: op.endDate, status: op.status },
+          driverResourceOthers,
+        );
+        if (driverScan.conflicts.length > 0) {
+          return {
+            error: {
+              status: 409,
+              body: { error: `${candidate!.name} aynı tarihlerde başka bir operasyona şoför olarak atanmış durumda (OPR-${driverScan.conflicts[0]!.id}).` },
+            },
+          };
+        }
+        for (const other of driverScan.indeterminate) {
+          warnings.push(`${candidate!.name} için OPR-${other.id} ile tarih çakışması, tarih bilgisi eksik olduğundan doğrulanamadı.`);
+        }
+      }
+
+      const updates: Partial<typeof operationsTable.$inferInsert> = {};
+      if (guideName !== undefined) updates.guideName = guideName;
+      if (guidePhone !== undefined) updates.guidePhone = guidePhone;
+      if (assignedGuideUserId !== undefined) updates.assignedGuideUserId = assignedGuideUserId;
+      if (driverName !== undefined) updates.driverName = driverName;
+      if (driverPhone !== undefined) updates.driverPhone = driverPhone;
+      if (vehiclePlate !== undefined) updates.vehiclePlate = vehiclePlate;
+      if (guideResourceId !== undefined) {
+        updates.guideResourceId = guideResourceId;
+        // Snapshot the resource's display name/phone into the legacy text
+        // columns — same "write both together" precedent already established
+        // by routes/sheet-import.ts's exact-match resolution — but only when
+        // the caller did not already send an explicit guideName/guidePhone of
+        // their own in this same request (an explicit human-typed value always
+        // wins over the auto-snapshot).
+        if (resolvedGuideResource && guideName === undefined) updates.guideName = resolvedGuideResource.name;
+        if (resolvedGuideResource && guidePhone === undefined) updates.guidePhone = resolvedGuideResource.phone ?? null;
+      }
+      if (driverResourceId !== undefined) {
+        updates.driverResourceId = driverResourceId;
+        if (resolvedDriverResource && driverName === undefined) updates.driverName = resolvedDriverResource.name;
+        if (resolvedDriverResource && driverPhone === undefined) updates.driverPhone = resolvedDriverResource.phone ?? null;
+      }
+
+      const [updated] = await tx
+        .update(operationsTable)
+        .set(updates)
+        .where(eq(operationsTable.id, opId))
+        .returning();
+
+      const profile = res.locals.profile;
+
+      // Audit trail — guide assignment change
+      if (guideName !== undefined && guideName !== (op.guideName ?? "")) {
+        const description = !op.guideName && guideName
+          ? `Rehber ${guideName} olarak atandı.`
+          : op.guideName && !guideName
+            ? "Rehber ataması kaldırıldı."
+            : `Rehber ${guideName} olarak değiştirildi.`;
+        await createAuditLog({
+          eventType: !op.guideName && guideName ? "guide_assigned" : !guideName ? "guide_unassigned" : "guide_changed",
+          actorProfileId: profile.id,
+          oldValue: { guideName: op.guideName, assignedGuideUserId: op.assignedGuideUserId },
+          newValue: { guideName, assignedGuideUserId: assignedGuideUserId ?? op.assignedGuideUserId },
+          module: "operations",
+          entityType: "operation",
+          entityId: opId,
+          description,
+        }, tx);
+      }
+
+      // Audit trail — driver assignment change
+      if (driverName !== undefined && driverName !== (op.driverName ?? "")) {
+        const description = !op.driverName && driverName
+          ? `Şoför ${driverName} olarak atandı.`
+          : op.driverName && !driverName
+            ? "Şoför ataması kaldırıldı."
+            : `Şoför ${driverName} olarak değiştirildi.`;
+        await createAuditLog({
+          eventType: !op.driverName && driverName ? "driver_assigned" : !driverName ? "driver_unassigned" : "driver_changed",
+          actorProfileId: profile.id,
+          oldValue: { driverName: op.driverName, driverPhone: op.driverPhone },
+          newValue: { driverName, driverPhone: driverPhone ?? op.driverPhone },
+          module: "operations",
+          entityType: "operation",
+          entityId: opId,
+          description,
+        }, tx);
+      }
+
+      // Audit trail — canonical guide Resource assignment change (Phase 2C).
+      // Deliberately a distinct eventType from guide_assigned/guide_changed
+      // above: that pair tracks the legacy text column, this pair tracks the
+      // canonical identity FK, and the two are allowed to change independently.
+      if (guideResourceId !== undefined && guideResourceId !== (op.guideResourceId ?? null)) {
+        const description = op.guideResourceId == null && guideResourceId != null
+          ? `Rehber personeli ${resolvedGuideResource?.name ?? guideResourceId} olarak atandı.`
+          : op.guideResourceId != null && guideResourceId == null
+            ? "Rehber personel ataması kaldırıldı."
+            : `Rehber personeli ${resolvedGuideResource?.name ?? guideResourceId} olarak değiştirildi.`;
+        await createAuditLog({
+          eventType: op.guideResourceId == null && guideResourceId != null ? "guide_resource_assigned"
+            : guideResourceId == null ? "guide_resource_unassigned" : "guide_resource_changed",
+          actorProfileId: profile.id,
+          oldValue: { guideResourceId: op.guideResourceId },
+          newValue: { guideResourceId },
+          module: "operations",
+          entityType: "operation",
+          entityId: opId,
+          description,
+        }, tx);
+      }
+
+      // Audit trail — canonical driver Resource assignment change (Phase 2C).
+      if (driverResourceId !== undefined && driverResourceId !== (op.driverResourceId ?? null)) {
+        const description = op.driverResourceId == null && driverResourceId != null
+          ? `Şoför personeli ${resolvedDriverResource?.name ?? driverResourceId} olarak atandı.`
+          : op.driverResourceId != null && driverResourceId == null
+            ? "Şoför personel ataması kaldırıldı."
+            : `Şoför personeli ${resolvedDriverResource?.name ?? driverResourceId} olarak değiştirildi.`;
+        await createAuditLog({
+          eventType: op.driverResourceId == null && driverResourceId != null ? "driver_resource_assigned"
+            : driverResourceId == null ? "driver_resource_unassigned" : "driver_resource_changed",
+          actorProfileId: profile.id,
+          oldValue: { driverResourceId: op.driverResourceId },
+          newValue: { driverResourceId },
+          module: "operations",
+          entityType: "operation",
+          entityId: opId,
+          description,
+        }, tx);
+      }
+
+      return {
+        updated: updated!,
+        warnings,
+        notify: assignedGuideUserId !== undefined || driverName !== undefined,
+      };
+    });
+
+    if ("error" in result) {
+      return res.status(result.error.status).json(result.error.body);
     }
 
-    if (vehiclePlate && op.startDate && op.endDate) {
-      const vehicleConflicts = await db
-        .select({ id: operationsTable.id })
-        .from(operationsTable)
-        .where(
-          and(
-            eq(operationsTable.vehiclePlate, vehiclePlate),
-            ne(operationsTable.id, opId),
-            not(sql`${operationsTable.status} = ANY(ARRAY['completed','cancelled','archived']::text[])`),
-            lte(operationsTable.startDate, op.endDate),
-            gte(operationsTable.endDate, op.startDate),
-          ),
-        );
-      if (vehicleConflicts.length > 0) {
-        warnings.push(`Araç ${vehiclePlate} aynı tarihlerde başka bir operasyonda kullanılıyor (OPR-${vehicleConflicts[0]?.id}).`);
-      }
-    }
-
-    const updates: Partial<typeof operationsTable.$inferInsert> = {};
-    if (guideName !== undefined) updates.guideName = guideName;
-    if (guidePhone !== undefined) updates.guidePhone = guidePhone;
-    if (assignedGuideUserId !== undefined) updates.assignedGuideUserId = assignedGuideUserId;
-    if (driverName !== undefined) updates.driverName = driverName;
-    if (driverPhone !== undefined) updates.driverPhone = driverPhone;
-    if (vehiclePlate !== undefined) updates.vehiclePlate = vehiclePlate;
-
-    const [updated] = await db
-      .update(operationsTable)
-      .set(updates)
-      .where(eq(operationsTable.id, opId))
-      .returning();
-
-    // Notify about assignment change
-    const profile = res.locals.profile;
-    if (assignedGuideUserId !== undefined || driverName !== undefined) {
+    // Notify about assignment change — fired only after the transaction
+    // above has actually committed, so a rolled-back mutation never produces
+    // a notification about a change that didn't happen.
+    if (result.notify) {
       await notifyRoles(
         ["admin", "operations", "field_operations", "super_admin"],
         "operation",
@@ -574,45 +805,7 @@ router.patch("/operations/:id/assignments", requirePermission("field_operations"
       );
     }
 
-    // Audit trail — guide assignment change
-    if (guideName !== undefined && guideName !== (op.guideName ?? "")) {
-      const description = !op.guideName && guideName
-        ? `Rehber ${guideName} olarak atandı.`
-        : op.guideName && !guideName
-          ? "Rehber ataması kaldırıldı."
-          : `Rehber ${guideName} olarak değiştirildi.`;
-      await createAuditLog({
-        eventType: !op.guideName && guideName ? "guide_assigned" : !guideName ? "guide_unassigned" : "guide_changed",
-        actorProfileId: profile.id,
-        oldValue: { guideName: op.guideName, assignedGuideUserId: op.assignedGuideUserId },
-        newValue: { guideName, assignedGuideUserId: assignedGuideUserId ?? op.assignedGuideUserId },
-        module: "operations",
-        entityType: "operation",
-        entityId: opId,
-        description,
-      });
-    }
-
-    // Audit trail — driver assignment change
-    if (driverName !== undefined && driverName !== (op.driverName ?? "")) {
-      const description = !op.driverName && driverName
-        ? `Şoför ${driverName} olarak atandı.`
-        : op.driverName && !driverName
-          ? "Şoför ataması kaldırıldı."
-          : `Şoför ${driverName} olarak değiştirildi.`;
-      await createAuditLog({
-        eventType: !op.driverName && driverName ? "driver_assigned" : !driverName ? "driver_unassigned" : "driver_changed",
-        actorProfileId: profile.id,
-        oldValue: { driverName: op.driverName, driverPhone: op.driverPhone },
-        newValue: { driverName, driverPhone: driverPhone ?? op.driverPhone },
-        module: "operations",
-        entityType: "operation",
-        entityId: opId,
-        description,
-      });
-    }
-
-    return res.json({ ...updated, warnings });
+    return res.json({ ...result.updated, warnings: result.warnings });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Atama güncellenemedi" });

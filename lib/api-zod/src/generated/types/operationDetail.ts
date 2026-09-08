@@ -44,6 +44,10 @@ export interface OperationDetail {
   /** @nullable */
   vehiclePlate?: string | null;
   /** @nullable */
+  guideResourceId?: number | null;
+  /** @nullable */
+  driverResourceId?: number | null;
+  /** @nullable */
   emergencyContact1Name?: string | null;
   /** @nullable */
   emergencyContact1Phone?: string | null;
