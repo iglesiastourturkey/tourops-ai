@@ -25,6 +25,8 @@
     "historical:remediation-mutation": "tsx src/historical-remediation-mutation-self-test.ts",
     "personnel:import-dry-run": "tsx src/personnel-master-import-dry-run.ts",
     "personnel:staging-approval-plan": "tsx src/personnel-master-staging-approval-plan.ts",
+    "personnel:staging-preflight": "tsx src/personnel-staging-apply.ts --preflight",
+    "personnel:staging-apply": "tsx src/personnel-staging-apply.ts --apply",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

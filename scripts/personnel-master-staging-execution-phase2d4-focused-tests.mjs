@@ -137,8 +137,8 @@ const result = spawnSync(tsx, [selfTest], { encoding: "utf8" });
 
 assert.equal(result.status, 0, result.stderr || result.stdout);
 check(
-  result.stdout.includes("20 suites passed"),
-  "all 20 pure test suites must pass in the planner self-test",
+  result.stdout.includes("23 suites passed"),
+  "all 23 pure test suites must pass in the planner self-test (bumped from 20 in Phase 2D.4B.1: resource-insert rollback, tampered-fingerprint refusal, NAZMI-family independence)",
 );
 check(
   apiPkgSource.includes("personnel:staging-approval-plan"),

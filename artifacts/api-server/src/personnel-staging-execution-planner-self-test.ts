@@ -411,4 +411,60 @@ function approve(proposal: StagingApprovalProposal): ApprovedStagingAction {
   }
 }
 
-console.log("personnel-staging-execution-planner-self-test: 20 suites passed");
+// ─── 21. Transaction rollback: a failing resource insert leaves no partial state ─
+{
+  const p = plan([{ name: "FATMA" }]);
+  const proposal = p.proposals.find(x => x.rawName === "FATMA")!;
+  const { adapter, resourcesByNormalizedName, auditLog } = makeFakeAdapter();
+  const failingAdapter: StagingExecutionAdapter = {
+    ...adapter,
+    async insertResource() {
+      throw new Error("simulated resource insert failure");
+    },
+  };
+  await assert.rejects(() => executeApprovedStagingAction(approve(proposal), WORKBOOK_SHA, failingAdapter));
+  assert.equal(resourcesByNormalizedName.size, 0, "a failed resource insert must never leave a partial resource row");
+  assert.equal(auditLog.length, 0, "no audit event may ever be recorded for a resource that failed to insert");
+}
+
+// ─── 22. A tampered approved action (edited after approval) is refused, never silently executed ─
+{
+  const p = plan([{ name: "FATMA" }]);
+  const proposal = p.proposals.find(x => x.rawName === "FATMA")!;
+  const { adapter, resourcesByNormalizedName, auditLog } = makeFakeAdapter();
+
+  // Simulates an approval record whose rawName was edited after the
+  // original actionFingerprint was computed and signed off on — the
+  // fingerprint itself is carried over unchanged, so recomputing it from
+  // the (now-mismatched) fields must catch the tamper.
+  const tamperedAction = { ...approve(proposal), rawName: "SOMEONE ELSE" };
+  const result = await executeApprovedStagingAction(tamperedAction, WORKBOOK_SHA, adapter);
+  assert.equal(result.status, "REFUSED_FINGERPRINT_MISMATCH", "an approved action whose fields no longer match its own fingerprint must never execute");
+  assert.equal(resourcesByNormalizedName.size, 0, "a fingerprint-mismatch refusal must occur before any write");
+  assert.equal(auditLog.length, 0);
+}
+
+// ─── 23. NAZMICAN / NAZMI TARAKCI / NAZIM  BAHADIR remain three independent identities ─
+{
+  const p = plan([{ name: "NAZMICAN" }, { name: "NAZMI TARAKCI" }, { name: "NAZIM  BAHADIR" }]);
+  const nazmican = p.proposals.find(x => x.rawName === "NAZMICAN")!;
+  const nazmiTarakci = p.proposals.find(x => x.rawName === "NAZMI TARAKCI")!;
+  const nazimBahadir = p.proposals.find(x => x.rawName === "NAZIM  BAHADIR")!;
+
+  assert.equal(nazmican.proposedAction, "CREATE_NEW_RESOURCE");
+  assert.equal(nazmiTarakci.proposedAction, "CREATE_NEW_RESOURCE");
+  assert.equal(nazimBahadir.proposedAction, "CREATE_NEW_RESOURCE");
+
+  // Raw source evidence (including the double space) must be preserved verbatim.
+  assert.equal(nazimBahadir.rawName, "NAZIM  BAHADIR");
+
+  const normalizedNames = new Set([nazmican.normalizedName, nazmiTarakci.normalizedName, nazimBahadir.normalizedName]);
+  assert.equal(normalizedNames.size, 3, "NAZMICAN, NAZMI TARAKCI, and NAZIM BAHADIR must normalize to three distinct identities, never collapsed into one");
+
+  const fingerprints = new Set([nazmican.actionFingerprint, nazmiTarakci.actionFingerprint, nazimBahadir.actionFingerprint]);
+  assert.equal(fingerprints.size, 3, "each of the three must carry its own distinct action fingerprint");
+
+  assert.equal(p.summary.ambiguities, 0, "surface-level name similarity must never be inferred as identity ambiguity for these three");
+}
+
+console.log("personnel-staging-execution-planner-self-test: 23 suites passed");
