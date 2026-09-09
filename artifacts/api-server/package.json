@@ -24,6 +24,7 @@
     "historical:evidence": "tsx src/historical-source-evidence-loader.ts",
     "historical:remediation-mutation": "tsx src/historical-remediation-mutation-self-test.ts",
     "personnel:import-dry-run": "tsx src/personnel-master-import-dry-run.ts",
+    "personnel:staging-approval-plan": "tsx src/personnel-master-staging-approval-plan.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
