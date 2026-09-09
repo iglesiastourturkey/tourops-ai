@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const CLI = readFileSync(new URL("../artifacts/api-server/src/historical-exact-recovery-correction.ts", import.meta.url), "utf8");
+const LIB = readFileSync(new URL("../artifacts/api-server/src/lib/historical-exact-recovery-correction.ts", import.meta.url), "utf8");
+const API_PACKAGE = JSON.parse(readFileSync(new URL("../artifacts/api-server/package.json", import.meta.url), "utf8"));
+assert.equal(API_PACKAGE.scripts["historical:exact-recovery-correction"], "tsx src/historical-exact-recovery-correction.ts");
+assert.match(LIB, /NODE_ENV === "production"/);
+assert.match(LIB, /HISTORICAL_STAGING_DATABASE_URL/);
+assert.match(LIB, /url\.hostname !== allowedHost \|\| !allowedHost\.endsWith\("\.neon\.tech"\)/);
+assert.doesNotMatch(CLI + LIB, /process\.env\.DATABASE_URL \?\?|--limit|inArray|wildcard/);
+assert.match(CLI, /\.for\("update"\)/);
+assert.match(CLI, /eq\(historicalOperationImportsTable\.payloadSha256, input\.expectedPayloadSha256\)/);
+assert.match(CLI, /verifyOperatorPermission\(args\.operatorProfileId, "historical_migration", "approve"\)/);
+assert.match(CLI, /eventType: "historical_migration_exact_recovery_corrected"[\s\S]*?}, tx\)/);
+assert.match(CLI, /await createAuditLog/);
+assert.match(CLI, /db\.transaction/);
+assert.doesNotMatch(CLI + LIB, /operationsTable|reservationsTable|bookingPartiesTable|customersTable|guestsTable/);
+assert.match(CLI, /operationWrites: false/);
+assert.match(CLI, /reservationWrites: false/);
+assert.match(CLI, /customerWrites: false/);
+assert.match(CLI, /databaseWrites: false/);
+execFileSync("./artifacts/api-server/node_modules/.bin/tsx", ["artifacts/api-server/src/historical-exact-recovery-correction-self-test.ts"], { stdio: "inherit" });
+console.log("historical exact-recovery correction focused tests: passed");
