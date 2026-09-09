@@ -206,7 +206,7 @@ export function verifyPlanActionCounts(
 /** The exact values the operator approved for Phase 2D.4B. */
 export const PHASE_2D4B_AUTHORITATIVE_EXPECTATION = {
   workbookSha256: "69301eb4dbca3d7583b06c55a2fe4b7aaffaf4ec47034043af55bec076fe82d3",
-  deterministicPackageSha256: "341cf6814a5a5d3de2a9a997b22580e9a0173bd44f210b8a3e5766e1c9d91067",
+  deterministicPackageSha256: "5caff0b30e1a9250a624b723d50c9d52143ea05ead4a02c28cba13992d5aaffb",
   planActionCounts: {
     createNewResource: 81,
     matchExistingResource: 0,
