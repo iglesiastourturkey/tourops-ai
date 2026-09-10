@@ -131,6 +131,13 @@ check(clientApi.includes('export function useListResources') && clientApi.includ
 // --- L. migration/database safety: this phase touches no migration --------
 const migrationFiles = readdirSync(path.join(root, 'lib/db/migrations'));
 check(migrationFiles.includes('0025_resource_identity_foundation.sql'), 'L: Phase 2D.1 migration baseline (0025) still present, untouched by this UI-only phase');
-check(!migrationFiles.some(name => /^002[6-9]|^00[3-9]\d/.test(name)), 'L: Phase 2D.2 adds no migration of its own (UI + API-spec-exposure only)');
+// Phase 2D.2 itself ships no migration file. Later migrations from OTHER
+// workstreams are permitted only when explicitly acknowledged below, so a new
+// migration can never slip in unreviewed while this guard stays green.
+const KNOWN_POST_0025_MIGRATIONS = new Set([
+  '0026_historical_promoted_hash_guard.sql', // 3G.3 production preflight (non-personnel, additive guard)
+]);
+const post0025Migrations = migrationFiles.filter(name => /^002[6-9]|^00[3-9]\d/.test(name));
+check(post0025Migrations.every(name => KNOWN_POST_0025_MIGRATIONS.has(name)), 'L: Phase 2D.2 adds no migration of its own (only explicitly acknowledged non-personnel migrations may exist beyond 0025)');
 
 console.log(`personnel-management-ui-phase2d2 focused tests: ${count} assertions passed`);
