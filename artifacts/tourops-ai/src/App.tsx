@@ -32,6 +32,7 @@ import QuotationNewPage from '@/pages/quotation-new';
 import QuotationDetailPage from '@/pages/quotation-detail';
 import OperationsPage from '@/pages/operations';
 import OperationDetailPage from '@/pages/operation-detail';
+import DomainOperationsPage from '@/pages/domain-operations';
 import GuideDashboardPage from '@/pages/guide-dashboard';
 import NotificationsPage from '@/pages/notifications';
 import SettingsPage from '@/pages/settings';
@@ -445,6 +446,10 @@ function Router() {
       <Route path="/field/operations/:id" component={() => <ProtectedRoleRoute component={FieldOperationDetailPage} roles={['field_operations', 'operations', 'admin']} />} />
       <Route path="/field/operations" component={() => <Redirect to="/field" />} />
       <Route path="/field" component={() => <ProtectedRoleRoute component={FieldDashboardPage} roles={['field_operations', 'operations', 'admin']} />} />
+      <Route path="/operations/gemi/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/operations/sejour/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/operations/gemi" component={() => <ProtectedRoleRoute component={() => <DomainOperationsPage operationType="CRUISE" />} roles={['admin', 'operations', 'accounting']} />} />
+      <Route path="/operations/sejour" component={() => <ProtectedRoleRoute component={() => <DomainOperationsPage operationType="SEJOUR" />} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/operations/:id" component={() => <ProtectedRoleRoute component={OperationDetailPage} roles={['admin', 'operations', 'accounting']} />} />
       <Route path="/operations" component={() => <ProtectedRoleRoute component={OperationsPage} roles={['admin', 'operations', 'accounting']} />} />
 <Route path="/calendar" component={() => <ProtectedRoleRoute component={CalendarPage} roles={['admin', 'operations', 'accounting']} />} />

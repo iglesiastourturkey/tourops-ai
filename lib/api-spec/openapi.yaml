@@ -2405,6 +2405,7 @@ components:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
         sourceType: { type: string }
+        operationType: { type: ["string", "null"], enum: [CRUISE, SEJOUR, null] }
         sourceQuoteId: { type: ["number", "null"] }
         sourceEmailImportId: { type: ["number", "null"] }
         sourceBookingReference: { type: ["string", "null"] }
@@ -2441,6 +2442,7 @@ components:
         id: { type: number }
         quotationId: { type: ["number", "null"] }
         sourceType: { type: string }
+        operationType: { type: ["string", "null"], enum: [CRUISE, SEJOUR, null] }
         sourceQuoteId: { type: ["number", "null"] }
         sourceEmailImportId: { type: ["number", "null"] }
         sourceBookingReference: { type: ["string", "null"] }

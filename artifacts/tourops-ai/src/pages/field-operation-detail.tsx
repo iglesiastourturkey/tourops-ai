@@ -27,6 +27,7 @@ import {
   INCIDENT_SEVERITY_COLORS, INCIDENT_SEVERITY_LABELS,
   FIELD_NOTE_CATEGORY_LABELS, TASK_STATUS_LABELS, formatDate,
 } from '@/lib/labels';
+import { operationDomainLabel, type OperationType } from '@/lib/operation-domain';
 
 import { API_BASE } from '@/lib/api-base';
 
@@ -85,6 +86,7 @@ interface GuideOption {
 
 interface OperationDetail {
   id: number;
+  operationType: OperationType | null;
   status: string;
   startDate: string | null;
   endDate: string | null;
@@ -374,9 +376,21 @@ export default function FieldOperationDetailPage() {
               </p>
             )}
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-full font-semibold shrink-0 ${statusColor}`}>
-            {OPERATION_STATUS_LABELS[op.status] ?? op.status}
-          </span>
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${statusColor}`}>
+              {OPERATION_STATUS_LABELS[op.status] ?? op.status}
+            </span>
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                op.operationType === 'CRUISE' ? 'bg-sky-100 text-sky-700'
+                  : op.operationType === 'SEJOUR' ? 'bg-violet-100 text-violet-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+              data-testid="field-detail-operation-type"
+            >
+              {operationDomainLabel(op.operationType)}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
           <MapPin className="w-3 h-3 shrink-0" />

@@ -47,6 +47,7 @@ export const dailyOperationsRead: RequestHandler = async (req, res) => {
     const driver = alias(resourcesTable, "daily_driver");
     const rows = await db.select({
       id: operationsTable.id,
+      operationType: operationsTable.operationType,
       status: operationsTable.status,
       startDate: operationsTable.startDate,
       endDate: operationsTable.endDate,
@@ -89,6 +90,7 @@ export const dailyOperationsRead: RequestHandler = async (req, res) => {
 
     const operations: DailyOperationInput[] = rows.map(r => ({
       id: r.id,
+      operationType: r.operationType,
       status: r.status,
       startDate: r.startDate,
       endDate: r.endDate,

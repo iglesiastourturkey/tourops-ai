@@ -19,6 +19,9 @@ export const operationsTable = pgTable("operations", {
   sourceEmailImportId: integer("source_email_import_id"),
   sourceSheetImportId: integer("source_sheet_import_id"),
   sourceHistoricalKey: text("source_historical_key"),
+  // NULL preserves existing non-historical/KEEP/TEST semantics. Historical
+  // rows are classified only from their authoritative sourceKind.
+  operationType: text("operation_type", { enum: ["CRUISE", "SEJOUR"] }),
   sourceBookingReference: text("source_booking_reference"),
   tourId: integer("tour_id").references(() => toursTable.id, { onDelete: "set null" }),
   customerId: integer("customer_id").references(() => customersTable.id, { onDelete: "set null" }),

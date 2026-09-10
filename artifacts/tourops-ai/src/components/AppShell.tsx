@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Sparkles, Users, Building2, MapPin,
   FileText, ClipboardList, Bell, Settings, Menu, UserCog,
   BookOpen, Compass, HardHat, Shield, Monitor, Inbox, MessageSquareText, FileSpreadsheet, ClipboardCheck, CalendarDays,
-  ChevronDown, ArchiveRestore, IdCard,
+  ChevronDown, ArchiveRestore, IdCard, Ship, Plane,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -46,6 +46,8 @@ const navItems: NavItem[] = [
   { icon: MapPin,          label: 'Turlar',             href: '/tours',               permission: ['tours',            'view']   },
   { icon: IdCard,          label: 'Personel',           href: '/personnel',           permission: ['personnel',        'view']   },
   { icon: FileText,        label: 'Teklifler',          href: '/quotations',          permission: ['quotations',       'view']   },
+  { icon: Ship,            label: 'Gemi Operasyonları', href: '/operations/gemi',     permission: ['operations',       'view']   },
+  { icon: Plane,           label: 'Sejour Operasyonları', href: '/operations/sejour', permission: ['operations',       'view']   },
   { icon: ClipboardList,   label: 'Operasyon Planlama', href: '/operations',          permission: ['operations',       'view']   },
   { icon: CalendarDays,    label: 'Takvim',             href: '/calendar',            permission: ['operations',       'view']   },
   { icon: Inbox,           label: 'Gelen Rezervasyonlar', href: '/reservations',      permission: ['reservations',     'view']   },
@@ -78,7 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
     id: 'operations',
     label: 'Operasyon',
     icon: ClipboardList,
-    hrefs: ['/operations', '/calendar', '/field', '/external-observations', '/personnel'],
+    hrefs: ['/operations/gemi', '/operations/sejour', '/operations', '/calendar', '/field', '/external-observations', '/personnel'],
   },
   {
     id: 'crm',

@@ -16,10 +16,15 @@ const readSource = readFileSync(
   fileURLToPath(new URL("../artifacts/api-server/src/lib/operation-detail-read.ts", import.meta.url)),
   "utf8",
 );
-const workspaceSource = readFileSync(
-  fileURLToPath(new URL("../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx", import.meta.url)),
-  "utf8",
-);
+// Phase 3H.2 split the operation detail workspace into a dispatcher plus a
+// shared-sections module and two domain-specific components. These assertions
+// are about the workspace as a whole, so read the parts together.
+const workspaceSource = [
+  "../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx",
+  "../artifacts/tourops-ai/src/components/operation-detail/operation-shared-sections.tsx",
+  "../artifacts/tourops-ai/src/components/operation-detail/CruiseOperationDetail.tsx",
+  "../artifacts/tourops-ai/src/components/operation-detail/SejourOperationDetail.tsx",
+].map(rel => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8")).join("\n");
 const operationsRoute = readFileSync(
   fileURLToPath(new URL("../artifacts/api-server/src/routes/operations.ts", import.meta.url)),
   "utf8",
@@ -153,7 +158,7 @@ assert.ok(
   "no code path may derive operation status from reservation status or vice versa",
 );
 assert.ok(
-  /Operasyon:\s*\{OPERATION_STATUS_LABELS\[op\.status\]/.test(workspaceSource)
+  /Operasyon:\s*\{OPERATION_STATUS_LABELS\[(op|operation)\.status\]/.test(workspaceSource)
     && /Rezervasyon:\s*\{reservationStatuses\[r\.status\]/.test(workspaceSource),
   "the UI must render operation status and each reservation's status from independent labels/values",
 );

@@ -470,11 +470,37 @@ assert.ok(
   "the daily board must not surface financial fields - Phase 1D is not an accounting surface",
 );
 
-// ─── 25. Click-through reuses the existing Operation Detail route; the daily board never duplicates detail content ───
+// ─── 25. Click-through reuses an existing Operation Detail route; the daily board never duplicates detail content ───
+// Phase 3H.2: the card routes to the domain-specific detail experience
+// (/operations/gemi/:id or /operations/sejour/:id) when operationType is set,
+// and still falls back to the legacy /operations/:id route otherwise, via the
+// shared `operationDetailHref` primitive. It must remain a link-out, never an
+// inline re-render of detail content.
 
 assert.ok(
-  /href=\{`\/operations\/\$\{operation\.id\}`\}/.test(boardComponent),
-  "each Operation card must link to the existing /operations/:id detail route rather than re-render detail content inline",
+  /href=\{domainDetailHref\(operation\)\}/.test(boardComponent),
+  "each Operation card must link out to a detail route via domainDetailHref, not re-render detail content inline",
+);
+assert.ok(
+  /operationDetailHref\(operation\.id, operation\.operationType\)/.test(boardComponent),
+  "domainDetailHref must delegate to the shared operationDetailHref primitive",
+);
+const domainPrimitive = readFileSync(
+  fileURLToPath(new URL("../artifacts/tourops-ai/src/lib/operation-domain.ts", import.meta.url)),
+  "utf8",
+);
+assert.ok(
+  /return `\/operations\/\$\{id\}`/.test(domainPrimitive),
+  "the shared primitive must preserve the legacy /operations/:id route as the untyped fallback (backward compatibility)",
+);
+assert.ok(
+  /`\/operations\/gemi\/\$\{id\}`/.test(domainPrimitive)
+    && /`\/operations\/sejour\/\$\{id\}`/.test(domainPrimitive),
+  "the shared primitive must route CRUISE/SEJOUR operations to their domain-specific detail route",
+);
+assert.ok(
+  !/OperationDomainWorkspace|useGetOperation\b/.test(boardComponent),
+  "the daily board must not import the operation detail workspace or its data hook - it is click-through only",
 );
 assert.ok(
   /DailyOperationsBoard/.test(calendarPage),
