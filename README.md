@@ -707,6 +707,9 @@ The September pilot is ready when the team can complete real operational scenari
 > Automatically generated from recent commits on `main`. Keep product overview, architecture and roadmap sections curated by humans.
 
 ### Features
+- split cruise and sejour operation subdomains end to end — `e2788f1` (2026-09-10)
+- split cruise and sejour operation experiences — `a35ef5a` (2026-09-10)
+- add historical operation domain correction foundation — `c129d4e` (2026-09-10)
 - add idempotent guard migration for historical promoted-hash check — `477e722` (2026-09-10)
 - add controlled exact-recovery correction CLI — `802b4f9` (2026-09-09)
 - add staging db execution adapter — `e954ff3` (2026-09-09)
@@ -714,8 +717,6 @@ The September pilot is ready when the team can complete real operational scenari
 - add master import dry-run foundation — `12a7a48` (2026-09-09)
 - add canonical personnel assignment — `1f64b4a` (2026-09-08)
 - add personnel management UI — `9381344` (2026-09-08)
-- add canonical resource identity foundation — `56483d6` (2026-09-07)
-- add controlled approval handoff — `0dc1ead` (2026-09-07)
 
 ### Fixes
 - refresh approved staging plan digest — `e30e505` (2026-09-09)
