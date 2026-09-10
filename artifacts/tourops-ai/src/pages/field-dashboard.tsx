@@ -13,6 +13,7 @@ import {
   INCIDENT_SEVERITY_COLORS, INCIDENT_SEVERITY_LABELS,
   INCIDENT_TYPE_LABELS, formatDate,
 } from '@/lib/labels';
+import { operationDomainLabel, type OperationType } from '@/lib/operation-domain';
 
 import { API_BASE } from '@/lib/api-base';
 
@@ -20,6 +21,7 @@ import { API_BASE } from '@/lib/api-base';
 
 interface OpSummary {
   id: number;
+  operationType: OperationType | null;
   status: string;
   startDate: string | null;
   endDate: string | null;
@@ -103,6 +105,16 @@ function OpCard({ op }: { op: OpSummary }) {
           </div>
           <div className="shrink-0 flex flex-col items-end gap-1">
             <StatusBadge status={op.status} />
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                op.operationType === 'CRUISE' ? 'bg-sky-100 text-sky-700'
+                  : op.operationType === 'SEJOUR' ? 'bg-violet-100 text-violet-700'
+                  : 'bg-gray-100 text-gray-500'
+              }`}
+              data-testid={`field-operation-type-${op.id}`}
+            >
+              {operationDomainLabel(op.operationType)}
+            </span>
             <span className="text-[10px] text-gray-400">OPR-{op.id}</span>
           </div>
         </div>

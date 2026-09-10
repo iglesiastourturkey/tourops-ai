@@ -205,6 +205,7 @@ router.get("/dashboard", requirePermission("field_operations", "view"), async (r
       db
         .select({
           id: operationsTable.id,
+          operationType: operationsTable.operationType,
           status: operationsTable.status,
           startDate: operationsTable.startDate,
           endDate: operationsTable.endDate,
@@ -233,6 +234,7 @@ router.get("/dashboard", requirePermission("field_operations", "view"), async (r
       db
         .select({
           id: operationsTable.id,
+          operationType: operationsTable.operationType,
           status: operationsTable.status,
           startDate: operationsTable.startDate,
           endDate: operationsTable.endDate,
@@ -339,6 +341,7 @@ router.get("/operations/:id", requirePermission("field_operations", "view"), asy
     const [op] = await db
       .select({
         id: operationsTable.id,
+        operationType: operationsTable.operationType,
         status: operationsTable.status,
         startDate: operationsTable.startDate,
         endDate: operationsTable.endDate,

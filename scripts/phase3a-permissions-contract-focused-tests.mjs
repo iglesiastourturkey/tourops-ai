@@ -18,7 +18,10 @@ const usePermission = src("../artifacts/tourops-ai/src/hooks/usePermission.ts");
 const operationsRoute = src("../artifacts/api-server/src/routes/operations.ts");
 const fieldRoute = src("../artifacts/api-server/src/routes/field.ts");
 const guideRoute = src("../artifacts/api-server/src/routes/guide.ts");
-const workspace = src("../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx");
+// Phase 3H.2: the workspace is a dispatcher; the surface → route-prefix map
+// moved into the shared operation-detail data hook. Read both for this check.
+const workspace = src("../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx")
+  + "\n" + src("../artifacts/tourops-ai/src/components/operation-detail/operation-shared-sections.tsx");
 const operationDetailRead = src("../artifacts/api-server/src/lib/operation-detail-read.ts");
 const fieldDetailPage = src("../artifacts/tourops-ai/src/pages/field-operation-detail.tsx");
 const guideDetailPage = src("../artifacts/tourops-ai/src/pages/guide-operation-detail.tsx");

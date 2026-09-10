@@ -27,7 +27,15 @@ const fieldRouteSource = read('../artifacts/api-server/src/routes/field.ts');
 const operationDetailReadSource = read('../artifacts/api-server/src/lib/operation-detail-read.ts');
 const dailyOperationsReadSource = read('../artifacts/api-server/src/lib/daily-operations-read.ts');
 const operationDetailTsxSource = read('../artifacts/tourops-ai/src/pages/operation-detail.tsx');
-const domainWorkspaceSource = read('../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx');
+// Phase 3H.2 split the workspace into a dispatcher + shared-sections module +
+// two domain components; the shared assignment-state rendering moved into the
+// shared module. Read the parts together for these content assertions.
+const domainWorkspaceSource = [
+  '../artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx',
+  '../artifacts/tourops-ai/src/components/operation-detail/operation-shared-sections.tsx',
+  '../artifacts/tourops-ai/src/components/operation-detail/CruiseOperationDetail.tsx',
+  '../artifacts/tourops-ai/src/components/operation-detail/SejourOperationDetail.tsx',
+].map(read).join('\n');
 const fieldOperationDetailTsxSource = read('../artifacts/tourops-ai/src/pages/field-operation-detail.tsx');
 const seedPermissionsSource = read('../artifacts/api-server/src/lib/seed-permissions.ts');
 const resourcesSchemaSource = read('../lib/db/src/schema/operations.ts');

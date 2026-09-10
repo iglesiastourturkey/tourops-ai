@@ -18,6 +18,7 @@ import { usePermission } from '@/hooks/usePermission';
 import { useToast } from '@/hooks/use-toast';
 import { ExternalLink, RefreshCw, MoreHorizontal, Archive, Trash2, Plus } from 'lucide-react';
 import { OPERATION_STATUS_LABELS, OPERATION_STATUS_COLORS, formatDate } from '@/lib/labels';
+import { operationDetailHref, operationDomainLabel } from '@/lib/operation-domain';
 
 export default function OperationsPage() {
   const { toast } = useToast();
@@ -143,6 +144,7 @@ export default function OperationsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>ID</TableHead>
+              <TableHead>Tür</TableHead>
               <TableHead className="hidden md:table-cell">Başlangıç</TableHead>
               <TableHead>Durum</TableHead>
               <TableHead>Tamamlanma</TableHead>
@@ -153,12 +155,12 @@ export default function OperationsPage() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                  <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
               ))
             ) : isError ? (
               <TableRow>
-                <TableCell colSpan={5} className="py-10">
+                <TableCell colSpan={6} className="py-10">
                   <div className="flex flex-col items-center gap-3">
                     <p className="text-destructive text-sm">Veriler yüklenemedi.</p>
                     <Button variant="outline" size="sm" className="gap-1.5" onClick={() => refetch()} data-testid="button-retry-operations">
@@ -169,7 +171,7 @@ export default function OperationsPage() {
               </TableRow>
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-10">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
                   {showArchived ? 'Arşivlenmiş operasyon bulunamadı' : 'Operasyon bulunamadı'}
                 </TableCell>
               </TableRow>
@@ -177,6 +179,18 @@ export default function OperationsPage() {
               filtered.map(op => (
                 <TableRow key={op.id} data-testid={`row-operation-${op.id}`}>
                   <TableCell className="font-mono text-sm font-medium">OP-{op.id}</TableCell>
+                  <TableCell>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                        op.operationType === 'CRUISE' ? 'bg-sky-100 text-sky-700'
+                          : op.operationType === 'SEJOUR' ? 'bg-violet-100 text-violet-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                      data-testid={`operation-type-${op.id}`}
+                    >
+                      {operationDomainLabel(op.operationType)}
+                    </span>
+                  </TableCell>
                   <TableCell className="hidden md:table-cell text-muted-foreground">{formatDate(op.startDate)}</TableCell>
                   <TableCell>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${OPERATION_STATUS_COLORS[op.status] ?? 'bg-gray-100 text-gray-600'}`}>
@@ -198,7 +212,7 @@ export default function OperationsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                          <Link href={`/operations/${op.id}`} className="flex items-center gap-2 cursor-pointer">
+                          <Link href={operationDetailHref(op.id, op.operationType)} className="flex items-center gap-2 cursor-pointer">
                             <ExternalLink className="w-3.5 h-3.5" />Görüntüle / Düzenle
                           </Link>
                         </DropdownMenuItem>

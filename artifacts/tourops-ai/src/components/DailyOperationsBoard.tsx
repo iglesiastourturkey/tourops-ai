@@ -7,6 +7,7 @@ import {
   RESERVATION_STATUS_LABELS,
   SOURCE_TYPE_LABELS,
 } from '@/lib/labels';
+import { operationDetailHref, operationDomainLabel } from '@/lib/operation-domain';
 
 // ── Types (mirror the daily-operations-model.ts response shape) ────────────
 
@@ -59,9 +60,10 @@ interface DailyBoard {
 }
 
 const missing = 'Belirtilmemiş';
-const domainDetailHref = (operation: DailyOperation['operation']) => operation.operationType === 'CRUISE'
-  ? `/operations/gemi/${operation.id}` : operation.operationType === 'SEJOUR'
-    ? `/operations/sejour/${operation.id}` : `/operations/${operation.id}`;
+// Aggregating surface: link to the domain-specific detail experience, with the
+// legacy /operations/:id fallback for still-untyped operations.
+const domainDetailHref = (operation: DailyOperation['operation']) =>
+  operationDetailHref(operation.id, operation.operationType);
 
 const WARNING_LABELS: Record<string, string> = {
   missing_guide: 'Rehber atanmadı',
@@ -153,7 +155,7 @@ function OperationCard({ op }: { op: DailyOperation }) {
             href={domainDetailHref(operation)}
             className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 focus-visible:outline"
           >
-            {operation.operationType === 'CRUISE' ? 'GEMİ' : operation.operationType === 'SEJOUR' ? 'SEJOUR' : 'Tür belirlenmemiş'} · Detay
+            {operationDomainLabel(operation.operationType)} · Detay
           </Link>
         </div>
       </div>
