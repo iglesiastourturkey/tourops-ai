@@ -5,12 +5,15 @@
  * TourOps AI API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { OperationOperationType } from './operationOperationType';
 
 export interface Operation {
   id: number;
   /** @nullable */
   quotationId?: number | null;
   sourceType?: string;
+  /** @nullable */
+  operationType?: OperationOperationType;
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */

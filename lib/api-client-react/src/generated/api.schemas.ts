@@ -748,11 +748,24 @@ export interface QuotationStatusUpdate {
   status: string;
 }
 
+/**
+ * @nullable
+ */
+export type OperationOperationType = typeof OperationOperationType[keyof typeof OperationOperationType] | null;
+
+
+export const OperationOperationType = {
+  CRUISE: 'CRUISE',
+  SEJOUR: 'SEJOUR',
+} as const;
+
 export interface Operation {
   id: number;
   /** @nullable */
   quotationId?: number | null;
   sourceType?: string;
+  /** @nullable */
+  operationType?: OperationOperationType;
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */
@@ -799,6 +812,17 @@ export interface Operation {
   updatedAt: string;
 }
 
+/**
+ * @nullable
+ */
+export type OperationDetailOperationType = typeof OperationDetailOperationType[keyof typeof OperationDetailOperationType] | null;
+
+
+export const OperationDetailOperationType = {
+  CRUISE: 'CRUISE',
+  SEJOUR: 'SEJOUR',
+} as const;
+
 export interface OperationTask {
   id: number;
   operationId: number;
@@ -821,6 +845,8 @@ export interface OperationDetail {
   /** @nullable */
   quotationId?: number | null;
   sourceType?: string;
+  /** @nullable */
+  operationType?: OperationDetailOperationType;
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */

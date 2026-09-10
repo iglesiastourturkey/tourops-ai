@@ -40,6 +40,7 @@ export interface DailyReservationInput {
  */
 export interface DailyOperationInput {
   id: number;
+  operationType: "CRUISE" | "SEJOUR" | null;
   status: string;
   startDate: string | null;
   endDate: string | null;
@@ -137,6 +138,7 @@ export function buildDailyBoard(params: {
       sequence: index + 1,
       operation: {
         id: op.id,
+        operationType: op.operationType,
         status: op.status,
         startDate: op.startDate,
         endDate: op.endDate,

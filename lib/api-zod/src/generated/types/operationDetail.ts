@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { Customer } from './customer';
+import type { OperationDetailOperationType } from './operationDetailOperationType';
 import type { OperationTask } from './operationTask';
 
 export interface OperationDetail {
@@ -13,6 +14,8 @@ export interface OperationDetail {
   /** @nullable */
   quotationId?: number | null;
   sourceType?: string;
+  /** @nullable */
+  operationType?: OperationDetailOperationType;
   /** @nullable */
   sourceQuoteId?: number | null;
   /** @nullable */

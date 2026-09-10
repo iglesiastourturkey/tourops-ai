@@ -9,6 +9,7 @@ import {
   historicalImportTransitionBlock,
   verifyStagedPayloadIntegrity,
 } from "./lib/historical-migration-promote-validation";
+import { operationTypeFromHistoricalSourceKind } from "./lib/operation-domain";
 import type { HistoricalStagingRecord } from "./lib/historical-migration-stage-validation";
 
 const CONFIRMATION = "TOURPILOT_2026_HISTORICAL_PROMOTION";
@@ -353,10 +354,15 @@ async function promoteOne(
       let reservationId = existingReservationId;
       let bookingPartyId = existingBookingPartyId;
       if (outcome === "inserted") {
+        const operationType = operationTypeFromHistoricalSourceKind(payload.provenance.sourceKind);
+        if (operationType === null) {
+          throw new PromotionRollback("conflict", "Historical sourceKind operation type olarak siniflandirilamadi");
+        }
         // 6. Create operation (customerId/master-data FKs left NULL by design).
         const [created] = await tx.insert(operationsTable).values({
           sourceHistoricalKey: target.operation.sourceHistoricalKey,
           sourceType: target.operation.sourceType,
+          operationType,
           sourceBookingReference: target.operation.sourceBookingReference,
           startDate: target.operation.startDate,
           endDate: target.operation.endDate,

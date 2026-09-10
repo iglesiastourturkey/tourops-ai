@@ -30,6 +30,7 @@
     "test:historical-customer-link": "node scripts/historical-customer-link-focused-tests.mjs",
     "test:historical-pickup-time-correction": "node scripts/historical-pickup-time-correction-focused-tests.mjs",
     "test:historical-exact-recovery-correction": "node scripts/historical-exact-recovery-correction-focused-tests.mjs",
+    "test:phase3h2-domain": "node scripts/phase3h2-domain-focused-tests.mjs",
     "test:historical-remediation": "node scripts/historical-remediation-focused-tests.mjs",
     "test:historical-remediation-mutation": "node scripts/historical-remediation-mutation-focused-tests.mjs",
     "test:historical-remediation-ui-phase3e3": "node scripts/historical-remediation-ui-phase3e3-focused-tests.mjs",

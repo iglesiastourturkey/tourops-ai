@@ -19,7 +19,7 @@ interface Party {
 }
 interface Detail {
   operation: { id: number; status: string; startDate: string | null; endDate: string | null;
-    pickupTime: string | null; notes: string | null; sourceType: string | null;
+    operationType: 'CRUISE' | 'SEJOUR' | null; pickupTime: string | null; notes: string | null; sourceType: string | null;
     guideName: string | null; guidePhone: string | null; driverName: string | null; driverPhone: string | null;
     vehiclePlate: string | null; createdAt: string; updatedAt: string };
   context: Record<string, Value>;
@@ -81,16 +81,19 @@ export function OperationDomainWorkspace({ operationId, surface = 'operations' }
   const { operation: op, context: c, reservations, summary, legacy, history } = data;
   const languages = [...new Set(reservations.map(r => r.bookingParty?.passengerLanguage).filter(Boolean))].join(', ');
   const pickups = [...new Set(reservations.map(r => r.bookingParty?.pickupPoint).filter(Boolean))].join(' / ');
+  const cruiseFields: [string, Value | undefined][] = op.operationType === 'SEJOUR' ? [] : [
+    ['Gemi', c.shipName ?? c.tourShipName], ['Liman', c.portName ?? c.tourPortName],
+    ['Cruise', c.cruiseLine], ['Gemi varış', [c.arrivalDate, c.arrivalTime ?? c.tourArrivalTime].filter(Boolean).join(' ')],
+    ['Gemi kalkış', [c.departureDate, c.departureTime ?? c.tourDepartureTime].filter(Boolean).join(' ')],
+  ];
   return <section aria-label="Operasyon ve rezervasyon çalışma alanı" className="min-w-0 max-w-full space-y-4 mb-5 break-words">
     <div className="border rounded-lg bg-card p-4 space-y-3">
-      <div className="flex flex-wrap justify-between gap-2"><h2 className="font-semibold">{c.programName ?? c.tourName ?? `OP-${op.id}`}</h2><span className="text-sm">Operasyon: {OPERATION_STATUS_LABELS[op.status] ?? op.status}</span></div>
+      <div className="flex flex-wrap justify-between gap-2"><h2 className="font-semibold">{c.programName ?? c.tourName ?? `OP-${op.id}`}</h2><span className="text-sm">{op.operationType === 'CRUISE' ? 'Cruise' : op.operationType === 'SEJOUR' ? 'Sejour' : 'Tür belirlenmemiş'} · Operasyon: {OPERATION_STATUS_LABELS[op.status] ?? op.status}</span></div>
       {summary.incompleteReservationCount > 0 && <p role="status" className="text-sm text-amber-700">{summary.incompleteReservationCount} rezervasyonda yolcu sayısı eksik. Toplam PAX belirlenemiyor.</p>}
       <Fields entries={[
         ['Tarih', op.startDate], ['Bitiş', op.endDate], ['Alış saati', op.pickupTime],
         ['Toplam PAX', summary.totalPax ?? 'Belirlenemiyor'], ['Rezervasyon sayısı', summary.reservationCount],
-        ['Alış noktaları', pickups], ['Diller', languages], ['Gemi', c.shipName ?? c.tourShipName], ['Liman', c.portName ?? c.tourPortName],
-        ['Cruise', c.cruiseLine], ['Gemi varış', [c.arrivalDate, c.arrivalTime ?? c.tourArrivalTime].filter(Boolean).join(' ')],
-        ['Gemi kalkış', [c.departureDate, c.departureTime ?? c.tourDepartureTime].filter(Boolean).join(' ')],
+        ['Alış noktaları', pickups], ['Diller', languages], ...cruiseFields,
         ['Rehber', assignmentStateLabel(c.guideResourceName, op.guideName)], ['Rehber telefon', op.guidePhone ?? c.guideResourcePhone],
         ['Sürücü', assignmentStateLabel(c.driverResourceName, op.driverName)], ['Sürücü telefon', op.driverPhone ?? c.driverResourcePhone],
         ['Araç', op.vehiclePlate ?? c.vehiclePlate], ['Araç tipi / kapasite', [c.vehicleType, c.vehicleCapacity].filter(v => v != null).join(' / ')],
