@@ -707,6 +707,7 @@ The September pilot is ready when the team can complete real operational scenari
 > Automatically generated from recent commits on `main`. Keep product overview, architecture and roadmap sections curated by humans.
 
 ### Features
+- add idempotent guard migration for historical promoted-hash check — `477e722` (2026-09-10)
 - add controlled exact-recovery correction CLI — `802b4f9` (2026-09-09)
 - add staging db execution adapter — `e954ff3` (2026-09-09)
 - add staging execution approval foundation — `f04da17` (2026-09-09)
@@ -715,11 +716,12 @@ The September pilot is ready when the team can complete real operational scenari
 - add personnel management UI — `9381344` (2026-09-08)
 - add canonical resource identity foundation — `56483d6` (2026-09-07)
 - add controlled approval handoff — `0dc1ead` (2026-09-07)
-- add review readiness signal — `2dba624` (2026-09-07)
-- add controlled remediation UI — `a848619` (2026-09-07)
 
 ### Fixes
 - refresh approved staging plan digest — `e30e505` (2026-09-09)
+
+### Tests
+- scope 2D.2 migration guard to its own phase + allowlist 0026 — `ed1a3c9` (2026-09-10)
 
 ### Documentation
 - restore README badges, license and project signature — `87f85e3` (2026-09-10)
