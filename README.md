@@ -3,7 +3,28 @@
 **Travel agency operations management — from customer inquiry to accounting close.**
 
 > **Current target:** September 2026 pilot release  
-> **Status:** Active development — the core reservation and operation foundations are working and the platform is being stabilized for real field and operations testing.
+> **Status:** Active development — core reservation and operation foundations are working and the platform is being stabilized for real field and operations testing.
+
+<p align="center">
+  <img src="docs/screenshots/logo.png" alt="TourPilot" width="120" />
+</p>
+
+<p align="center">
+  <img alt="React" src="https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white&style=flat-square" />
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white&style=flat-square" />
+  <img alt="Vite" src="https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white&style=flat-square" />
+  <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white&style=flat-square" />
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-24-339933?logo=node.js&logoColor=white&style=flat-square" />
+  <img alt="Express" src="https://img.shields.io/badge/Express-5-000000?logo=express&logoColor=white&style=flat-square" />
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white&style=flat-square" />
+  <img alt="Drizzle ORM" src="https://img.shields.io/badge/Drizzle_ORM-latest-C5F74F?logo=drizzle&logoColor=black&style=flat-square" />
+  <img alt="Clerk" src="https://img.shields.io/badge/Clerk-Auth-6C47FF?logo=clerk&logoColor=white&style=flat-square" />
+  <img alt="OpenAPI" src="https://img.shields.io/badge/OpenAPI-Contract-6BA539?logo=openapiinitiative&logoColor=white&style=flat-square" />
+  <img alt="pnpm" src="https://img.shields.io/badge/pnpm-Workspace-F69220?logo=pnpm&logoColor=white&style=flat-square" />
+  <img alt="Render" src="https://img.shields.io/badge/Render-Deployment-46E3B7?logo=render&logoColor=black&style=flat-square" />
+  <img alt="AI" src="https://img.shields.io/badge/AI-Operations_Assistance-F97316?style=flat-square" />
+  <img alt="OCR" src="https://img.shields.io/badge/OCR-Document_Reader-10B981?style=flat-square" />
+</p>
 
 TourPilot is a full-stack, role-aware travel agency operations platform. It is designed to consolidate the end-to-end agency lifecycle — CRM, requests, quotations, reservations, tour planning, guide and driver assignment, field operations, cruise workflows, documents, accounting, reporting, audit and future AI-assisted execution — into one operational system of record.
 
@@ -335,16 +356,7 @@ The cruise foundation is intended to support future schedule imports, port-day c
 
 Guide, driver and personnel identity are being moved toward reusable canonical operational master data rather than free-text values copied independently into reservations and operations.
 
-The long-term objective is consistent identity across:
-
-- reservation imports;
-- operation assignments;
-- field views;
-- guide views;
-- mobile views;
-- performance records;
-- accounting relationships where relevant;
-- future recommendation models.
+The long-term objective is consistent identity across reservation imports, operation assignments, field views, guide views, mobile views, performance records, accounting relationships where relevant and future recommendation models.
 
 This also reduces ambiguity when historical spreadsheets use spelling variations or shortened names.
 
@@ -358,25 +370,15 @@ Operation detail is being refactored toward a canonical reservation / operation 
 
 Admin, operations, guide and field users may see different information and controls, but they should not maintain competing copies of the same operation state.
 
-This is important for assignment changes, status updates, passenger information, timing, notes and future AI actions.
-
 ---
 
 ## Accounting Module
 
 TourPilot includes a structured accounting foundation tied to the operational lifecycle.
 
-### Transactions
+Accounting covers transactions, receipts, operation-linked records, accounting documents, review workflows, PDF reports, Excel exports and document ZIP archives.
 
-Users can record income and expense transactions with metadata such as amount, currency, category, date, linked customer or supplier, description and document relationships.
-
-### Receipts
-
-Receipts can be associated with operations and accounting records. The document/OCR workflow is intended to reduce manual entry while keeping the human-controlled accounting record authoritative.
-
-### Document Review
-
-Accounting documents can move through controlled review states such as:
+Document review states can include:
 
 ```text
 pending → approved | rejected | needs_info
@@ -384,35 +386,19 @@ pending → approved | rejected | needs_info
 
 Review actions should retain reviewer identity, timestamps and explanatory notes where appropriate.
 
-### Reports & Exports
-
-The platform supports or is structured around:
-
-- quotation PDFs;
-- operation summaries;
-- accounting PDF reports;
-- Excel exports;
-- document ZIP archives.
-
-Agency information from settings can be reused in generated business documents.
-
 ---
 
 ## AI Features — Existing Foundation
 
-TourPilot already contains AI-assisted concepts such as accounting summaries and OCR/document extraction. These capabilities are deliberately treated as assistance around deterministic application logic rather than as unrestricted autonomous control.
+TourPilot already contains AI-assisted concepts such as accounting summaries and OCR/document extraction. These capabilities are deliberately treated as assistance around deterministic application logic rather than unrestricted autonomous control.
 
 AI integrations should fail safely. The operational platform must continue functioning when an external model is unavailable.
-
-Where model fallback chains are used, model selection and timeout budgets are configuration rather than hard-coded business logic.
 
 ---
 
 ## AI Strategy — Phase 0: AI-Ready Foundation
 
 TourPilot will eventually support a controlled **AI Operations Agent**, not only a passive observer.
-
-The long-term positioning is:
 
 ```text
 ML models        → prediction / scoring
@@ -432,18 +418,7 @@ L2 — Act with approval
 L3 — Autonomous low-risk action
 ```
 
-Examples:
-
-- detect missing guide → Observe / Recommend
-- recommend guide → Recommend
-- assign guide → Approval required initially
-- create low-risk internal task → potentially Autonomous
-- change financial record → Human-controlled
-- delete reservation → Human-controlled / restricted
-
-### AI Action Registry
-
-Future AI actions must go through explicit application actions such as:
+Future AI actions must go through explicit TourPilot application actions, for example:
 
 ```text
 reservation.createDraft
@@ -457,14 +432,7 @@ driver.assign
 notification.send
 ```
 
-Each action should define:
-
-- required permission;
-- risk level;
-- approval requirement;
-- idempotency behavior;
-- audit requirement;
-- allowed input schema.
+Each action should define required permission, risk level, approval requirement, idempotency behavior, audit requirement and allowed input schema.
 
 ### Event / training data foundation
 
@@ -483,30 +451,9 @@ reservation.cancelled
 customer.complaint
 ```
 
-Where useful, event data should include actor, timestamp, source, previous value, new value, reason and operation / reservation reference.
-
-### Training signals to preserve
-
-Future models may need signals such as:
-
-- guide assignment success;
-- operation delay minutes;
-- customer complaint;
-- guide / driver no-show;
-- pickup delay;
-- tour duration;
-- passenger count;
-- cruise ship;
-- tour type;
-- language;
-- assignment changes;
-- human override reason.
-
 The immediate goal is **to preserve good data**, not to delay the September pilot by training a custom model now.
 
 ### Explicitly outside AI Phase 0
-
-Unless technically required for the core platform, the following remain post-launch work:
 
 - custom model training;
 - GPU infrastructure;
@@ -522,9 +469,7 @@ Unless technically required for the core platform, the following remain post-lau
 
 ## Future AI / ML Models
 
-Once enough clean real-world operational data exists, TourPilot can add focused models instead of trying to solve every problem with one general model.
-
-Potential models include:
+Potential focused models include:
 
 - Guide Match Score
 - Driver / Vehicle Recommendation
@@ -537,22 +482,6 @@ Potential models include:
 
 Structured operational problems may initially be better suited to tabular models such as LightGBM or XGBoost than to a large language model.
 
-Example future flow:
-
-```text
-Operation
-   ↓
-Guide Match Model
-   ↓
-Candidate scores
-   ↓
-AI Operations Agent
-   ↓
-TourPilot Action API
-   ↓
-RBAC + validation + approval + audit
-```
-
 ---
 
 ## Security
@@ -561,13 +490,9 @@ RBAC + validation + approval + audit
 
 TourPilot uses Clerk for authentication. Protected API requests use authenticated session/JWT context.
 
-### Authorization
+### Authorization & RBAC
 
-Authorization is enforced server-side. UI visibility is useful for user experience but is not considered a security boundary.
-
-### RBAC
-
-Role and permission checks protect operational, administrative and accounting actions. Super-admin or equivalent high-privilege behavior must remain explicit and auditable.
+Authorization is enforced server-side. UI visibility is useful for user experience but is not considered a security boundary. Role and permission checks protect operational, administrative and accounting actions.
 
 ### Data Isolation
 
@@ -579,7 +504,7 @@ Sensitive documents should remain private-by-default and be delivered only after
 
 ### AI Safety Boundary
 
-AI does not receive authority simply because a model can produce an answer. AI-triggered mutations must travel through the same domain services, permissions, validation, approval and audit boundaries as human-triggered mutations.
+AI-triggered mutations must travel through the same domain services, permissions, validation, approval and audit boundaries as human-triggered mutations.
 
 ---
 
@@ -607,6 +532,7 @@ AI does not receive authority simply because a model can produce an answer. AI-t
 | Storage | Private object storage | Documents and attachments |
 | Logging | pino / structured logging | Observability |
 | Monorepo | pnpm workspaces | Shared frontend/backend libraries |
+| Deployment | Render | Application hosting / staging |
 
 The technical stack may evolve. Domain integrity, security, idempotency and audit rules take precedence over any individual framework.
 
@@ -645,8 +571,6 @@ tourops-ai/
 └── README.md
 ```
 
-The repository continues to gain domain-specific modules as reservations, imports, personnel and operation detail are normalized.
-
 ---
 
 ## Installation
@@ -659,36 +583,18 @@ The repository continues to gain domain-specific modules as reservations, import
 - Clerk application credentials
 - Optional AI provider credentials for AI-assisted features
 
-### Clone
+### Clone & install
 
 ```bash
 git clone https://github.com/iglesiastourturkey/tourops-ai.git
 cd tourops-ai
-```
-
-### Install dependencies
-
-```bash
 pnpm install
-```
-
-### Environment configuration
-
-```bash
 cp .env.example .env
 ```
 
-Populate the environment-specific values locally or through the deployment platform. Never commit production secrets.
-
-### Development
-
-Use the package scripts defined in the repository for the frontend, API, type checks and builds. Because the repository is a pnpm workspace, commands should be run against the relevant workspace package rather than duplicating dependency installations inside individual artifacts.
-
-### Database changes
+Populate environment-specific values locally or through the deployment platform. Never commit production secrets.
 
 Database changes must be handled through reviewed migrations. Historical and bulk-import migrations must be proven on staging before production.
-
-Do not use destructive shortcuts against production data to make a local schema mismatch disappear.
 
 ---
 
@@ -702,33 +608,13 @@ Current staging deployment:
 https://tourops-ai-staging.onrender.com
 ```
 
-Current deployment direction uses Render for the application service and managed PostgreSQL infrastructure for persistent data.
-
-Deployment principles:
-
-- staging before production;
-- environment-specific secrets;
-- health checks;
-- migration verification;
-- bulk-operation proof before production;
-- rollback/recovery planning for high-risk changes;
-- no silent schema mutation.
+Deployment principles include staging before production, environment-specific secrets, health checks, migration verification, bulk-operation proof, recovery planning and no silent schema mutation.
 
 ---
 
 ## Repository / Branch Strategy
 
 Major changes are developed through focused branches rather than mixing unrelated work into one long-running branch.
-
-Examples of workstreams include:
-
-- cruise master data;
-- historical migration / remediation;
-- canonical operation assignments;
-- personnel identity and management;
-- operation-detail reservation domain;
-- AI-efficiency orchestration;
-- engineering quality / Kaizen gates.
 
 Before merging a phase:
 
@@ -750,8 +636,6 @@ chore/short-description
 
 ### Commit style
 
-Conventional Commit-style messages are preferred, for example:
-
 ```text
 feat(accounting): add document export
 fix(auth): enforce server-side permission check
@@ -762,27 +646,13 @@ docs: update TourPilot roadmap
 
 ## Development Quality Gates
 
-Before a significant change is considered complete, verify the relevant subset of:
-
-- frontend typecheck;
-- backend typecheck;
-- production build;
-- automated tests;
-- API contract consistency;
-- migration safety;
-- role/permission isolation;
-- duplicate/replay behavior;
-- staging acceptance;
-- no committed secrets;
-- documentation update when behavior or architecture changes.
+Before a significant change is considered complete, verify the relevant subset of frontend/backend typechecks, production build, automated tests, API contract consistency, migration safety, role/permission isolation, duplicate/replay behavior, staging acceptance, secret safety and documentation consistency.
 
 New AI features must include safe failure behavior and must not make core operations dependent on model availability unless explicitly designed that way.
 
 ---
 
 ## Current Development Direction — September 2026
-
-The active workstream is focused on closing the complete real-world operation loop.
 
 Priority order for the September pilot:
 
@@ -801,8 +671,6 @@ Nice-to-have features must not displace these priorities before the pilot.
 
 ## September Scope Rule
 
-New ideas are classified into four buckets until the pilot:
-
 | Classification | Meaning |
 |---|---|
 | **NOW / SEPTEMBER** | Required for the real pilot or to prevent operational failure |
@@ -810,37 +678,25 @@ New ideas are classified into four buckets until the pilot:
 | **POST-LAUNCH** | Valuable, but not necessary for the September pilot |
 | **BACKLOG** | Future improvement, experiment or convenience feature |
 
-A new idea enters the September scope only if at least one of the following is true:
-
-1. Without it, a real operation cannot be completed safely.
-2. Its absence creates material data-loss, security or operational-risk exposure.
-3. Deferring it would force a major architectural rewrite later.
-
-Otherwise it goes to POST-LAUNCH or BACKLOG.
-
-This rule exists to prevent continuous phase redesign and scope creep.
+A new idea enters the September scope only if it is required for a real operation to complete safely, prevents material data/security/operational risk, or avoiding it now would force a major architectural rewrite later.
 
 ---
 
 ## Pilot Definition of Done
 
-The September pilot is ready when the team can complete real operational scenarios end to end with acceptable reliability.
+The September pilot is ready when the team can complete real operational scenarios end to end with acceptable reliability:
 
-Minimum definition of done:
-
-- reservation can be created or imported safely;
+- reservations can be created or imported safely;
 - duplicates are controlled;
-- reservation becomes an operation correctly;
+- reservations become operations correctly;
 - guide / driver / personnel can be assigned from canonical data;
 - operation details are consistent across relevant roles;
-- field / guide users see the correct scoped operation data;
+- field / guide users see correctly scoped data;
 - calendar and operations center show reliable operational state;
 - critical changes are protected by permissions and auditability;
 - historical import does not corrupt current operations;
 - staging proves migrations and bulk changes before production;
 - failures are visible and recoverable rather than silent.
-
-Features outside this list do not automatically block the September pilot.
 
 ---
 
@@ -889,43 +745,23 @@ Features outside this list do not automatically block the September pilot.
 
 ---
 
-## Next Planning Checkpoint
-
-The next planning checkpoint combines this README with current implementation reports and test results to produce a locked **TourPilot Master Plan v1**.
-
-The Master Plan should define:
-
-- remaining September phases;
-- exact acceptance criteria for each phase;
-- dependency order;
-- what is frozen until after pilot;
-- migration / staging checkpoints;
-- pilot test scenarios;
-- AI Phase 0 tasks that are safe to include without delaying core delivery.
-
-After that checkpoint, new ideas should be classified rather than causing the main phase plan to be recreated.
-
----
-
 ## Contributing
 
 TourPilot is under active development. Contributors should preserve the platform's domain and safety guarantees rather than optimizing only for short-term code completion.
 
-Before opening or merging a change:
-
-- keep changes scoped;
-- avoid unrelated refactors in the same phase;
-- preserve backwards compatibility where practical;
-- do not introduce destructive migrations casually;
-- keep protected behavior server-authorized;
-- add or update validation and tests for changed business rules;
-- update this README when a major module, workflow, environment requirement or architectural rule changes.
+Before opening or merging a change, keep changes scoped, avoid unrelated refactors, preserve backwards compatibility where practical, do not introduce destructive migrations casually, keep protected behavior server-authorized, update validation/tests for changed business rules and update this README when architecture or workflows change.
 
 ---
 
 ## License
 
-All rights reserved. Unauthorized copying, distribution or use of the software is prohibited unless explicitly permitted by the repository owner.
+**Proprietary Software — All Rights Reserved.**
+
+Copyright © 2026 TourPilot / Iglesias Tour Turkey.
+
+This repository and its source code are proprietary. Unauthorized copying, modification, distribution, publication, sublicensing, commercial use or reuse of this software, in whole or in part, is prohibited unless explicit written permission has been granted by the repository owner.
+
+Access to the source code does not grant a license to use, reproduce or distribute the software.
 
 ---
 
@@ -934,3 +770,12 @@ All rights reserved. Unauthorized copying, distribution or use of the software i
 > **Ship a reliable operational core first. Preserve the data and architecture needed for intelligence. Add autonomy only after TourPilot can safely control it.**
 
 TourPilot should become a system the operations team can trust first, a system management can learn from second, and an intelligent execution platform third.
+
+---
+
+<p align="center">
+  <strong>TourPilot</strong><br />
+  Built for modern travel agency operations.<br /><br />
+  <strong>Designed & Developed by Mehmet Cam</strong><br />
+  Iglesias Tour Turkey · 2026
+</p>
