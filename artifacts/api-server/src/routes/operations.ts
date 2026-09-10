@@ -1,5 +1,6 @@
 import { operationDetailRead } from "../lib/operation-detail-read";
 import { dailyOperationsRead } from "../lib/daily-operations-read";
+import { operationDomainListRead } from "../lib/operation-domain-read";
 import { Router } from "express";
 import { getAuth } from "@clerk/express";
 import { db } from "@workspace/db";
@@ -96,6 +97,7 @@ router.post("/", requirePermission("operations", "create"), async (req, res) => 
 // same single-segment shape, matched in registration order, so this must
 // come first or "daily" would be parsed as an operation id (NaN) instead.
 router.get("/daily", requirePermission("operations", "view"), dailyOperationsRead);
+router.get("/domain/:operationType", requirePermission("operations", "view"), operationDomainListRead);
 
 router.get("/:id", requirePermission("operations", "view"), async (req, res) => {
   try {

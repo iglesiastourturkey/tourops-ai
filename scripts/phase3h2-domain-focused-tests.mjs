@@ -10,4 +10,10 @@ assert.match(migration, /operation_type IS NULL OR operation_type IN \('CRUISE',
 const ui = readFileSync('artifacts/tourops-ai/src/components/OperationDomainWorkspace.tsx', 'utf8');
 assert.match(ui, /op\.operationType === 'SEJOUR' \? \[\] :/);
 assert.match(ui, /\.\.\.cruiseFields/);
+const app = readFileSync('artifacts/tourops-ai/src/App.tsx', 'utf8');
+assert.match(app, /\/operations\/gemi/);
+assert.match(app, /\/operations\/sejour/);
+const nav = readFileSync('artifacts/tourops-ai/src/components/AppShell.tsx', 'utf8');
+assert.match(nav, /Gemi Operasyonları/);
+assert.match(nav, /Sejour Operasyonları/);
 console.log('phase3h2 focused tests: ok');

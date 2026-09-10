@@ -31,7 +31,7 @@ interface DailyOperation {
   sequence: number;
   operation: {
     id: number; status: string; startDate: string | null; endDate: string | null;
-    pickupTime: string | null; notes: string | null;
+    operationType: 'CRUISE' | 'SEJOUR' | null; pickupTime: string | null; notes: string | null;
   };
   context: {
     tourName: string | null; programName: string | null; programCode: string | null;
@@ -59,6 +59,9 @@ interface DailyBoard {
 }
 
 const missing = 'Belirtilmemiş';
+const domainDetailHref = (operation: DailyOperation['operation']) => operation.operationType === 'CRUISE'
+  ? `/operations/gemi/${operation.id}` : operation.operationType === 'SEJOUR'
+    ? `/operations/sejour/${operation.id}` : `/operations/${operation.id}`;
 
 const WARNING_LABELS: Record<string, string> = {
   missing_guide: 'Rehber atanmadı',
@@ -147,10 +150,10 @@ function OperationCard({ op }: { op: DailyOperation }) {
             {OPERATION_STATUS_LABELS[operation.status] ?? operation.status}
           </span>
           <Link
-            href={`/operations/${operation.id}`}
+            href={domainDetailHref(operation)}
             className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 focus-visible:outline"
           >
-            Detay
+            {operation.operationType === 'CRUISE' ? 'GEMİ' : operation.operationType === 'SEJOUR' ? 'SEJOUR' : 'Tür belirlenmemiş'} · Detay
           </Link>
         </div>
       </div>
