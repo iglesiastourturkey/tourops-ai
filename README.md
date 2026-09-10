@@ -700,6 +700,44 @@ The September pilot is ready when the team can complete real operational scenari
 
 ---
 
+<!-- RECENT_DEVELOPMENTS:START -->
+
+## Recent Developments
+
+> Automatically generated from recent commits on `main`. Keep product overview, architecture and roadmap sections curated by humans.
+
+### Features
+- add controlled exact-recovery correction CLI — `802b4f9` (2026-09-09)
+- add staging db execution adapter — `e954ff3` (2026-09-09)
+- add staging execution approval foundation — `f04da17` (2026-09-09)
+- add master import dry-run foundation — `12a7a48` (2026-09-09)
+- add canonical personnel assignment — `1f64b4a` (2026-09-08)
+- add personnel management UI — `9381344` (2026-09-08)
+- add canonical resource identity foundation — `56483d6` (2026-09-07)
+- add controlled approval handoff — `0dc1ead` (2026-09-07)
+- add review readiness signal — `2dba624` (2026-09-07)
+- add controlled remediation UI — `a848619` (2026-09-07)
+
+### Fixes
+- refresh approved staging plan digest — `e30e505` (2026-09-09)
+
+### Documentation
+- restore README badges, license and project signature — `87f85e3` (2026-09-10)
+- restore comprehensive README and layer current roadmap updates — `64c9391` (2026-09-10)
+- refresh TourPilot status and AI-ready roadmap — `79ba65b` (2026-09-10)
+
+### Build & CI
+- automate TourPilot README development updates — `ecccd68` (2026-09-10)
+
+### Maintenance
+- add automatic README development log generator — `be03336` (2026-09-10)
+- add AI efficiency and agent orchestration standard (#54) — `2fc9ec8` (2026-09-09)
+- establish long-term engineering quality standard — `7b96484` (2026-09-08)
+
+<!-- RECENT_DEVELOPMENTS:END -->
+
+---
+
 ## Roadmap
 
 ### Existing / Established Foundations
