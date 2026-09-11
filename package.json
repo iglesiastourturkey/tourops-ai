@@ -29,6 +29,7 @@
     "test:historical-pending-inspect": "node scripts/historical-pending-inspect-focused-tests.mjs",
     "test:historical-customer-link": "node scripts/historical-customer-link-focused-tests.mjs",
     "test:historical-pickup-time-correction": "node scripts/historical-pickup-time-correction-focused-tests.mjs",
+    "test:historical-pickup-time-correction-production": "node scripts/historical-pickup-time-correction-production-focused-tests.mjs",
     "test:historical-exact-recovery-correction": "node scripts/historical-exact-recovery-correction-focused-tests.mjs",
     "test:phase3h2-domain": "node scripts/phase3h2-domain-focused-tests.mjs",
     "test:phase3h2-operation-subdomain-split": "node scripts/phase3h2-operation-subdomain-split-focused-tests.mjs",

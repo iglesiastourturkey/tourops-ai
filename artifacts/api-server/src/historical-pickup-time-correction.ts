@@ -98,7 +98,7 @@ export function parseHistoricalPickupTimeCorrectionArgs(args: string[]): Histori
   return { inputPath, sourceKeys, limit, apply, operatorProfileId };
 }
 
-function selectedCandidates(
+export function selectedCandidates(
   correctionPackage: HistoricalPickupTimeCorrectionPackage,
   args: HistoricalPickupTimeCorrectionArgs,
 ): HistoricalPickupTimeCorrectionCandidate[] {
@@ -142,7 +142,7 @@ async function loadStates(sourceKeys: string[], lock = false) {
   };
 }
 
-async function planHistoricalPickupTimeCorrection(candidates: HistoricalPickupTimeCorrectionCandidate[]) {
+export async function planHistoricalPickupTimeCorrection(candidates: HistoricalPickupTimeCorrectionCandidate[]) {
   const states = await loadStates(candidates.map(candidate => candidate.sourceKey));
   const assessments = candidates.map(candidate => assessHistoricalPickupTimeCorrection({
     candidate,
@@ -228,9 +228,9 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
         status: historicalOperationImportsTable.status,
         payload: historicalOperationImportsTable.payload,
         payloadSha256: historicalOperationImportsTable.payloadSha256,
-        importedOperationId: historicalOperationImportsTable.importedOperationId,
-        promotedContentSha256: historicalOperationImportsTable.promotedContentSha256,
         approvalVersion: historicalOperationImportsTable.approvalVersion,
+          importedOperationId: historicalOperationImportsTable.importedOperationId,
+          promotedContentSha256: historicalOperationImportsTable.promotedContentSha256,
       }).from(historicalOperationImportsTable).where(eq(historicalOperationImportsTable.sourceKey, candidate.sourceKey)).for("update");
       if (!row) return "blocked";
       const operationQuery = row.importedOperationId === null ? null : tx.select({
@@ -273,6 +273,13 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
         newOperationVersion = changedOperation[0].version;
       }
 
+      // The remediation/approval flows CAS on approvalVersion, so a pickup
+      // correction must CAS + increment it too; otherwise a concurrent
+      // remediation could silently overwrite this correction (or vice versa).
+      // A version mismatch fails closed as a conflict.
+      if (!Number.isInteger(row.approvalVersion) || row.approvalVersion < 1) {
+        throw new CorrectionRollback("conflict", "Historical import surum bilgisi kilitli satirdan okunamadi");
+      }
       const importCas = assessment.classification === "eligible_imported"
         ? and(
           eq(historicalOperationImportsTable.id, assessment.historicalImportId as number),
@@ -332,7 +339,7 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
   }
 }
 
-async function applyHistoricalPickupTimeCorrection(candidates: HistoricalPickupTimeCorrectionCandidate[], actorProfileId: number) {
+export async function applyHistoricalPickupTimeCorrection(candidates: HistoricalPickupTimeCorrectionCandidate[], actorProfileId: number) {
   const outcomes: PickupTimeCorrectionApplyOutcome[] = [];
   for (const candidate of candidates) {
     outcomes.push(await applyOne(candidate, actorProfileId));

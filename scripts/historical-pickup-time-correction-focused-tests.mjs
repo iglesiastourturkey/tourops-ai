@@ -41,7 +41,11 @@ assert.doesNotMatch(CLI, /pg_advisory_xact_lock\(2026, [345]\)/);
 
 assert.match(CLI, /\.for\("update"\)/);
 assert.match(CLI, /eq\(operationsTable\.pickupTime, candidate\.oldPickupTime\)/);
-assert.match(CLI, /\.set\(\{ pickupTime: candidate\.newPickupTime, version: sql`\$\{operationsTable\.version\} \+ 1`/);
+assert.match(
+  CLI,
+  /\.set\(\{ pickupTime: candidate\.newPickupTime, version: sql`\$\{operationsTable\.version\} \+ 1`/,
+);
+
 assert.doesNotMatch(CLI, /customersTable|insert\(customers|update\(customers|delete\(customers/);
 assert.match(CLI, /eventType: "historical_pickup_time_corrected"[\s\S]*?\}, tx\)/);
 
