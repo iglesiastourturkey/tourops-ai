@@ -707,6 +707,7 @@ The September pilot is ready when the team can complete real operational scenari
 > Automatically generated from recent commits on `main`. Keep product overview, architecture and roadmap sections curated by humans.
 
 ### Features
+- add production-safe historical pickup correction runner — `6f78275` (2026-09-11)
 - split cruise and sejour operation subdomains end to end — `e2788f1` (2026-09-10)
 - split cruise and sejour operation experiences — `a35ef5a` (2026-09-10)
 - add historical operation domain correction foundation — `c129d4e` (2026-09-10)
@@ -733,8 +734,6 @@ The September pilot is ready when the team can complete real operational scenari
 
 ### Maintenance
 - add automatic README development log generator — `be03336` (2026-09-10)
-- add AI efficiency and agent orchestration standard (#54) — `2fc9ec8` (2026-09-09)
-- establish long-term engineering quality standard — `7b96484` (2026-09-08)
 
 <!-- RECENT_DEVELOPMENTS:END -->
 
