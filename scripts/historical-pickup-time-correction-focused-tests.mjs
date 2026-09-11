@@ -41,9 +41,27 @@ assert.doesNotMatch(CLI, /pg_advisory_xact_lock\(2026, [345]\)/);
 
 assert.match(CLI, /\.for\("update"\)/);
 assert.match(CLI, /eq\(operationsTable\.pickupTime, candidate\.oldPickupTime\)/);
-assert.match(CLI, /\.set\(\{ pickupTime: candidate\.newPickupTime \}\)/);
+assert.match(CLI, /\.set\(\{ pickupTime: candidate\.newPickupTime, version: sql`\$\{operationsTable\.version\} \+ 1`/);
 assert.doesNotMatch(CLI, /customersTable|insert\(customers|update\(customers|delete\(customers/);
 assert.match(CLI, /eventType: "historical_pickup_time_corrected"[\s\S]*?\}, tx\)/);
+
+// ─── operations.version and approvalVersion are the established CAS/audit ───
+// tokens elsewhere in the codebase (routes/field.ts, historical-remediation-
+// mutation.ts) - this correction must not be a silently version-invisible
+// write on either row.
+assert.match(CLI, /eq\(operationsTable\.version, operationVersion\)/, "canonical operation update must CAS on operations.version");
+assert.match(CLI, /eq\(historicalOperationImportsTable\.approvalVersion, row\.approvalVersion\)/, "historical import update must CAS on approvalVersion");
+assert.match(CLI, /approvalVersion: sql`\$\{historicalOperationImportsTable\.approvalVersion\} \+ 1`/, "historical import update must increment approvalVersion");
+assert.ok(
+  (CLI.match(/eq\(historicalOperationImportsTable\.approvalVersion, row\.approvalVersion\)/g) ?? []).length === 2,
+  "approvalVersion CAS must guard both the imported and the pending update path",
+);
+assert.match(VALIDATION, /approvalVersion: number/, "HistoricalImportCorrectionState must carry approvalVersion");
+assert.match(VALIDATION, /version: number/, "ImportedOperationCorrectionState must carry version");
+assert.match(CLI, /oldApprovalVersion: row\.approvalVersion/);
+assert.match(CLI, /newApprovalVersion: changedImport\[0\]\.approvalVersion/);
+assert.match(CLI, /oldOperationVersion:/);
+assert.match(CLI, /newOperationVersion/);
 assert.match(AUDIT, /const strict = executor !== db/);
 assert.match(CLI, /classification === "already_canonical"\) return "existing"/);
 assert.match(CLI, /promotedContentSha256: assessment\.correctedPromotedContentSha256/);

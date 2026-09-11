@@ -96,12 +96,19 @@ export interface HistoricalImportCorrectionState {
   payloadSha256: string;
   importedOperationId: number | null;
   promotedContentSha256: string | null;
+  // CAS token for this row's content, same convention as
+  // historical-remediation-mutation.ts - every field correction bumps it,
+  // not only approve/reject.
+  approvalVersion: number;
 }
 
 export interface ImportedOperationCorrectionState {
   id: number;
   sourceHistoricalKey: string | null;
   pickupTime: string | null;
+  // CAS token for this operation row, same convention as routes/field.ts
+  // (status/assignment updates) - every mutation bumps it.
+  version: number;
 }
 
 export interface PickupTimeCorrectionAssessment {

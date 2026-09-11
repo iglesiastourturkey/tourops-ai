@@ -60,6 +60,7 @@ assert.throws(() => parseHistoricalPickupTimeCorrectionPackage({ ...packageInput
 const pendingRow = {
   id: 10, sourceKey, sourceFileId: "file-1", worksheetName: "01", sourceRow: 3,
   status: "pending", payload, payloadSha256: beforeHash, importedOperationId: null, promotedContentSha256: null,
+  approvalVersion: 1,
 };
 const pending = assessHistoricalPickupTimeCorrection({ candidate, historicalImport: pendingRow, operation: null });
 assert.equal(pending.classification, "eligible_pending");
@@ -70,7 +71,7 @@ assert.equal(assessHistoricalPickupTimeCorrection({ candidate, historicalImport:
 
 const oldPromoted = sha256OfProjection(buildPromotionProjectionFromStaging(sourceKey, payload));
 const importedRow = { ...pendingRow, status: "imported", importedOperationId: 77, promotedContentSha256: oldPromoted };
-const importedOperation = { id: 77, sourceHistoricalKey: sourceKey, pickupTime: old0930 };
+const importedOperation = { id: 77, sourceHistoricalKey: sourceKey, pickupTime: old0930, version: 3 };
 const imported = assessHistoricalPickupTimeCorrection({ candidate, historicalImport: importedRow, operation: importedOperation });
 assert.equal(imported.classification, "eligible_imported");
 assert.notEqual(imported.correctedPromotedContentSha256, oldPromoted, "promotion hash must follow corrected projection");
