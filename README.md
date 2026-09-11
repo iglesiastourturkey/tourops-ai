@@ -715,10 +715,9 @@ The September pilot is ready when the team can complete real operational scenari
 - add staging db execution adapter — `e954ff3` (2026-09-09)
 - add staging execution approval foundation — `f04da17` (2026-09-09)
 - add master import dry-run foundation — `12a7a48` (2026-09-09)
-- add canonical personnel assignment — `1f64b4a` (2026-09-08)
-- add personnel management UI — `9381344` (2026-09-08)
 
 ### Fixes
+- harden historical pickup normalization CAS and versioning — `75ef39d` (2026-09-11)
 - refresh approved staging plan digest — `e30e505` (2026-09-09)
 
 ### Tests
