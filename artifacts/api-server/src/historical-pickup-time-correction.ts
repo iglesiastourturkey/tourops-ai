@@ -125,6 +125,7 @@ async function loadStates(sourceKeys: string[], lock = false) {
     payloadSha256: historicalOperationImportsTable.payloadSha256,
     importedOperationId: historicalOperationImportsTable.importedOperationId,
     promotedContentSha256: historicalOperationImportsTable.promotedContentSha256,
+    approvalVersion: historicalOperationImportsTable.approvalVersion,
   }).from(historicalOperationImportsTable).where(inArray(historicalOperationImportsTable.sourceKey, sourceKeys));
   const importedRows = lock ? await importsQuery.for("update") : await importsQuery;
   const importedIds = importedRows.flatMap(row => row.importedOperationId === null ? [] : [row.importedOperationId]);
@@ -132,6 +133,7 @@ async function loadStates(sourceKeys: string[], lock = false) {
     id: operationsTable.id,
     sourceHistoricalKey: operationsTable.sourceHistoricalKey,
     pickupTime: operationsTable.pickupTime,
+    version: operationsTable.version,
   }).from(operationsTable).where(inArray(operationsTable.id, importedIds));
   const operations = operationsQuery === null ? [] : lock ? await operationsQuery.for("update") : await operationsQuery;
   return {
@@ -228,12 +230,14 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
         payloadSha256: historicalOperationImportsTable.payloadSha256,
         importedOperationId: historicalOperationImportsTable.importedOperationId,
         promotedContentSha256: historicalOperationImportsTable.promotedContentSha256,
+        approvalVersion: historicalOperationImportsTable.approvalVersion,
       }).from(historicalOperationImportsTable).where(eq(historicalOperationImportsTable.sourceKey, candidate.sourceKey)).for("update");
       if (!row) return "blocked";
       const operationQuery = row.importedOperationId === null ? null : tx.select({
         id: operationsTable.id,
         sourceHistoricalKey: operationsTable.sourceHistoricalKey,
         pickupTime: operationsTable.pickupTime,
+        version: operationsTable.version,
       }).from(operationsTable).where(eq(operationsTable.id, row.importedOperationId));
       const [operation] = operationQuery === null ? [] : await operationQuery.for("update");
       const assessment = assessHistoricalPickupTimeCorrection({
@@ -250,16 +254,23 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
         throw new Error("Correction hedef payload'i olusturulamadi");
       }
 
+      let newOperationVersion: number | null = null;
       if (assessment.classification === "eligible_imported") {
+        // operations.version is this table's established CAS/audit-visibility
+        // token (see routes/field.ts status/assignment updates) - bump it here
+        // too so a pickup correction is not a silently version-invisible write.
+        const operationVersion = (operation as ImportedOperationCorrectionState).version;
         const changedOperation = await tx.update(operationsTable)
-          .set({ pickupTime: candidate.newPickupTime })
+          .set({ pickupTime: candidate.newPickupTime, version: sql`${operationsTable.version} + 1` })
           .where(and(
             eq(operationsTable.id, assessment.operationId as number),
             eq(operationsTable.sourceHistoricalKey, candidate.sourceKey),
             eq(operationsTable.pickupTime, candidate.oldPickupTime),
+            eq(operationsTable.version, operationVersion),
           ))
-          .returning({ id: operationsTable.id });
-        if (!changedOperation[0]) throw new CorrectionRollback("conflict", "Operasyon pickup_time CAS kontrolu basarisiz");
+          .returning({ id: operationsTable.id, version: operationsTable.version });
+        if (!changedOperation[0]) throw new CorrectionRollback("conflict", "Operasyon pickup_time veya version CAS kontrolu basarisiz");
+        newOperationVersion = changedOperation[0].version;
       }
 
       const importCas = assessment.classification === "eligible_imported"
@@ -269,20 +280,26 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
           eq(historicalOperationImportsTable.status, "imported"),
           eq(historicalOperationImportsTable.payloadSha256, candidate.payloadSha256Before),
           eq(historicalOperationImportsTable.promotedContentSha256, row.promotedContentSha256 as string),
+          eq(historicalOperationImportsTable.approvalVersion, row.approvalVersion),
         )
         : and(
           eq(historicalOperationImportsTable.id, assessment.historicalImportId as number),
           eq(historicalOperationImportsTable.sourceKey, candidate.sourceKey),
           eq(historicalOperationImportsTable.status, "pending"),
           eq(historicalOperationImportsTable.payloadSha256, candidate.payloadSha256Before),
+          eq(historicalOperationImportsTable.approvalVersion, row.approvalVersion),
         );
+      // approvalVersion is this table's established CAS/audit-visibility token
+      // for any content correction (see historical-remediation-mutation.ts),
+      // not only approve/reject - bump it here for the same reason.
       const changedImport = await tx.update(historicalOperationImportsTable).set({
         payload: assessment.correctedPayload,
         payloadSha256: assessment.correctedPayloadSha256,
+        approvalVersion: sql`${historicalOperationImportsTable.approvalVersion} + 1`,
         ...(assessment.classification === "eligible_imported"
           ? { promotedContentSha256: assessment.correctedPromotedContentSha256 as string }
           : {}),
-      }).where(importCas).returning({ id: historicalOperationImportsTable.id });
+      }).where(importCas).returning({ id: historicalOperationImportsTable.id, approvalVersion: historicalOperationImportsTable.approvalVersion });
       if (!changedImport[0]) throw new CorrectionRollback("conflict", "Historical import payload CAS kontrolu basarisiz");
 
       await createAuditLog({
@@ -300,6 +317,10 @@ async function applyOne(candidate: HistoricalPickupTimeCorrectionCandidate, acto
           oldPickupTime: candidate.oldPickupTime,
           newPickupTime: candidate.newPickupTime,
           path: assessment.classification === "eligible_imported" ? "imported" : "pending",
+          oldApprovalVersion: row.approvalVersion,
+          newApprovalVersion: changedImport[0].approvalVersion,
+          oldOperationVersion: assessment.classification === "eligible_imported" ? (operation as ImportedOperationCorrectionState).version : null,
+          newOperationVersion,
         },
         description: "Historical Excel pickup-time sentinel degeri canonical HH:mm degerine duzeltildi",
       }, tx);
