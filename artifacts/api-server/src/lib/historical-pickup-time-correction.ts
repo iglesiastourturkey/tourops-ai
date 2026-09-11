@@ -290,3 +290,33 @@ export function validateHistoricalPickupTimeCorrectionTarget(env: NodeJS.Process
   }
   return connectionString;
 }
+
+/**
+ * Production-only guard for the production pickup-time correction runner.
+ * Complementary to the staging guard above: production execution REQUIRES
+ * NODE_ENV=production and a dedicated PRODUCTION_DATABASE_URL/HOST pair.
+ * It never consults HISTORICAL_STAGING_DATABASE_URL and never logs the URL.
+ */
+export function validateProductionPickupTimeCorrectionTarget(env: NodeJS.ProcessEnv = process.env): string {
+  if (env.NODE_ENV !== "production") {
+    throw new Error("Production pickup-time correction yalnizca NODE_ENV=production ile calistirilabilir");
+  }
+  const connectionString = env.PRODUCTION_DATABASE_URL;
+  const allowedHost = env.PRODUCTION_DATABASE_HOST;
+  if (!connectionString || !allowedHost) {
+    throw new Error("PRODUCTION_DATABASE_URL ve PRODUCTION_DATABASE_HOST gerekli");
+  }
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error("Production pickup-time correction baglanti URL'i gecersiz");
+  }
+  if (!new Set(["postgres:", "postgresql:"]).has(url.protocol)) {
+    throw new Error("Production pickup-time correction baglantisi PostgreSQL olmali");
+  }
+  if (url.hostname !== allowedHost || !allowedHost.endsWith(".neon.tech")) {
+    throw new Error("Production pickup-time correction host allowlist veya Neon kontrolu basarisiz");
+  }
+  return connectionString;
+}

@@ -22,6 +22,7 @@
     "historical:pending-inspect": "tsx src/historical-pending-inspect.ts",
     "historical:customer-link": "tsx src/historical-customer-link.ts",
     "historical:pickup-time-correction": "tsx src/historical-pickup-time-correction.ts",
+    "historical:pickup-time-correction:production": "tsx src/historical-pickup-time-correction-production.ts",
     "historical:exact-recovery-correction": "tsx src/historical-exact-recovery-correction.ts",
     "historical:operation-domain-backfill-plan": "tsx src/historical-operation-domain-backfill-plan.ts",
     "historical:evidence": "tsx src/historical-source-evidence-loader.ts",
