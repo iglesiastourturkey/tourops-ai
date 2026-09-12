@@ -392,3 +392,38 @@ export function assessCustomerProjection(params: {
   }
   return { ...base, classification: "SAFE_CREATE_NEW_CUSTOMER" };
 }
+
+/**
+ * Phase 3H.4B1 — narrow CREATE→REUSE downgrade for the race/sequence gap
+ * found in the 3H.4C0 rehearsal: when a CREATE record is revalidated under
+ * the held advisory lock and the identity lane already resolves to exactly
+ * one active customer, the path links to that customer (outcome `reused`)
+ * instead of reporting conflict.
+ *
+ * Pure and deliberately strict. Returns the reuse customer id only when
+ * EVERY condition below holds; otherwise null (caller keeps the assessed
+ * fail-closed outcome). In particular this NEVER downgrades:
+ * - non-CREATE records or non-conflict classifications,
+ * - already-linked reservations (replay has its own ALREADY_LINKED proof),
+ * - multi-row lanes (laneConflict) or disagreeing lanes,
+ * - null identity keys, stale versions, source mismatches, archived targets
+ *   (those classifications never reach this helper as CONFLICT_MULTIPLE
+ *   with a clean single-customer lane set, and the guards re-check anyway).
+ */
+export function resolveCreateReuseDowngrade(params: {
+  record: CustomerProjectionRecord;
+  state: ProjectionDbState;
+  classification: CustomerProjectionClassification;
+  reservationCustomerId: number | null;
+}): number | null {
+  if (params.record.action !== "CREATE") return null;
+  if (params.classification !== "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS") return null;
+  if (params.reservationCustomerId !== null) return null;
+  if (params.record.identityKey === null) return null;
+  if (params.state.laneConflict !== null) return null;
+  const identityId = params.state.customerByIdentityKey;
+  if (identityId === null) return null;
+  const otherLanes = [params.state.customerByEmail, params.state.customerByPhone];
+  if (!otherLanes.every(lane => lane === null || lane === identityId)) return null;
+  return identityId;
+}

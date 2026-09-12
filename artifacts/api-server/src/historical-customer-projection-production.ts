@@ -8,6 +8,7 @@ import { pickLaneCandidate } from "./lib/customer-identity";
 import {
   assessCustomerProjection,
   parseCustomerProjectionPackage,
+  resolveCreateReuseDowngrade,
   type CustomerProjectionPackage,
   type CustomerProjectionRecord,
 } from "./lib/historical-customer-projection-package";
@@ -264,32 +265,48 @@ async function applyOne(record: CustomerProjectionRecord, actorProfileId: number
         : [];
       if (txTargetRows.length > 1) throw new ProjectionRollback("conflict", "Hedef musteri kimligi belirsiz");
       const txTarget = txTargetRows[0] ?? null;
-      const assessment = assessCustomerProjection({
-        record,
-        state: {
-          reservation,
-          importStatus: historicalImport?.status ?? null,
-          customerByIdentityKey: txIdentityLane.id,
-          customerByEmail: txEmailLane.id,
-          customerByPhone: txPhoneLane.id,
-          laneConflict: txIdentityLane.conflict ?? txEmailLane.conflict ?? txPhoneLane.conflict,
-          targetCustomer: txTarget ? { id: txTarget.id, archivedAt: txTarget.archivedAt, identityKey: txTarget.identityKey } : null,
-        },
-      });
+      const revalidationState = {
+        reservation,
+        importStatus: historicalImport?.status ?? null,
+        customerByIdentityKey: txIdentityLane.id,
+        customerByEmail: txEmailLane.id,
+        customerByPhone: txPhoneLane.id,
+        laneConflict: txIdentityLane.conflict ?? txEmailLane.conflict ?? txPhoneLane.conflict,
+        targetCustomer: txTarget ? { id: txTarget.id, archivedAt: txTarget.archivedAt, identityKey: txTarget.identityKey } : null,
+      };
+      const assessment = assessCustomerProjection({ record, state: revalidationState });
       if (assessment.classification === "ALREADY_LINKED") return "existing";
-      if (assessment.classification === "CONFLICT_EXISTING_LINK"
-        || assessment.classification === "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS"
-        || assessment.classification === "CONFLICT_PHONE_EMAIL") {
-        throw new ProjectionRollback("conflict", `Projection cakismasi: ${assessment.classification}`);
-      }
-      if (assessment.classification !== "SAFE_REUSE_EXISTING_CUSTOMER"
-        && assessment.classification !== "SAFE_CREATE_NEW_CUSTOMER") {
-        throw new ProjectionRollback("blocked", `Projection uygun degil: ${assessment.classification}`);
+      // Phase 3H.4B1 — narrow CREATE→REUSE downgrade (see
+      // resolveCreateReuseDowngrade): the concurrent/sequential loser finds
+      // exactly one deterministic active customer under the held advisory
+      // lock and links to it instead of reporting conflict. Every other
+      // conflict still fails closed below.
+      const downgradedReuseId = resolveCreateReuseDowngrade({
+        record,
+        state: revalidationState,
+        classification: assessment.classification,
+        reservationCustomerId: reservation.customerId,
+      });
+      if (downgradedReuseId === null) {
+        if (assessment.classification === "CONFLICT_EXISTING_LINK"
+          || assessment.classification === "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS"
+          || assessment.classification === "CONFLICT_PHONE_EMAIL") {
+          throw new ProjectionRollback("conflict", `Projection cakismasi: ${assessment.classification}`);
+        }
+        if (assessment.classification !== "SAFE_REUSE_EXISTING_CUSTOMER"
+          && assessment.classification !== "SAFE_CREATE_NEW_CUSTOMER") {
+          throw new ProjectionRollback("blocked", `Projection uygun degil: ${assessment.classification}`);
+        }
       }
 
       let customerId = record.expectedReservationCustomerId;
       let created = false;
-      if (assessment.classification === "SAFE_CREATE_NEW_CUSTOMER") {
+      if (downgradedReuseId !== null) {
+        // Phase 3H.4B1 downgrade: link to the single deterministic active
+        // customer proven above. Audits below record reused (not created);
+        // the CAS link and outcome match the REUSE path exactly.
+        customerId = downgradedReuseId;
+      } else if (assessment.classification === "SAFE_CREATE_NEW_CUSTOMER") {
         if (record.identityKey === null) {
           throw new ProjectionRollback("blocked", "CREATE aksiyonu deterministik kimlik gerektirir");
         }

@@ -95,6 +95,17 @@ Guarantees: same projection twice → second is `existing`/reuse, one customer
 total; concurrent runs → at most one customer per identityKey; one identity
 across N reservations → one customer, N links.
 
+Phase 3H.4B1 refinement (concurrent/sequential loser): when a CREATE record
+revalidates under the held advisory lock and the assessment reports
+CONFLICT_MULTIPLE while the identity lane already resolves to exactly one
+active customer — with no lane multiplicity, no lane disagreement, an intact
+NULL→link CAS precondition, and unchanged source/evidence — the path
+downgrades to reuse-link (`reused`, emitting `historical_customer_reused` +
+`historical_customer_linked`) instead of reporting conflict. The pure
+`resolveCreateReuseDowngrade` gate rejects every other shape (non-CREATE,
+linked reservations, null identity, multiplicity, disagreement), so
+duplicate prevention and all fail-closed classifications are unchanged.
+
 ## 6. RBAC
 
 Dedicated admin-only permissions (seeded idempotently, never broad promote):
