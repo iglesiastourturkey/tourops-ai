@@ -707,6 +707,7 @@ The September pilot is ready when the team can complete real operational scenari
 > Automatically generated from recent commits on `main`. Keep product overview, architecture and roadmap sections curated by humans.
 
 ### Features
+- add customer identity projection safety foundation — `724dd8c` (2026-09-12)
 - add production-safe historical pickup correction runner — `6f78275` (2026-09-11)
 - split cruise and sejour operation subdomains end to end — `e2788f1` (2026-09-10)
 - split cruise and sejour operation experiences — `a35ef5a` (2026-09-10)
@@ -714,8 +715,6 @@ The September pilot is ready when the team can complete real operational scenari
 - add idempotent guard migration for historical promoted-hash check — `477e722` (2026-09-10)
 - add controlled exact-recovery correction CLI — `802b4f9` (2026-09-09)
 - add staging db execution adapter — `e954ff3` (2026-09-09)
-- add staging execution approval foundation — `f04da17` (2026-09-09)
-- add master import dry-run foundation — `12a7a48` (2026-09-09)
 
 ### Fixes
 - harden historical pickup normalization CAS and versioning — `75ef39d` (2026-09-11)
