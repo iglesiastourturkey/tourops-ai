@@ -137,6 +137,7 @@ check(migrationFiles.includes('0025_resource_identity_foundation.sql'), 'L: Phas
 const KNOWN_POST_0025_MIGRATIONS = new Set([
   '0026_historical_promoted_hash_guard.sql', // 3G.3 production preflight (non-personnel, additive guard)
   '0027_operation_domain_type.sql', // 3H.2 operation subdomains (non-personnel, additive nullable column + CHECK)
+  '0028_customer_identity_foundation.sql', // 3H.4B customer identity substrate (non-personnel, additive nullable columns + partial unique index + version default)
 ]);
 const post0025Migrations = migrationFiles.filter(name => /^002[6-9]|^00[3-9]\d/.test(name));
 check(post0025Migrations.every(name => KNOWN_POST_0025_MIGRATIONS.has(name)), 'L: Phase 2D.2 adds no migration of its own (only explicitly acknowledged non-personnel migrations may exist beyond 0025)');

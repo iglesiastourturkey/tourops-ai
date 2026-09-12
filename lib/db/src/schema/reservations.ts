@@ -121,6 +121,14 @@ export const reservationsTable = pgTable("reservations", {
   // normalized) index.
   sourceBookingReference: text("source_booking_reference"),
 
+  // Phase 3H.4B — CAS token for reservation mutations, mirroring the
+  // established operations.version convention (see routes/field.ts and the
+  // historical pickup-time correction). Every mutation must bump it; the
+  // future customer-link APPLY CASes on (customer_id IS NULL AND version
+  // = expected) so concurrent linkers fail closed instead of double-linking.
+  // NOT NULL DEFAULT 1: existing rows adopt 1 with no data migration.
+  version: integer("version").notNull().default(1),
+
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 }, (table) => ({

@@ -207,6 +207,12 @@ const MATRIX: PermRow[] = [
   ["historical_migration", "pickup_time_correct", ["admin"]],
   ["historical_migration", "customer_review", ["admin"]],
   ["historical_migration", "customer_link",   ["admin"]],
+  // Phase 3H.4B — customer identity & projection foundation. Dedicated
+  // split (never the broad promote permission): PLAN is read-only,
+  // CREATE/ LINK gate the future 3H.4C APPLY paths separately.
+  ["historical_migration", "customer_projection_plan", ["admin"]],
+  ["historical_migration", "customer_create",          ["admin"]],
+  ["historical_migration", "customer_link_projection", ["admin"]],
 ];
 
 // Non-super roles that appear in the matrix

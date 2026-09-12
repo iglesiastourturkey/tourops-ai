@@ -1,3 +1,9 @@
+import {
+  buildCustomerIdentityKey,
+  normalizeCustomerEmail,
+  normalizeCustomerPhone,
+} from "./customer-identity";
+
 export interface HistoricalContact {
   sourceKey: string;
   fullName: string | null;
@@ -5,29 +11,21 @@ export interface HistoricalContact {
   phone: string | null;
 }
 
+// Phase 3H.4B: canonical implementations live in ./customer-identity.
+// These wrappers preserve the exact historical semantics and export names.
 export function normalizeHistoricalEmail(value: string | null): string | null {
-  const normalized = value?.trim().toLowerCase() ?? "";
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) ? normalized : null;
+  return normalizeCustomerEmail(value);
 }
 
 export function normalizeHistoricalPhone(value: string | null): string | null {
-  if (!value) return null;
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length < 7 || digits.length > 15) return null;
-  return `${trimmed.startsWith("+") ? "+" : ""}${digits}`;
+  return normalizeCustomerPhone(value);
 }
 
 export type CustomerProjectionOutcome =
   | "CREATED" | "EXISTING" | "LINKED" | "CONFLICT" | "SKIPPED_NO_IDENTITY" | "FAILED";
 
 export function identityKey(contact: HistoricalContact): string | null {
-  const email = normalizeHistoricalEmail(contact.email);
-  const phone = normalizeHistoricalPhone(contact.phone);
-  if (email && phone) return `email:${email}|phone:${phone}`;
-  if (email) return `email:${email}`;
-  if (phone) return `phone:${phone}`;
-  return null;
+  return buildCustomerIdentityKey({ email: contact.email, phone: contact.phone });
 }
 
 export function resolveCustomerIdentity(params: {

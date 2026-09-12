@@ -21,6 +21,7 @@
     "historical:contact-source-audit": "tsx src/historical-contact-source-audit.ts",
     "historical:pending-inspect": "tsx src/historical-pending-inspect.ts",
     "historical:customer-link": "tsx src/historical-customer-link.ts",
+    "historical:customer-projection:production": "tsx src/historical-customer-projection-production.ts",
     "historical:pickup-time-correction": "tsx src/historical-pickup-time-correction.ts",
     "historical:pickup-time-correction:production": "tsx src/historical-pickup-time-correction-production.ts",
     "historical:exact-recovery-correction": "tsx src/historical-exact-recovery-correction.ts",
