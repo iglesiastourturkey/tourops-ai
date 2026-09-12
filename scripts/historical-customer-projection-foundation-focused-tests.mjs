@@ -134,6 +134,23 @@ assert.match(SELF_PACKAGE, /version beyond expected\+1/);
 assert.match(SELF_PACKAGE, /lane multiplicity on replay/);
 assert.match(SELF_PACKAGE, /lane disagreement on replay/);
 assert.match(SELF_PACKAGE, /target identity drift/);
+// --- Phase 3H.4B1: CREATE→REUSE downgrade wiring (concurrent/sequential loser) ---
+assert.match(PROD, /resolveCreateReuseDowngrade/);
+assert.match(PACKAGE, /export function resolveCreateReuseDowngrade/);
+assert.match(PACKAGE, /record\.action !== "CREATE"/);
+assert.match(PACKAGE, /reservationCustomerId !== null/);
+assert.match(PACKAGE, /record\.identityKey === null/);
+assert.match(PACKAGE, /state\.laneConflict !== null/);
+// downgrade is evaluated before the assessment-conflict throw, never after mutation
+assert.ok(
+  applyFn.indexOf("resolveCreateReuseDowngrade") < applyFn.indexOf("Projection cakismasi"),
+  "downgrade check precedes the assessment conflict throw",
+);
+assert.ok(
+  applyFn.indexOf("if (downgradedReuseId !== null)") < applyFn.indexOf("if (assessment.classification === \"SAFE_CREATE_NEW_CUSTOMER\")"),
+  "downgraded reuse links without entering the create path",
+);
+assert.match(SELF_PACKAGE, /sequential\/concurrent loser/);
 // --- 13/14. migration: no backfill, incompatible index fails closed ---
 assert.match(MIGRATION, /RAISE EXCEPTION.*incompatible definition/);
 assert.match(MIGRATION, /existing_index_def/);

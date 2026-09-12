@@ -3,7 +3,9 @@ import {
   assessCustomerProjection,
   buildProjectionRecords,
   parseCustomerProjectionPackage,
+  resolveCreateReuseDowngrade,
   type CustomerProjectionRecord,
+  type ProjectionDbState,
 } from "./lib/historical-customer-projection-package";
 import { identityEvidenceHash } from "./lib/customer-identity";
 
@@ -330,6 +332,101 @@ assert.equal(
     state: { ...liveState, customerByIdentityKey: 21 },
   }).classification !== "SAFE_CREATE_NEW_CUSTOMER",
   true,
+);
+
+// --- Phase 3H.4B1: CREATE→REUSE downgrade decision table (pure) ---
+const downgradeState = (overrides: Partial<ProjectionDbState> = {}): ProjectionDbState => ({
+  reservation: {
+    id: 4, customerId: null, version: 1,
+    leadGuestName: "Jane Doe", sourceHistoricalKey: "legacy:file1:ws:3",
+  },
+  importStatus: "imported",
+  customerByIdentityKey: 21,
+  customerByEmail: null,
+  customerByPhone: null,
+  laneConflict: null,
+  targetCustomer: null,
+  ...overrides,
+});
+// A/B. sequential/concurrent loser: single agreeing identity lane -> reuse id
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState(),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  21,
+);
+// lanes agreeing with the identity customer also permit downgrade
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState({ customerByPhone: 21 }),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  21,
+);
+// F. lane disagreement never downgrades
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState({ customerByPhone: 22 }),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  null,
+);
+// G. multiplicity never downgrades
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState({ laneConflict: "identity" }),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  null,
+);
+// non-CREATE records never downgrade
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: reuseRecord,
+    state: downgradeState(),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  null,
+);
+// non-conflict classifications never downgrade
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState(),
+    classification: "SAFE_CREATE_NEW_CUSTOMER",
+    reservationCustomerId: null,
+  }),
+  null,
+);
+// already-linked reservations never downgrade (replay owns that path)
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState(),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: 21,
+  }),
+  null,
+);
+// missing identity lane never downgrades
+assert.equal(
+  resolveCreateReuseDowngrade({
+    record: createRecord,
+    state: downgradeState({ customerByIdentityKey: null }),
+    classification: "CONFLICT_MULTIPLE_EXISTING_CUSTOMERS",
+    reservationCustomerId: null,
+  }),
+  null,
 );
 
 console.log("customer projection package self-test: passed");
