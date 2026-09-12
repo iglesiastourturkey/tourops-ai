@@ -714,9 +714,9 @@ The September pilot is ready when the team can complete real operational scenari
 - add historical operation domain correction foundation — `c129d4e` (2026-09-10)
 - add idempotent guard migration for historical promoted-hash check — `477e722` (2026-09-10)
 - add controlled exact-recovery correction CLI — `802b4f9` (2026-09-09)
-- add staging db execution adapter — `e954ff3` (2026-09-09)
 
 ### Fixes
+- reuse customer after concurrent projection create — `a4b76fb` (2026-09-12)
 - harden historical pickup normalization CAS and versioning — `75ef39d` (2026-09-11)
 - refresh approved staging plan digest — `e30e505` (2026-09-09)
 
