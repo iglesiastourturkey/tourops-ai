@@ -11,6 +11,21 @@ export const customersTable = pgTable("customers", {
   phone: text("phone"),
   email: text("email"),
   whatsapp: text("whatsapp"),
+  // Phase 3H.4B — canonical identity substrate (additive, all nullable).
+  // Raw phone/email stay the human-facing source of truth; these columns
+  // carry the deterministic normalized forms produced by
+  // artifacts/api-server/src/lib/customer-identity.ts and are the ONLY
+  // fields the future customer-projection identity resolution may use.
+  // NULL is legitimate: a customer without usable contact identity has
+  // no normalized identity and never participates in identity matching.
+  normalizedPhone: text("normalized_phone"),
+  normalizedEmail: text("normalized_email"),
+  // Deterministic identity key, e.g. "email:a@b.c|phone:+123" or the
+  // single-evidence variants; NULL when neither evidence validates.
+  // Uniqueness among active customers is enforced by migration 0028
+  // (partial unique index WHERE archived_at IS NULL AND identity_key
+  // IS NOT NULL). Names never participate in this key.
+  identityKey: text("identity_key"),
   customerType: text("customer_type").notNull().default("individual"),
   travelPreferences: text("travel_preferences"),
   dietaryRestrictions: text("dietary_restrictions"),
